@@ -1,3 +1,5 @@
+import type { Task } from './types';
+
 // Groq requires every object property to be required in strict mode.
 // An unused section is represented by an empty array or empty strings.
 const text = { type: 'string' };
@@ -48,11 +50,33 @@ const strictGroqModels = new Set([
   'meta-models/muse-spark-open',
 ]);
 
-export function groqResponseFormat(model: string) {
+// Request only the sections needed for this action, retaining strict validation
+// without forcing a full lesson into the small completion budget.
+export function lessonSchemaForTask(task: Task) {
+  const properties: Record<string, unknown> = { summary: lessonSchema.properties.summary };
+  if (task === 'explain') properties.concepts = lessonSchema.properties.concepts;
+  if (task === 'example') properties.example = lessonSchema.properties.example;
+  if (task === 'impact') {
+    properties.predictions = lessonSchema.properties.predictions;
+    properties.checks = lessonSchema.properties.checks;
+  }
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: Object.keys(properties),
+    properties,
+  };
+}
+
+export function groqResponseFormat(model: string, task?: Task) {
   return strictGroqModels.has(model)
     ? {
         type: 'json_schema',
-        json_schema: { name: 'code_lesson', strict: true, schema: lessonSchema },
+        json_schema: {
+          name: 'code_lesson',
+          strict: true,
+          schema: task ? lessonSchemaForTask(task) : lessonSchema,
+        },
       }
     : { type: 'json_object' };
 }

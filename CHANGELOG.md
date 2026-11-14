@@ -2,6 +2,7 @@
 
 ## 0.1.2
 
+- Merge compact task prompts, the 200-token output cap, provider usage reporting, and on-demand examples across VS Code and IntelliJ; retain language-aware requests, native Java hover, and cached definitions.
 - Add compact, local Java explanations to IntelliJ's native documentation hover, preserving signatures/Javadoc and using editor theme colors, with one link to the learning panel.
 - Adopt Cesar's short hover explanations with highlighted code names and clickable concept definitions in both learning panels.
 - Reconcile the merged hover breakdowns, local binding explanations, concept tooltips, and repeatable edit experiments with both IDE adapters.

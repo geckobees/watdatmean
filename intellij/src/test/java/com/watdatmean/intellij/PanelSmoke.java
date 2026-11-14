@@ -71,13 +71,14 @@ final class PanelSmoke implements AutoCloseable {
     check(expectMessage("request").get("task").getAsString().equals("explain"), "Real JCEF query reaches Java");
     send("""
       {"type":"lesson","task":"explain","provider":"test","model":"fixture","cached":false,
-       "lesson":{"title":"Double a value","summary":"For an input of 3, the method returns 6. <img src=x onerror=alert(1)>",
+       "lesson":{"usage":{"input":200,"output":70,"total":270},"title":"Double a value","summary":"For an input of 3, the method returns 6. <img src=x onerror=alert(1)>",
        "steps":["Read value.","Multiply by 2.","Return the result."],
        "concepts":[{"term":"return","explanation":"Sends the computed result back to the caller."}],
        "example":{"code":"int price = doubleIt(3); // 6","explanation":"Three doubled is six."},"predictions":[],"checks":[]}}
       """);
     check(evaluate("document.querySelectorAll('#explanation img').length").getAsInt() == 0, "Model content remains text");
     check(evaluate("document.getElementById('explanation').textContent").getAsString().contains("<img"), "Hostile markup displayed literally");
+    check(evaluate("document.getElementById('explanation').textContent").getAsString().contains("270 tokens (200 input + 70 output)"), "Provider usage reaches the native IntelliJ panel");
     evaluate("(document.querySelector('[data-tab=impact]').click(), true)");
     send("{\"type\":\"preview\",\"errors\":[],\"syntaxChecked\":false}");
     check(evaluate("document.getElementById('apply').disabled").getAsBoolean(), "Unsupported syntax checker blocks Apply");

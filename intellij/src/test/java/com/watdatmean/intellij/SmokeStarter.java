@@ -27,6 +27,9 @@ public final class SmokeStarter implements ApplicationStarter {
       RuntimeSmoke.run();
       var bridge = new Bridge();
       try {
+        var defaults = bridge.call("defaults", new JsonObject()).get(20, TimeUnit.SECONDS).getAsJsonObject();
+        for (String provider : List.of("openai", "anthropic", "groq"))
+          check(defaults.get(provider).getAsString().equals(Settings.defaultModel(provider)), "Native and shared provider defaults agree for " + provider);
         var input = new JsonObject(); input.addProperty("code", "const score: number = 0;"); input.addProperty("start", 8); input.addProperty("end", 8);
         var result = bridge.call("inspect", input).get(20, TimeUnit.SECONDS).getAsJsonObject();
         check(result.get("symbol").getAsString().equals("score"), "Java/Node stdio bridge returns the TypeScript symbol");

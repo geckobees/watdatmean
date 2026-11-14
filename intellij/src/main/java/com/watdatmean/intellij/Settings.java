@@ -21,8 +21,8 @@ public final class Settings implements PersistentStateComponent<Settings.Values>
   public static String defaultModel(String provider) {
     return switch (provider) {
       case "anthropic" -> "claude-haiku-4-5";
-      case "groq" -> "openai/gpt-oss-20b";
-      default -> "gpt-5.4-mini";
+      case "groq" -> "qwen/qwen3.8-27b";
+      default -> "gpt-4.1-mini";
     };
   }
 }

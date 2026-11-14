@@ -90,7 +90,7 @@ export class BridgeCore {
         };
       });
     }
-    const cacheKey = fingerprint({ version: 2, provider, model, request });
+    const cacheKey = fingerprint({ version: 3, provider, model, request });
     const cached = this.cache.get(cacheKey);
     if (cached) return { lesson: cached, cached: true, provider, model };
     const controller = new AbortController();

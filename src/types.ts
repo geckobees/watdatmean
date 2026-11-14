@@ -37,7 +37,13 @@ export interface LearningRequest {
   replacement?: string;
   concept?: string;
 }
+export interface TokenUsage {
+  input: number;
+  output: number;
+  total: number;
+}
 export interface Lesson {
+  usage?: TokenUsage;
   title: string;
   summary: string;
   steps: string[];

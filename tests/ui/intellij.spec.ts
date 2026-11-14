@@ -49,6 +49,7 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
           model: 'fixture',
           cached: false,
           lesson: {
+            usage: { input: 200, output: 70, total: 270 },
             title: 'Return a value',
             summary: 'The return statement sends a value back to the caller.',
             steps: [],
@@ -66,6 +67,7 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
       }),
     ),
   );
+  await expect(page.locator('#explanation')).toContainText('270 tokens (200 input + 70 output)');
   await page.getByRole('button', { name: 'Define return', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Definition of return' })).toContainText(
     'Ends the method',

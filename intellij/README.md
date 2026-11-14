@@ -47,6 +47,19 @@ under **Settings → Editor → Code Editing**, or use **Quick Documentation** f
 The added hover explanation currently supports Java. Other languages keep their IDE
 documentation and can use the existing selection/cursor action to open WatDatMean.
 
+### Short AI responses and token usage
+
+IntelliJ uses the same compact prompts and **200-token output cap** as VS Code, while
+keeping explanations and examples in the selected code's language. Examples and deeper
+concept explanations are separate actions; opening an existing concept definition is local.
+The panel displays provider-reported input/output usage and **0 new tokens** for cached results.
+The 500-token total is a target for small requests; full source context can exceed it.
+Cut-short or invalid responses are reported without automatic retries.
+
+Defaults match VS Code: `gpt-4.1-mini`, `claude-haiku-4-5`, and `qwen/qwen3.8-27b`.
+Saved model overrides remain unchanged. To adopt a new default, use **Connect provider**
+and enter its model ID. See the root guide's [token usage notes](../README.md#token-usage).
+
 ### Automatic runtime setup
 
 WatDatMean checks the configured executable (or `node` on PATH), then its private runtime.

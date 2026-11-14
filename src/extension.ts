@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
           const args = encodeURIComponent(
             JSON.stringify([{ uri: document.uri.toString(), offset: document.offsetAt(position) }]),
           );
-          md.appendMarkdown(`[Open learning panel →](command:watdatmean.inspect?${args})`);
+          md.appendMarkdown(`[Wat Dat Mean? →](command:watdatmean.inspect?${args})`);
           md.isTrusted = { enabledCommands: ['watdatmean.inspect'] };
           return new vscode.Hover(md);
         },
@@ -402,7 +402,7 @@ class Tutor implements vscode.Disposable {
     this.send({ type: 'busy', value: true });
     try {
       if (m.type === 'apply') {
-        if (typeof m.replacement === 'string') await this.apply(m.replacement);
+        if (typeof m.replacement === 'string') await this.apply(m.replacement, abort.signal);
         return;
       }
       if (m.type === 'preview') {
@@ -441,7 +441,7 @@ class Tutor implements vscode.Disposable {
       }
       if (abort.signal.aborted) return;
       const model = config.model || defaults[config.provider];
-      const cacheKey = fingerprint({ version: 1, provider: config.provider, model, request });
+      const cacheKey = fingerprint({ version: 2, provider: config.provider, model, request });
       const cached = this.cache.get(cacheKey);
       const lesson = cached ?? (await generate(config.provider, model, key, request, abort.signal));
       if (abort.signal.aborted || selection !== this.selection) return;
@@ -526,7 +526,7 @@ class Tutor implements vscode.Disposable {
     }
   }
 
-  private async apply(replacement: string) {
+  private async apply(replacement: string, signal: AbortSignal) {
     this.trusted();
     const selection = this.current();
     assertPreviewCurrent(this.preview, replacement, this.revision);
@@ -536,7 +536,7 @@ class Tutor implements vscode.Disposable {
       { modal: true },
       'Use this code',
     );
-    if (confirmed !== 'Use this code') return;
+    if (confirmed !== 'Use this code' || signal.aborted) return;
     this.current();
     if (selection !== this.selection || preview !== this.preview)
       throw new Error('The code changed. Choose “See what changes” again.');

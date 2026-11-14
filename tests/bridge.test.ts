@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { BridgeCore } from '../src/bridge/core';
-import { instructions, makeRequest } from '../src/provider';
+import { makeRequest } from '../src/provider';
 
 const lesson = {
   title: 'A loop',
@@ -53,12 +53,14 @@ describe('IDE-neutral learning bridge', () => {
       'request',
       params('Python', { context: 'PRIVATE PROJECT', evidence: [{ code: 'PRIVATE EVIDENCE' }] }),
     );
-    const sent = JSON.parse(JSON.parse(transport.mock.calls[0][1].body).input);
+    const body = JSON.parse(transport.mock.calls[0][1].body);
+    const sent = JSON.parse(body.input);
     expect(sent.language).toBe('Python');
     expect(sent).not.toHaveProperty('context');
     expect(sent).not.toHaveProperty('evidence');
-    expect(instructions).toContain('requested language');
-    expect(instructions).not.toContain('runnable TypeScript');
+    expect(body.instructions).toContain('request language');
+    expect(body.instructions).not.toContain('Teach TypeScript');
+    expect(body.max_output_tokens).toBe(200);
   });
   it('separates cache entries by language, guidance, and context, and clears them', async () => {
     const transport = vi.fn().mockImplementation(async () => response());
@@ -115,6 +117,51 @@ describe('IDE-neutral learning bridge', () => {
       audience: 'beginner',
       code: 'const count = 1;',
     });
-    expect(JSON.parse(request.body).instructions).toContain('If omitted, use TypeScript');
+    expect(JSON.parse(request.body).instructions).toContain('default TypeScript');
+  });
+  it.each(['Java', 'Python', 'unknown'])(
+    'keeps the compact example request language-aware for %s',
+    async (language) => {
+      const transport = vi.fn().mockImplementation(async () => response());
+      await new BridgeCore(transport).dispatch(1, 'request', params(language, { task: 'example' }));
+      const body = JSON.parse(transport.mock.calls[0][1].body);
+      expect(JSON.parse(body.input)).toMatchObject({ language, task: 'example' });
+      expect(body.instructions).toContain('example in the requested language');
+      expect(body.instructions).toContain('if unknown, infer cautiously');
+      expect(body.max_output_tokens).toBe(200);
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('returns reported usage to IntelliJ and reuses the compact lesson without another request', async () => {
+    const transport = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: [
+              {
+                content: [
+                  {
+                    type: 'output_text',
+                    text: JSON.stringify({ summary: 'Returns twice the input.' }),
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 210, output_tokens: 30, total_tokens: 240 },
+          }),
+        ),
+    );
+    const core = new BridgeCore(transport);
+    const request = params('Java', { code: 'int twice(int value) { return value * 2; }' });
+    const result = await core.dispatch(1, 'request', request);
+    expect(result).toMatchObject({
+      cached: false,
+      lesson: {
+        summary: 'Returns twice the input.',
+        usage: { input: 210, output: 30, total: 240 },
+      },
+    });
+    expect(await core.dispatch(2, 'request', request)).toMatchObject({ cached: true });
+    expect(transport).toHaveBeenCalledTimes(1);
   });
 });
