@@ -249,6 +249,11 @@ export function statementParts(
     if (token === '(' || token === ')') {
       const open = token === '(';
       if (isCall(parent)) {
+        const role = argument(parent)
+          ? 'Inner'
+          : parent.arguments?.some((input) => isCall(input))
+            ? 'Outer'
+            : '';
         const count = parent.arguments?.length ?? 0;
         const inputs = parent.arguments?.some(ts.isSpreadElement)
           ? 'arguments that include spread values'
@@ -256,10 +261,11 @@ export function statementParts(
             ? `${count} argument${count === 1 ? '' : 's'}`
             : 'no arguments';
         return explain(
-          open
-            ? `Calls ${text(parent.expression)} with ${inputs}.`
-            : `Ends the call to ${text(parent.expression)}.${result(parent)}`,
-          'Arguments are evaluated before the function runs. A nested call supplies its return value to the surrounding call.',
+          (role ? `${role} parenthesis: ` : '') +
+            (open
+              ? `Calls ${text(parent.expression)} with ${inputs}.`
+              : `Ends the call to ${text(parent.expression)}.${result(parent)}`),
+          `This parenthesis belongs to ${text(parent.expression)}. Inputs are worked out before that call runs. An inner call’s result becomes an input to the outer call.`,
         );
       }
       if (ts.isFunctionLike(parent))

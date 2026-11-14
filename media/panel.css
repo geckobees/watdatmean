@@ -326,15 +326,51 @@ textarea {
   letter-spacing: 0.8px;
 }
 .lesson p,
-.lesson li {
+.lesson li,
+.concept-copy {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.concept-copy {
+  margin: 8px 0 16px;
+}
 .concept-term {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: inherit;
   color: var(--accent);
   text-decoration: underline dotted;
   text-underline-offset: 3px;
-  cursor: help;
+  cursor: pointer;
+}
+.concept-term:hover,
+.concept-term[aria-expanded='true'] {
+  text-decoration-style: solid;
+}
+.concept-definition {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+  background: var(--card);
+  white-space: normal;
+}
+.concept-definition-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.concept-definition-heading strong {
+  overflow-wrap: anywhere;
+}
+.concept-definition p {
+  margin: 4px 0 12px;
 }
 .concept-term:focus-visible {
   outline: 2px solid var(--vscode-focusBorder, #9bd7b4);

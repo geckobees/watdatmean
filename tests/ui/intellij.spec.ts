@@ -39,6 +39,48 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
     type: 'request',
     task: 'explain',
   });
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: {
+          type: 'lesson',
+          task: 'explain',
+          provider: 'test',
+          model: 'fixture',
+          cached: false,
+          lesson: {
+            title: 'Return a value',
+            summary: 'The return statement sends a value back to the caller.',
+            steps: [],
+            concepts: [
+              {
+                term: 'return',
+                explanation: 'Ends the method and sends its result to the caller.',
+              },
+            ],
+            example: { code: '', explanation: '' },
+            predictions: [],
+            checks: [],
+          },
+        },
+      }),
+    ),
+  );
+  await page.getByRole('button', { name: 'Define return', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Definition of return' })).toContainText(
+    'Ends the method',
+  );
+  expect(
+    await page.evaluate(
+      () => (window as any).messages.filter((m: any) => m.type === 'request').length,
+    ),
+  ).toBe(1);
+  await page.getByRole('button', { name: 'Explain further · AI ↗', exact: true }).click();
+  expect(await page.evaluate(() => (window as any).messages.at(-1))).toMatchObject({
+    type: 'request',
+    task: 'concept',
+    concept: 'return',
+  });
   await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
   await page.evaluate(() =>
     window.dispatchEvent(

@@ -1,25 +1,28 @@
-// Classify known failures without displaying provider messages, source, or credentials.
+// Classify known rejection hints, but never echo provider messages: they can
+// contain request code, keys, or other private content.
 export function rejectionMessage(status: number, payload: unknown): string {
   if (status === 401 || status === 403)
-    return 'The provider rejected the API key or access. Check your key and model permissions.';
+    return 'API key rejected or model access denied. Configure your provider and key again.';
   if (status === 429)
-    return 'The provider rate limit or quota was reached. Check your account and retry later.';
-  if (status >= 500) return 'The provider is temporarily unavailable. Please retry later.';
-  const error =
-    payload && typeof payload === 'object' && 'error' in payload ? payload.error : undefined;
-  const details = error && typeof error === 'object' ? (error as Record<string, unknown>) : {};
-  if (
-    details.param === 'reasoning_effort' ||
-    (typeof details.message === 'string' && details.message.includes('reasoning_effort'))
-  )
-    return 'The model rejected the reasoning setting. Choose a compatible model.';
-  if (details.code === 'model_not_found' || status === 404)
-    return 'The model was not found or is unavailable to your account. Check the configured model ID.';
-  if (details.param === 'response_format')
-    return 'The model rejected the structured response format. Choose a compatible model.';
-  if (details.code === 'context_length_exceeded')
-    return 'This request exceeds the model context limit. Select a smaller block of code.';
-  if (details.code === 'json_validate_failed')
-    return 'The model could not produce the required JSON response. Retry or choose a different model.';
-  return `The provider rejected a request setting (HTTP ${status}). Check the configured model and try again.`;
+    return 'Provider quota or rate limit reached. Check billing or wait before retrying.';
+  if (status === 400 || status === 404) {
+    const error =
+      payload && typeof payload === 'object' && 'error' in payload ? payload.error : undefined;
+    const data = error && typeof error === 'object' ? (error as Record<string, unknown>) : {};
+    const hints = ['param', 'code', 'type', 'message']
+      .map((key) => (typeof data[key] === 'string' ? data[key].toLowerCase() : ''))
+      .join(' ');
+    if (hints.includes('reasoning_effort'))
+      return 'The provider rejected the reasoning setting for this model. Choose a compatible model.';
+    if (hints.includes('model_not_found') || status === 404)
+      return 'The requested model was not found or is unavailable to your account. Check your model setting.';
+    if (hints.includes('context_length_exceeded'))
+      return 'The request exceeded the model’s context limit. Select a smaller block of code.';
+    if (hints.includes('json_validate_failed'))
+      return 'The model could not produce the required JSON response. Try a smaller selection or a different model.';
+    if (hints.includes('response_format') || hints.includes('json_schema'))
+      return 'The provider rejected the structured response format for this model. Choose a compatible model.';
+    return 'The provider rejected a request setting (HTTP 400). Check your model and provider settings.';
+  }
+  return `The AI provider returned HTTP ${status}. Please retry later.`;
 }

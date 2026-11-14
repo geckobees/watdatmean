@@ -21,8 +21,9 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 5. Click **Connect provider**. Set the provider, model, and API key. You can also select
    a Node executable or disable automatic downloads. A blank key keeps
    the existing key. Configuration alone does not send code or validate the key.
-6. Use **Understand**, **Another example**, or **Try it yourself**. Concept tooltips,
-   expansions, guidance levels, repeated comparisons, and resetting your draft use
+6. Use **Understand**, **Another example**, or **Try it yourself**. Click underlined concepts
+   to open their definitions without another AI request, or choose **Explain further · AI**.
+   Concept expansions, guidance levels, repeated comparisons, and resetting your draft use
    the same panel as VS Code. Applied edits reload the selected range for another experiment.
 
 Use **Find Action** to run **WatDatMean: Remove API Key** or
@@ -60,7 +61,7 @@ on the plugins and edition of IntelliJ being used. Community Edition can still s
 selected text to AI without those services. Unresolved references do not establish
 that an edit is harmless. Test files are identified by path/name, not execution.
 
-VS Code retains the expanded hover breakdowns from main. IntelliJ presents offline pieces in
+VS Code uses short hover explanations with code names highlighted. IntelliJ presents offline pieces in
 the learning tool window; it does not replace IntelliJ's native documentation hover.
 
 ## Privacy and edits

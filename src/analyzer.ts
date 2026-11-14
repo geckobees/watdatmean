@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import type { Part, Snippet } from './types';
 import { statementParts } from './syntax';
+import { hoverExplanation } from './hover-explanation';
 
 const glossary: Record<string, [string, string]> = {
   const: [
@@ -92,6 +93,8 @@ function isTarget(node: ts.Node) {
     ts.isPropertyDeclaration(node) ||
     ts.isFunctionDeclaration(node) ||
     ts.isMethodDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node) ||
     ts.isConstructorDeclaration(node) ||
     ts.isClassDeclaration(node) ||
     ts.isInterfaceDeclaration(node) ||
@@ -153,7 +156,7 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
     if (start >= node.end) break;
     const part = special.get(start);
     // Missing syntax can create zero-width nodes; never rewind the scanner.
-    if (part && part.token.length > 0) {
+    if (part?.token.length) {
       const initializer = declarations.find(
         (d) => d.initializer?.getStart(source) === start,
       )?.initializer;
@@ -229,6 +232,10 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
     end,
     symbol: symbolNode?.getText(source) ?? '',
     symbolOffset: symbolNode?.getStart(source) ?? offset,
+    explanation:
+      target && start === target.getStart(source) && end === target.end
+        ? hoverExplanation(target, source, offset)
+        : undefined,
     parts:
       target && start === target.getStart(source) && end === target.end
         ? syntaxParts(target, source)

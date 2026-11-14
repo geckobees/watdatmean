@@ -12,6 +12,7 @@
   let originalCode = '';
   let focusAfterWork = false;
   const conceptTargets = new Map();
+  let definitionId = 0;
   const saved = host.getState() || {};
   $('mode').value = saved.mode || 'standalone';
   let chosenMode = $('mode').value;
@@ -21,12 +22,39 @@
     if (className) element.className = className;
     return element;
   };
-  function appendConceptText(parent, text, concepts) {
+  function addConceptExpansion(parent, concept, label = 'Explain this concept ↗') {
+    const target = node('div', undefined, 'concept-result');
+    target.hidden = true;
+    const more = node('button', label, 'secondary ai-action');
+    more.type = 'button';
+    more.disabled = busy || stale;
+    more.onclick = () => {
+      conceptTargets.set(concept.term, target);
+      request('concept', { concept: concept.term });
+    };
+    parent.append(more, target);
+  }
+  function appendConceptText(parent, text, concepts, nested = false) {
     const terms = concepts
       .filter((concept) => concept.term && concept.explanation)
       .slice()
       .sort((a, b) => b.term.length - a.term.length);
     const word = (character) => !!character && /[\p{L}\p{N}_]/u.test(character);
+    const definitions = new Map();
+    let active;
+    function closeDefinition(returnFocus = false) {
+      if (!active) return;
+      active.card.hidden = true;
+      active.button.setAttribute('aria-expanded', 'false');
+      if (returnFocus) active.button.focus();
+      active = undefined;
+    }
+    parent.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && active) {
+        event.stopPropagation();
+        closeDefinition(true);
+      }
+    });
     let cursor = 0;
     while (cursor < text.length) {
       let match;
@@ -46,16 +74,45 @@
       if (match.index > cursor)
         parent.append(document.createTextNode(text.slice(cursor, match.index)));
       const term = node(
-        'span',
+        'button',
         text.slice(match.index, match.index + match.concept.term.length),
         'concept-term',
       );
+      term.type = 'button';
       term.title = match.concept.explanation;
-      term.tabIndex = 0;
-      term.setAttribute('aria-label', `${term.textContent}: ${match.concept.explanation}`);
+      term.setAttribute('aria-label', `Define ${term.textContent}`);
+      term.setAttribute('aria-expanded', 'false');
+      let card = definitions.get(match.concept.term);
+      if (!card) {
+        card = node('div', undefined, 'concept-definition');
+        card.id = `concept-definition-${++definitionId}`;
+        card.hidden = true;
+        card.setAttribute('role', 'region');
+        card.setAttribute('aria-label', `Definition of ${match.concept.term}`);
+        const heading = node('div', undefined, 'concept-definition-heading');
+        const close = node('button', '×', 'quiet');
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Close definition');
+        close.onclick = () => closeDefinition(true);
+        heading.append(node('strong', match.concept.term), close);
+        card.append(heading, node('p', match.concept.explanation));
+        if (!nested) addConceptExpansion(card, match.concept, 'Explain further · AI ↗');
+        definitions.set(match.concept.term, card);
+      }
+      term.setAttribute('aria-controls', card.id);
+      term.onclick = () => {
+        const wasOpen = active?.button === term;
+        closeDefinition();
+        if (!wasOpen) {
+          card.hidden = false;
+          term.setAttribute('aria-expanded', 'true');
+          active = { button: term, card };
+        }
+      };
       parent.append(term);
       cursor = match.index + match.concept.term.length;
     }
+    parent.append(...definitions.values());
   }
   const updateButtons = () => {
     document.querySelectorAll('.ai-action, .work-action').forEach((button) => {
@@ -154,15 +211,15 @@
   function renderLesson(lesson, meta, nested = false) {
     const root = node('article', undefined, 'lesson');
     root.append(node('div', meta, 'result-meta'), node('h2', lesson.title));
-    const summary = node('p');
-    appendConceptText(summary, lesson.summary, lesson.concepts);
+    const summary = node('div', undefined, 'concept-copy');
+    appendConceptText(summary, lesson.summary, lesson.concepts, nested);
     root.append(summary);
     if (lesson.steps.length) {
       root.append(node('h3', 'Walk through it'));
       const list = node('ol');
       lesson.steps.forEach((step) => {
         const item = node('li');
-        appendConceptText(item, step, lesson.concepts);
+        appendConceptText(item, step, lesson.concepts, nested);
         list.append(item);
       });
       root.append(list);
@@ -172,16 +229,7 @@
       lesson.concepts.forEach((concept) => {
         const detail = node('details');
         detail.append(node('summary', concept.term), node('p', concept.explanation));
-        if (!nested) {
-          const target = node('div', undefined, 'concept-result');
-          target.hidden = true;
-          const more = node('button', 'Explain this concept ↗', 'secondary ai-action');
-          more.onclick = () => {
-            conceptTargets.set(concept.term, target);
-            request('concept', { concept: concept.term });
-          };
-          detail.append(more, target);
-        }
+        if (!nested) addConceptExpansion(detail, concept);
         root.append(detail);
       });
     }
@@ -192,8 +240,8 @@
         pre.append(node('code', lesson.example.code));
         root.append(pre);
       }
-      const exampleExplanation = node('p');
-      appendConceptText(exampleExplanation, lesson.example.explanation, lesson.concepts);
+      const exampleExplanation = node('div', undefined, 'concept-copy');
+      appendConceptText(exampleExplanation, lesson.example.explanation, lesson.concepts, nested);
       root.append(exampleExplanation);
     }
     lesson.predictions.forEach((prediction) => {
