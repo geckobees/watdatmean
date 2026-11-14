@@ -14,6 +14,7 @@
   <depends>com.intellij.modules.java</depends>
   <extensions defaultExtensionNs="com.intellij">
     <toolWindow id="WatDatMean" anchor="right" factoryClass="com.watdatmean.intellij.LearningToolWindow"/>
+    <lang.documentationProvider language="JAVA" implementationClass="com.watdatmean.intellij.HoverDocumentation" order="first"/>
   </extensions>
   <actions>
     <action id="WatDatMean.Inspect" class="com.watdatmean.intellij.InspectAction"

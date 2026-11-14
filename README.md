@@ -1,6 +1,6 @@
 # WatDatMean
 
-**Learn programming through the code you are already working on.** WatDatMean supports **VS Code** and **IntelliJ IDEA** with a shared learning engine and panel. VS Code provides short TypeScript (`.ts`) hover explanations with code names highlighted; IntelliJ explains selected code in the editor's language. Both provide free local TypeScript syntax breakdowns in the panel and optional OpenAI, Anthropic, or Groq help.
+**Learn programming through the code you are already working on.** WatDatMean supports **VS Code** and **IntelliJ IDEA** with a shared learning engine and panel. VS Code provides short TypeScript (`.ts`) hover explanations; IntelliJ adds compact Java explanations with theme colors to its native documentation popup. IntelliJ also explains selected code in the editor's language. Both provide free local TypeScript syntax breakdowns in the panel and optional OpenAI, Anthropic, or Groq help.
 
 For IntelliJ installation, automatic Node.js setup, language capabilities, and builds, see [the IntelliJ guide](intellij/README.md). This release targets IntelliJ **2022.3–2025.2.x**; the same Java 17 plugin has been tested on Community 2022.3 and 2025.2.4.
 

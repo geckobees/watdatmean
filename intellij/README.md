@@ -29,6 +29,24 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 Use **Find Action** to run **WatDatMean: Remove API Key** or
 **WatDatMean: Clear Explanation Cache**. The provider configuration is also in **Tools**.
 
+### Compact Java hover
+
+Hover over a Java declaration, call, variable, or supported statement keyword to see a
+short WatDatMean explanation inside IntelliJ's normal documentation popup. The native
+signature, Javadoc, links, and Ctrl-hover navigation remain available. Code names,
+types, and keywords use your editor's color scheme, including light and dark themes.
+
+The explanation covers inputs and return types, starting values, object creation,
+simple nested calls, assignments, and common control flow. It is generated locally:
+hovering needs neither Node.js nor an API key and does not make an AI request.
+Choose **Open learning panel →** for examples, concept definitions, and edit experiments
+using the hovered code. AI features in that panel still require a connected provider.
+
+If mouse hover documentation is disabled, enable **Show quick documentation on hover**
+under **Settings → Editor → Code Editing**, or use **Quick Documentation** from Find Action.
+The added hover explanation currently supports Java. Other languages keep their IDE
+documentation and can use the existing selection/cursor action to open WatDatMean.
+
 ### Automatic runtime setup
 
 WatDatMean checks the configured executable (or `node` on PATH), then its private runtime.
@@ -61,8 +79,9 @@ on the plugins and edition of IntelliJ being used. Community Edition can still s
 selected text to AI without those services. Unresolved references do not establish
 that an edit is harmless. Test files are identified by path/name, not execution.
 
-VS Code uses short hover explanations with code names highlighted. IntelliJ presents offline pieces in
-the learning tool window; it does not replace IntelliJ's native documentation hover.
+VS Code uses short TypeScript hover explanations with code names highlighted. IntelliJ
+adds a compact Java explanation to its native documentation popup. Both retain the
+shared learning tool window for deeper help.
 
 ## Privacy and edits
 
@@ -133,7 +152,8 @@ browser selected with `PLAYWRIGHT_CHANNEL=msedge`. They exercise both editor bri
 language labels, safe rendering, and edit gating.
 
 The native smoke test runs the installed IntelliJ IDE headlessly with an isolated
-profile under `work/intellij-test-<build>`. It checks plugin/action loading, Java PSI selection,
+profile under `work/intellij-test-<build>`. It checks plugin/action loading, native Java hover
+with preserved documentation/navigation, safe source rendering, bounded learning links, Java PSI selection,
 syntax diagnostics, unsupported-language handling, document invalidation, and the
 packaged Java-to-Node bridge, version detection, checksum rejection, and startup cancellation.
 `--runtime-home` tests the same baseline binary in a newer IDE. `--download-node`
@@ -144,7 +164,8 @@ profile.
 
 Add `--ui` to test the packaged panel inside IntelliJ's actual JCEF runtime. This
 checks the startup handshake, detected language, Java-to-JavaScript messages,
-button requests, text-only rendering, edit controls, and narrow layout. It requires
+button requests, text-only rendering, edit controls, and narrow layout. It also renders
+the native documentation component in light and dark themes to PNGs in the test profile. It requires
 a desktop session and the bundled JetBrains Runtime. Add `--hold` to leave the
 sample window open for visual inspection for up to three minutes; closing it ends
 the test. No test code is included in the plugin ZIP.

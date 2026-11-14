@@ -2,6 +2,7 @@
 
 ## 0.1.2
 
+- Add compact, local Java explanations to IntelliJ's native documentation hover, preserving signatures/Javadoc and using editor theme colors, with one link to the learning panel.
 - Adopt Cesar's short hover explanations with highlighted code names and clickable concept definitions in both learning panels.
 - Reconcile the merged hover breakdowns, local binding explanations, concept tooltips, and repeatable edit experiments with both IDE adapters.
 - Restore the IntelliJ plugin source and build/test scripts; support IntelliJ 2022.3–2025.2.x with Java 17.
