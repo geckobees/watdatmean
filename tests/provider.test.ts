@@ -27,12 +27,15 @@ describe('provider protocols', () => {
         type: 'json_schema',
         json_schema: { name: 'code_lesson', strict: true, schema: lessonSchema },
       });
+      expect(body.reasoning_effort).toBe('low');
+      expect(body.max_completion_tokens).toBe(700);
     },
   );
 
   it('keeps JSON object mode for Groq models without known strict-schema support', () => {
     const body = JSON.parse(makeRequest('groq', 'llama-3.3-70b-versatile', 'key', request).body);
     expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body).not.toHaveProperty('reasoning_effort');
   });
 
   it('marks every nested schema property required and forbids extra properties', () => {
@@ -124,6 +127,34 @@ describe('provider protocols', () => {
       }
     },
   );
+  it.each([
+    [{ param: 'reasoning_effort' }, 'reasoning setting'],
+    [{ message: 'reasoning_effort must be low, medium, or high' }, 'reasoning setting'],
+    [{ code: 'model_not_found' }, 'model was not found'],
+    [{ param: 'response_format' }, 'structured response format'],
+    [{ code: 'context_length_exceeded' }, 'context limit'],
+    [{ code: 'json_validate_failed' }, 'required JSON response'],
+    [{ message: 'private source and key' }, 'request setting (HTTP 400)'],
+  ])(
+    'distinguishes request rejections without echoing provider content: %j',
+    async (error, expected) => {
+      const transport = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ error }), { status: 400 }));
+      await expect(
+        generate('groq', defaults.groq, 'key', request, undefined, transport),
+      ).rejects.toThrow(expected);
+    },
+  );
+  it('handles non-JSON rejection bodies safely', async () => {
+    const transport = vi
+      .fn()
+      .mockResolvedValue(new Response('private proxy diagnostic', { status: 400 }));
+    await expect(
+      generate('groq', defaults.groq, 'key', request, undefined, transport),
+    ).rejects.toThrow('request setting (HTTP 400)');
+  });
+
   it('handles request cancellation', async () => {
     const controller = new AbortController();
     controller.abort();

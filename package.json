@@ -2,7 +2,7 @@
   "name": "watdatmean",
   "displayName": "WatDatMean — Learn in Your Code",
   "description": "Understand TypeScript, explore examples, and preview edit impact without leaving VS Code.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "watdatmean",
   "repository": {
     "type": "git",
@@ -106,6 +106,7 @@
     }
   },
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "build": "node scripts/build.mjs",

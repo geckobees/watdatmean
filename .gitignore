@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.vsix
 .vscode-test/
+.vscode-dev/
 coverage/
 work/
 test-results/

@@ -26,7 +26,7 @@ function allowed(uri: vscode.Uri) {
   return (
     !!vscode.workspace.getWorkspaceFolder(uri) &&
     /\.ts$/i.test(uri.path) &&
-    !/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//.test(uri.path)
+    !/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//i.test(uri.path)
   );
 }
 
@@ -77,11 +77,11 @@ export async function collectContext(
     try {
       const doc = await vscode.workspace.openTextDocument(location.uri);
       const line = location.range.start.line;
+      // Center the excerpt on the actual reference, including on very long lines.
+      const referenceOffset = doc.offsetAt(location.range.start);
       const range = new vscode.Range(
-        Math.max(0, line - 2),
-        0,
-        Math.min(doc.lineCount - 1, line + 2),
-        doc.lineAt(Math.min(doc.lineCount - 1, line + 2)).text.length,
+        doc.positionAt(Math.max(0, referenceOffset - 160)),
+        doc.positionAt(referenceOffset + 490),
       );
       const id = `E${evidence.length + 1}`;
       const file = vscode.workspace.asRelativePath(location.uri);

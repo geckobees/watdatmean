@@ -105,10 +105,12 @@ export function declarationParts(node: ts.Node, source: ts.SourceFile): Part[] {
     const name = declaration.name;
     special.set(name.getStart(source), {
       token: name.getText(source),
-      brief: ts.isIdentifier(name) ? 'The variable’s name.' : 'Unpacks values into these names.',
-      detail: ts.isIdentifier(name)
-        ? 'Use this name to read the stored value elsewhere in its scope.'
-        : 'Destructuring extracts selected properties or items into separate variables.',
+      brief: ts.isBindingPattern(name) ? 'Unpacks values into these names.' : 'The variable or property’s name.',
+      detail: ts.isBindingPattern(name)
+        ? 'Destructuring extracts selected properties or items into separate variables.'
+        : ts.isPrivateIdentifier(name)
+          ? 'A #private field is accessible only inside its declaring class. JavaScript enforces this at runtime.'
+          : 'Use this name to read the stored value elsewhere in its scope.',
     });
     if (declaration.type)
       special.set(declaration.type.getStart(source), {
@@ -140,9 +142,11 @@ export function declarationParts(node: ts.Node, source: ts.SourceFile): Part[] {
     const start = scanner.getTokenPos();
     if (start >= node.end) break;
     const part = special.get(start);
-    if (part) {
+    // TypeScript inserts zero-width nodes for missing syntax while the user types.
+    // Rewinding to one of those nodes repeats the same token forever and exhausts memory.
+    if (part && part.token.length > 0) {
       parts.push(part);
-      scanner.setTextPos(start + part.token.length);
+      scanner.setTextPos(Math.max(scanner.getTextPos(), start + part.token.length));
       continue;
     }
     const token = scanner.getTokenText();

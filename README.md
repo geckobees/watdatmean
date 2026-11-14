@@ -4,7 +4,7 @@
 
 ## Try it
 
-1. Install `watdatmean-0.1.1.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
+1. Install `watdatmean-0.1.2.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
 2. Open a `.ts` file. Hover over a declaration to see its pieces instantly.
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
@@ -49,7 +49,18 @@ npm test
 npm run build
 ```
 
-Press **F5** in VS Code to launch an Extension Development Host with the demo workspace. The provided launch configuration builds first. For automatic rebuilds, run `npm run watch` separately and reload the development host after changes.
+Run `npm run dev` to build and open a persistent development window with the demo workspace.
+It uses an isolated profile in `.vscode-dev` and bypasses the JavaScript debugger, so you
+may need to trust the demo folder and configure your API key in that profile.
+
+You can also press **Ctrl+F5** in VS Code to run the existing launch configuration without
+debugging, or **F5** to attach the debugger. Some VS Code versions can abort during F5
+startup before the extension activates ([reported VS Code issue](https://github.com/microsoft/vscode/issues/336233));
+use `npm run dev` or Ctrl+F5 if that happens. For automatic rebuilds, run `npm run watch`
+separately and reload the development window after changes.
+
+`npm run test:integration` is for automated checks: its temporary window closes when the
+tests finish. Use `npm run dev` for interactive testing.
 
 Run `npm run format` to format source, tests, styles, and documentation with Prettier.
 Run `npm run format:check` to check formatting without changing files. The shared

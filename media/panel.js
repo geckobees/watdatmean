@@ -29,6 +29,13 @@
     $('audience').disabled = busy;
     $('refresh').disabled = busy;
   };
+  function clearEvidence() {
+    evidence = [];
+    evidenceNote = '';
+    $('evidence').replaceChildren();
+    $('evidence-section').hidden = true;
+    document.querySelectorAll('.evidence-link').forEach((button) => { button.disabled = true; });
+  }
   function request(task, extra = {}) {
     $('error').hidden = true;
     post('request', {
@@ -235,6 +242,10 @@
         $('evidence').append(item);
       });
       selectTab(tab);
+    } else if (message.type === 'previewReset') {
+      canApply = false;
+      $('preview-status').textContent = '';
+      updateButtons();
     } else if (message.type === 'preview') {
       canApply = !message.errors.length;
       $('preview-status').textContent = message.errors.length
@@ -245,6 +256,8 @@
       stale = true;
       canApply = false;
       $('stale').hidden = false;
+      clearEvidence();
+      $('impact-result').replaceChildren();
       updateButtons();
     } else if (message.type === 'contextChanged') {
       canApply = false;
@@ -255,11 +268,7 @@
         $('example-result').replaceChildren();
         conceptTargets.clear();
       }
-      if (evidenceNote) {
-        evidenceNote =
-          'Workspace changed. Request a new explanation or preview to refresh these references.';
-        $('evidence-note').textContent = evidenceNote;
-      }
+      clearEvidence();
       updateButtons();
     } else if (message.type === 'applied') {
       canApply = false;

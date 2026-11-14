@@ -98,6 +98,30 @@ async function checks() {
     'Each evidence ID resolves to a location',
   );
   assert.ok(result.evidence.length <= 12);
+  // Exercise the hover provider during actual editor changes, including invalid intermediate code.
+  const scratch = await vscode.workspace.openTextDocument({
+    language: 'typescript',
+    content: 'const score: number = 0;',
+  });
+  const scratchEditor = await vscode.window.showTextDocument(scratch);
+  for (const content of ['const score=;', 'const score:=0;', 'const score: number = 1;']) {
+    await scratchEditor.edit((edit) => {
+      edit.replace(
+        new vscode.Range(scratch.positionAt(0), scratch.positionAt(scratch.getText().length)),
+        content,
+      );
+    });
+    const editHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      scratch.uri,
+      new vscode.Position(0, 7),
+    );
+    assert.ok(
+      hasTutorHover(editHovers),
+      'Hover remains responsive while a declaration is incomplete',
+    );
+  }
+  await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
   console.log(
     'PASS: activation, commands, hover, panel, cross-file references, test links, evidence bounds.',
   );
