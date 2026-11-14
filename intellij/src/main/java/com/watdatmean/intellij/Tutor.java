@@ -295,25 +295,41 @@ public final class Tutor implements Disposable {
     });
   }
   private void apply(String replacement) {
+    apply(replacement, () -> Messages.showYesNoDialog(project,
+      "Apply the previewed edit? Impact predictions are not guarantees. Tests have not been run.",
+      "WatDatMean", "Apply edit", "Cancel", Messages.getWarningIcon()) == Messages.YES);
+  }
+  void apply(String replacement, java.util.function.BooleanSupplier confirm) {
+    if (busy || disposed || project.isDisposed()) return;
     trusted();
     var selected = current();
     var checked = preview;
     if (checked == null || checked.selection() != selected || !checked.replacement().equals(replacement) || checked.revision() != revision.get())
       throw new IllegalStateException("Preview this exact edit again before applying it.");
-    if (Messages.showYesNoDialog(project, "Apply the previewed edit? Impact predictions are not guarantees. Tests have not been run.",
-      "WatDatMean", "Apply edit", "Cancel", Messages.getWarningIcon()) != Messages.YES) return;
-    trusted();
-    if (current() != selected || preview != checked || checked.revision() != revision.get()) throw new IllegalStateException("Code changed. Preview the edit again.");
-    if (!selected.document().isWritable()) throw new IllegalStateException("The file is read-only.");
-    WriteCommandAction.runWriteCommandAction(project, "WatDatMean: Apply previewed edit", null, () -> {
-      if (!selected.current() || checked.revision() != revision.get()) throw new IllegalStateException("Code changed. Preview the edit again.");
-      selected.document().replaceString(selected.start(), selected.end(), replacement);
-    });
-    // Preserve the exact replacement range, including deletion followed by insertion.
-    select(SourceContext.refresh(project, selected, selected.start(), selected.start() + replacement.length()), true);
-    preview = null;
-    if (selection.typescript()) refreshSelection(true); else send(message("applied"));
-    new OpenFileDescriptor(project, selected.file(), selected.start()).navigate(true);
+    long token = operation.incrementAndGet();
+    busy = true;
+    var busyMessage = message("busy"); busyMessage.addProperty("value", true); send(busyMessage);
+    try {
+      if (!confirm.getAsBoolean() || operation.get() != token || disposed || project.isDisposed()) return;
+      trusted();
+      if (current() != selected || preview != checked || checked.revision() != revision.get()) throw new IllegalStateException("Code changed. Preview the edit again.");
+      if (!selected.document().isWritable()) throw new IllegalStateException("The file is read-only.");
+      WriteCommandAction.runWriteCommandAction(project, "WatDatMean: Apply previewed edit", null, () -> {
+        if (!selected.current() || checked.revision() != revision.get()) throw new IllegalStateException("Code changed. Preview the edit again.");
+        selected.document().replaceString(selected.start(), selected.end(), replacement);
+      });
+      // Preserve the exact replacement range, including deletion followed by insertion.
+      select(SourceContext.refresh(project, selected, selected.start(), selected.start() + replacement.length()), true);
+      preview = null;
+      if (selection.typescript()) refreshSelection(true); else send(message("applied"));
+      new OpenFileDescriptor(project, selected.file(), selected.start()).navigate(true);
+    } finally {
+      // Cancellation may have started another operation while the confirmation dialog was open.
+      if (operation.get() == token) {
+        busy = false;
+        var finished = message("busy"); finished.addProperty("value", false); send(finished);
+      }
+    }
   }
 
   void configure() {

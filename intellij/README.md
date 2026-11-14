@@ -117,6 +117,8 @@ shared learning tool window for deeper help.
   clearing the cache, and disposing the project stop the worker and clear its cache.
 - Applied changes use IntelliJ's document/Undo mechanism. The plugin does not save
   files explicitly; IntelliJ's normal autosave settings still apply.
+- Cancelling an operation or changing the source while an edit confirmation is open
+  prevents that pending edit from being applied. Duplicate Apply actions are ignored.
 
 ## Build from this repository
 
@@ -166,7 +168,7 @@ language labels, safe rendering, and edit gating.
 
 The native smoke test runs the installed IntelliJ IDE headlessly with an isolated
 profile under `work/intellij-test-<build>`. It checks plugin/action loading, native Java hover
-with preserved documentation/navigation, safe source rendering, bounded learning links, Java PSI selection,
+with preserved documentation/navigation, safe source rendering, bounded learning links, edit confirmation/cancellation, Java PSI selection,
 syntax diagnostics, unsupported-language handling, document invalidation, and the
 packaged Java-to-Node bridge, version detection, checksum rejection, and startup cancellation.
 `--runtime-home` tests the same baseline binary in a newer IDE. `--download-node`

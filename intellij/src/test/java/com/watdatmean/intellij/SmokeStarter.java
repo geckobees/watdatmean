@@ -39,7 +39,7 @@ public final class SmokeStarter implements ApplicationStarter {
       if (Boolean.getBoolean("watdatmean.test.ui")) {
         try (var panel = new PanelSmoke()) { panel.run(); }
       }
-      Files.writeString(Path.of(System.getProperty("watdatmean.test.result")), "PASS: plugin actions, native Java hover and documentation, Java method/selection capture, Java syntax checks, unsupported-language guard, document invalidation, Node runtime checks, cancellation, packaged Java/Node bridge"
+      Files.writeString(Path.of(System.getProperty("watdatmean.test.result")), "PASS: plugin actions, native Java hover and documentation, edit confirmation/cancellation, Java method/selection capture, Java syntax checks, unsupported-language guard, document invalidation, Node runtime checks, cancellation, packaged Java/Node bridge"
         + (Boolean.getBoolean("watdatmean.test.ui") ? ", and native JCEF panel" : "") + ".\n");
       System.exit(0);
     } catch (Throwable error) {

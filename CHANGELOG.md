@@ -2,6 +2,7 @@
 
 ## 0.1.2
 
+- Match VS Code's edit cancellation in IntelliJ: cancel pending confirmations, reject duplicate Apply actions, and release the busy state when confirmation ends.
 - Merge compact task prompts, the 200-token output cap, provider usage reporting, and on-demand examples across VS Code and IntelliJ; retain language-aware requests, native Java hover, and cached definitions.
 - Add compact, local Java explanations to IntelliJ's native documentation hover, preserving signatures/Javadoc and using editor theme colors, with one link to the learning panel.
 - Adopt Cesar's short hover explanations with highlighted code names and clickable concept definitions in both learning panels.

@@ -37,7 +37,7 @@ final class HoverSmoke {
     try {
       var finished = new java.util.concurrent.CompletableFuture<Void>();
       DumbService.getInstance(project).smartInvokeLater(() -> {
-        try { checkHover(project); finished.complete(null); }
+        try { checkHover(project); EditSmoke.run(project); finished.complete(null); }
         catch (Throwable error) { finished.completeExceptionally(error); }
       });
       finished.get(60, java.util.concurrent.TimeUnit.SECONDS);
