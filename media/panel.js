@@ -262,6 +262,55 @@
     }
     return root;
   }
+  function renderParts(message) {
+    const root = $('parts');
+    let cursor = 0;
+    for (const part of message.parts) {
+      const start = part.start - message.start;
+      const end = part.end - message.start;
+      // Offsets refer to the whole file. Leave any unmapped source as plain text
+      // rather than guessing where repeated names or punctuation belong.
+      if (
+        !Number.isInteger(start) ||
+        !Number.isInteger(end) ||
+        start < cursor ||
+        end <= start ||
+        end > message.code.length
+      )
+        continue;
+      root.append(document.createTextNode(message.code.slice(cursor, start)));
+      // Inline spans can cross lines without changing tab stops or indentation.
+      // Give them button semantics and the same keyboard controls as a button.
+      const button = node('span', message.code.slice(start, end), 'part');
+      button.setAttribute('role', 'button');
+      button.tabIndex = 0;
+      button.setAttribute('aria-label', part.token);
+      button.setAttribute('aria-pressed', 'false');
+      button.setAttribute('aria-controls', 'part-detail');
+      button.title = part.brief;
+      button.onclick = () => {
+        root.querySelectorAll('.part').forEach((p) => {
+          p.classList.remove('selected');
+          p.setAttribute('aria-pressed', 'false');
+        });
+        button.classList.add('selected');
+        button.setAttribute('aria-pressed', 'true');
+        $('part-detail').hidden = false;
+        $('part-detail').replaceChildren(node('strong', part.brief), node('p', part.detail));
+      };
+      button.onkeydown = (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          button.click();
+        }
+      };
+      root.append(button);
+      cursor = end;
+    }
+    root.append(document.createTextNode(message.code.slice(cursor)));
+    root.parentElement.scrollTop = 0;
+    root.parentElement.scrollLeft = 0;
+  }
   window.addEventListener('message', (event) => {
     const message = event.data;
     if (message.type === 'selection') {
@@ -282,17 +331,7 @@
         $(id).replaceChildren();
       $('part-detail').hidden = true;
       $('syntax-section').hidden = !message.parts.length;
-      message.parts.forEach((part) => {
-        const button = node('button', part.token, 'part');
-        button.title = part.brief;
-        button.onclick = () => {
-          document.querySelectorAll('.part').forEach((p) => p.classList.remove('selected'));
-          button.classList.add('selected');
-          $('part-detail').hidden = false;
-          $('part-detail').replaceChildren(node('strong', part.brief), node('p', part.detail));
-        };
-        $('parts').append(button);
-      });
+      renderParts(message);
       selectTab(message.keepTab ? tab : 'understand');
       updateButtons();
     } else if (message.type === 'config') {

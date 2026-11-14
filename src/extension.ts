@@ -316,6 +316,7 @@ class Tutor implements vscode.Disposable {
       type: 'selection',
       keepTab,
       code: snippet.code,
+      start: snippet.start,
       parts: snippet.parts,
       symbol: snippet.symbol,
       file: vscode.workspace.asRelativePath(document.uri),

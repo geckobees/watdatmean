@@ -4,9 +4,11 @@
 
 ## Try it
 
-1. Install `watdatmean-0.1.2.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
+1. Install `watdatmean-0.1.7.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel to load the new version.
 2. Open a `.ts` file. Hover over code for a short paragraph explaining what it does, with code names highlighted in context. Functions describe their inputs and return types; object creation explains the constructor and reference; simple nested calls explain the inner and outer calls in order. Open the learning panel for individual syntax pieces.
+   Inside an interface or object type, hover a property or method to explain just that member. Its learning-panel link opens the same member. Hover the interface heading for the whole definition.
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
+   Under **The small pieces**, select a boxed word or symbol directly in the code. These pieces use filled boxes to distinguish them from underlined terms in explanations. The layout preserves your indentation, line breaks, and comments; you can also Tab to a piece and press Enter or Space to unpack it.
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
 5. Request an explanation, explore another example, or open **Try it yourself** to change code and see the difference.
 
@@ -82,6 +84,8 @@ npm run package
 ```
 
 UI tests require Playwright Chromium (`npx playwright install chromium`). Integration tests launch the installed `code` executable in an isolated test profile. Neither automated suite uses an API key or bills a provider. The installable VSIX is created at the repository root.
+
+`npm run package` creates the installer; it does not update the extension already running in VS Code. Install the new VSIX and reload the window to use it. For local development, rebuild with `npm run build` and reload the Extension Development Host.
 
 ## Settings
 

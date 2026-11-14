@@ -8,6 +8,62 @@ const expectParagraph = (text: string) => {
 };
 
 describe('concise hover explanations', () => {
+  it('explains just the hovered interface property, including its indentation and punctuation', () => {
+    const source = 'export interface Part {\n  token: string;\n  start?: number;\n}';
+    for (const line of ['  token: string;', '  start?: number;']) {
+      const start = source.indexOf(line);
+      for (let offset = start; offset < start + line.length; offset++) {
+        const snippet = inspect(source, offset);
+        expect(snippet.code).toBe(line.trim());
+        expect(snippet.start).toBe(start + 2);
+        expect(snippet.end).toBe(start + line.length);
+        expectParagraph(snippet.explanation!);
+        expect(snippet.explanation).not.toContain('`interface`');
+        expect(snippet.parts.some((p) => p.token === 'export')).toBe(false);
+      }
+    }
+    expect(explanation(source, source.indexOf('token'))).toContain('required property');
+    expect(explanation(source, source.indexOf('string'))).toContain('text (`string`)');
+    const optional = explanation(source, source.indexOf('start?'));
+    expect(optional).toContain('a number');
+    expect(optional).toContain('`?` means it can be left out');
+    expect(inspect(source, 0).code).toBe(source);
+    expect(explanation(source, 0)).toContain('`Part` describes');
+  });
+
+  it('finds individual properties in nested type descriptions and keeps explicit selections exact', () => {
+    const source =
+      'type Options = {\n\treadonly config: {\n\t\tlabel: string;\n\t};\n\n\t// another setting\n\tready?: boolean;\n};';
+    expect(inspect(source, source.indexOf('label')).code).toBe('label: string;');
+    expect(inspect(source, source.indexOf('\t\tlabel')).code).toBe('label: string;');
+    expect(explanation(source, source.indexOf('readonly'))).toContain('flag attempts to replace');
+    expect(inspect(source, source.indexOf('\n\n') + 1).code).toBe(source);
+    expect(inspect(source, source.indexOf('//')).code).toBe(source);
+    const start = source.indexOf('label');
+    expect(inspect(source, start, start + 5)).toMatchObject({
+      code: 'label',
+      parts: [],
+      explanation: undefined,
+    });
+    expect(inspect(source, 0, source.length).code).toBe(source);
+  });
+
+  it.each([
+    ['run(tasks: number): string;', 'run', 'a method (a function on an object)'],
+    ['reset?(): void;', 'reset', 'method can be left out'],
+    ['(tasks: number): string;', 'tasks', 'value you can call like a function'],
+    ['new (tasks: number): Board;', 'new', 'use with `new` to create an object'],
+    ['[name: string]: number;', 'name', 'Each result should be a number'],
+    ['transform: (input: number) => string;', 'transform', 'hold a function'],
+  ])('explains an individual interface member: %s', (member, at, meaning) => {
+    const source = `export interface API {\n  ${member}\n  other: boolean;\n}`;
+    const snippet = inspect(source, source.indexOf(at, source.indexOf('{')));
+    expect(snippet.code).toBe(member);
+    expectParagraph(snippet.explanation!);
+    expect(snippet.explanation).toContain(meaning);
+    expect(snippet.parts.some((p) => p.token === 'other')).toBe(false);
+  });
+
   it('explains the function signature together, wherever its header is hovered', () => {
     const code = 'export function weeklySummary(completedTasks: number): string { return "done"; }';
     for (const piece of [

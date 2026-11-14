@@ -9,6 +9,7 @@ const host = vi.hoisted(() => ({
   receive: undefined as ((message: unknown) => Promise<void>) | undefined,
   changed: undefined as ((event: vscode.TextDocumentChangeEvent) => void) | undefined,
   provider: undefined as vscode.TextDocumentContentProvider | undefined,
+  hover: undefined as vscode.HoverProvider | undefined,
   editor: undefined as unknown as vscode.TextEditor,
   text: '',
   version: 1,
@@ -38,6 +39,19 @@ vi.mock('vscode', () => {
         public end: vscode.Position,
       ) {}
     },
+    MarkdownString: class {
+      value = '';
+      appendMarkdown(value: string) {
+        this.value += value;
+        return this;
+      }
+    },
+    Hover: class {
+      contents: unknown[];
+      constructor(content: unknown) {
+        this.contents = [content];
+      }
+    },
     WorkspaceEdit: class {
       changes: { range: vscode.Range; text: string }[] = [];
       replace(_uri: vscode.Uri, range: vscode.Range, text: string) {
@@ -66,9 +80,15 @@ vi.mock('vscode', () => {
           });
       },
     },
-    languages: { registerHoverProvider: disposable },
+    languages: {
+      registerHoverProvider: (_selector: unknown, provider: vscode.HoverProvider) => {
+        host.hover = provider;
+        return disposable();
+      },
+    },
     workspace: {
       isTrusted: true,
+      openTextDocument: async () => host.editor.document,
       registerTextDocumentContentProvider: (
         _scheme: string,
         provider: vscode.TextDocumentContentProvider,
@@ -192,12 +212,61 @@ async function externalEdit(start: number, end: number, text: string) {
 beforeEach(() => {
   host.commands.clear();
   host.messages.length = 0;
+  host.hover = undefined;
   host.comparisons.length = 0;
   host.version = 1;
   host.confirm.mockReset().mockResolvedValue('Use this code');
 });
 
 describe('repeatable code experiments in the extension host', () => {
+  it('explains an interface line in the hover and opens that exact line from its panel link', async () => {
+    const source = 'export interface Part {\n  token: string;\n  start?: number;\n}';
+    await start(source, [0, 0]);
+    const offset = source.indexOf('start?');
+    const hover = await host.hover!.provideHover(
+      host.editor.document,
+      host.editor.document.positionAt(offset),
+      {} as vscode.CancellationToken,
+    );
+    const content = (hover!.contents[0] as vscode.MarkdownString).value;
+    expect(content).toContain('`start` is an optional property');
+    expect(content).toContain('`?` means it can be left out');
+    expect(content).toContain('Instant explanation · no AI tokens');
+    expect(content).not.toContain('`Part` describes');
+    const link = content.match(/command:watdatmean\.inspect\?([^\)]+)/)!;
+    const args = JSON.parse(decodeURIComponent(link[1]));
+    await host.commands.get('watdatmean.inspect')!(...args);
+    expect(last('selection')).toMatchObject({
+      code: 'start?: number;',
+      start: offset,
+      symbol: 'start',
+    });
+    expect(last('selection').parts.map((part: { token: string }) => part.token)).toEqual([
+      'start',
+      '?',
+      ':',
+      'number',
+      ';',
+    ]);
+
+    // Trying a change from the focused panel must keep the neighboring members.
+    await message({ type: 'preview', replacement: 'start?: string;' });
+    expect(last('preview').errors).toEqual([]);
+    await message({ type: 'apply', replacement: 'start?: string;' });
+    expect(host.text).toBe(source.replace('start?: number;', 'start?: string;'));
+    expect(last('selection').code).toBe('start?: string;');
+  });
+
+  it('sends the source offset so panel pieces stay aligned for code later in a file', async () => {
+    const prefix = 'const note = "token: string";\n\n';
+    const code = 'export interface Part {\n  token: string;\n}';
+    await start(prefix + code, [prefix.length, prefix.length]);
+    const selection = last('selection');
+    expect(selection).toMatchObject({ code, start: prefix.length });
+    for (const part of selection.parts)
+      expect(code.slice(part.start - selection.start, part.end - selection.start)).toBe(part.token);
+  });
+
   it('compares repeatedly and recovers from syntax errors without modifying the file', async () => {
     await start();
     const original = host.text;

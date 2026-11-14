@@ -1,6 +1,6 @@
 import ts from 'typescript';
 import type { Part, Snippet } from './types';
-import { statementParts } from './syntax';
+import { statementParts, typeAnnotationExplanation } from './syntax';
 import { hoverExplanation } from './hover-explanation';
 
 const glossary: Record<string, [string, string]> = {
@@ -54,16 +54,16 @@ const glossary: Record<string, [string, string]> = {
     'Narrow the type with checks such as typeof value === "string" before using string operations.',
   ],
   ':': [
-    'Introduces a type annotation.',
-    'The type after the colon describes the values allowed here. Type annotations are removed when TypeScript compiles to JavaScript.',
+    'Says what kind of value belongs here.',
+    'The colon introduces the kind of value expected here. For example, name: string means name should hold text.',
   ],
   '=': [
     'Assigns the initial value.',
     'This initializes the variable. It does not compare values; comparisons use === or ==.',
   ],
   ';': [
-    'Ends the declaration.',
-    'Semicolons mark statement boundaries. JavaScript can insert them automatically in many cases.',
+    'Ends this instruction.',
+    'Think of ; as a full stop: it marks where this instruction ends.',
   ],
   export: [
     'Makes this declaration available to other modules.',
@@ -84,13 +84,22 @@ export function parse(code: string) {
 }
 
 function contains(node: ts.Node, offset: number, source: ts.SourceFile) {
-  return node.getStart(source) <= offset && offset < node.end;
+  const start = node.getStart(source);
+  if (start <= offset && offset < node.end) return true;
+  // Indentation immediately before an interface member belongs to that member,
+  // without reaching across a blank line or a comment to a different piece.
+  if (ts.isTypeElement(node) && offset < start) {
+    const lineStart = source.text.lastIndexOf('\n', start - 1) + 1;
+    return offset >= lineStart && /^[\t ]*$/.test(source.text.slice(lineStart, start));
+  }
+  return false;
 }
 
 function isTarget(node: ts.Node) {
   return (
     ts.isVariableStatement(node) ||
     ts.isPropertyDeclaration(node) ||
+    ts.isTypeElement(node) ||
     ts.isFunctionDeclaration(node) ||
     ts.isMethodDeclaration(node) ||
     ts.isGetAccessorDeclaration(node) ||
@@ -113,6 +122,7 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
   for (const declaration of declarations) {
     const name = declaration.name;
     const destructured = ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name);
+    const createsObject = declaration.initializer && ts.isNewExpression(declaration.initializer);
     special.set(name.getStart(source), {
       token: name.getText(source),
       brief: destructured ? 'Unpacks values into these names.' : 'The variable or property’s name.',
@@ -120,9 +130,21 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
         ? 'Destructuring extracts selected properties or items into separate variables.'
         : ts.isPrivateIdentifier(name)
           ? 'A #private field is accessible only inside its declaring class. JavaScript enforces this at runtime.'
-          : 'Use this name to read the stored value elsewhere in its scope.',
+          : createsObject
+            ? `${name.getText(source)} holds a reference to the new object. Use ${name.getText(source)} to access that object later.`
+            : 'Use this name to read the stored value elsewhere in its scope.',
     });
-    if (declaration.type)
+    if (declaration.type) {
+      const colon = declaration
+        .getChildren(source)
+        .find((child) => child.kind === ts.SyntaxKind.ColonToken);
+      const explanation = typeAnnotationExplanation(declaration, source);
+      if (colon && explanation)
+        special.set(colon.getStart(source), {
+          token: ':',
+          brief: explanation[0],
+          detail: explanation[1],
+        });
       special.set(declaration.type.getStart(source), {
         token: declaration.type.getText(source),
         brief: glossary[declaration.type.getText(source)]?.[0] ?? 'The allowed type of this value.',
@@ -130,12 +152,12 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
           glossary[declaration.type.getText(source)]?.[1] ??
           'This annotation is checked by TypeScript and removed from the JavaScript output.',
       });
+    }
     if (declaration.initializer)
       special.set(declaration.initializer.getStart(source), {
         token: declaration.initializer.getText(source),
-        brief: 'The starting value or expression.',
-        detail:
-          'This expression is evaluated when the declaration runs. Its result becomes the initial value.',
+        brief: 'The starting value.',
+        detail: 'This gives the name on the left its starting value.',
       });
   }
   const parts: Part[] = [];
@@ -163,7 +185,6 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
         !ts.isLiteralExpression(initializer) &&
         !ts.isObjectLiteralExpression(initializer) &&
         !ts.isArrayLiteralExpression(initializer) &&
-        !ts.isNewExpression(initializer) &&
         !ts.isIdentifier(initializer)
       )
         parts.push(...statementParts(initializer, source, glossary));
