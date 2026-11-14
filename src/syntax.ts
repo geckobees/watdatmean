@@ -1,6 +1,7 @@
 import ts from 'typescript';
 import { bindingLookup } from './bindings';
 import type { Part } from './types';
+import { describeType } from './type-description';
 
 type Explanation = [brief: string, detail: string];
 
@@ -19,7 +20,7 @@ export function typeAnnotationExplanation(
         ? 'a number, such as 3'
         : type.kind === ts.SyntaxKind.BooleanKeyword
           ? 'true or false'
-          : `a value that fits ${type.getText(source)}`;
+          : describeType(type, source);
   if (ts.isFunctionLike(node)) {
     const functionName = declaration.name?.getText(source) ?? 'this function';
     return [
@@ -162,6 +163,11 @@ export function statementParts(
   }
   function identifier(node: ts.Identifier | ts.PrivateIdentifier): Explanation {
     const parent = node.parent;
+    if (ts.isTypeReferenceNode(parent) && parent.typeName === node)
+      return explain(
+        'The name of a type: a description of allowed values.',
+        `${text(parent)} describes ${describeType(parent, source)}.`,
+      );
     if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
       const called = isCall(parent.parent) && parent.parent.expression === parent;
       if (called && ts.isNewExpression(parent.parent)) return constructorName(parent);
@@ -236,6 +242,25 @@ export function statementParts(
       return explain(
         'Creates a new object (an instance).',
         `new creates a ${text(parent.expression)} object and calls its constructor to set it up.`,
+      );
+    if (ts.isTypeNode(node) && ts.isTupleTypeNode(parent)) {
+      const index = parent.elements.indexOf(node);
+      if (index >= 0)
+        return explain(
+          `The type of entry ${index + 1} in this list.`,
+          `Entry ${index + 1} should be ${describeType(node, source)}. The order of entries matters.`,
+        );
+    }
+    if (
+      node.kind === ts.SyntaxKind.StringKeyword &&
+      ts.isTypeReferenceNode(parent) &&
+      ts.isIdentifier(parent.typeName) &&
+      parent.typeName.text === 'Record' &&
+      parent.typeArguments?.[0] === node
+    )
+      return explain(
+        'Text keys for this object.',
+        'Each key is text, such as "const". The second type describes the value stored under each key.',
       );
     if (ts.isTypeNode(node))
       return explain(
@@ -374,8 +399,24 @@ export function statementParts(
       );
     if (token === '=>')
       return explain(
-        'Separates an arrow function’s inputs from its body.',
-        'An expression body returns its value automatically. A block body uses return explicitly. Arrow functions inherit this from the surrounding code.',
+        ts.isFunctionTypeNode(parent)
+          ? 'Separates the input types from the type of result this function gives back.'
+          : 'Separates an arrow function’s inputs from its body.',
+        ts.isFunctionTypeNode(parent)
+          ? 'This describes a function. The inputs are on the left, and the expected result is on the right; it does not run the function.'
+          : 'An expression body returns its value automatically. A block body uses return explicitly. Arrow functions inherit this from the surrounding code.',
+      );
+    if ((token === '[' || token === ']') && ts.isTupleTypeNode(parent))
+      return explain(
+        token === '['
+          ? 'Starts a list of types in a fixed order (a tuple).'
+          : 'Ends the list of types in this tuple.',
+        `${text(parent)} describes ${describeType(parent, source)}.`,
+      );
+    if ((token === '[' || token === ']') && ts.isArrayTypeNode(parent))
+      return explain(
+        'Says this is an array (a list).',
+        `Each item should be ${describeType(parent.elementType, source)}.`,
       );
     if (token === '[' || token === ']')
       return explain(
@@ -418,7 +459,14 @@ export function statementParts(
       );
     if (token === '~') return explain('Flips the bits of the numeric value.');
     if (token === '<' || token === '>')
-      return explain('Encloses type arguments or type parameters; this is not a value comparison.');
+      return explain(
+        'Groups the type details between < and >.',
+        'For example, Record<string, number> describes an object with text keys and number values. These brackets describe types; they do not compare values.',
+      );
+    if (token === '|' && ts.isUnionTypeNode(parent))
+      return explain('Allows a value to match either type.');
+    if (token === '&' && ts.isIntersectionTypeNode(parent))
+      return explain('Requires a value to match both types.');
     if (token === '=') return explain('Assigns the initial or default value.');
     if (token === 'return' && ts.isReturnStatement(parent) && !parent.expression)
       return explain('Ends this function without a value; the caller receives undefined.');
@@ -462,7 +510,7 @@ export function statementParts(
       }
       return;
     }
-    if (ts.isTypeNode(node)) {
+    if (ts.isTypeNode(node) && (ts.isTypeLiteralNode(node) || !node.getChildCount(source))) {
       add(node, describe(node));
       return;
     }

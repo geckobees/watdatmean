@@ -119,19 +119,24 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
     ? [...node.declarationList.declarations]
     : [node];
   const special = new Map<number, Part>();
+  const expanded = new Map<number, ts.Node>();
   for (const declaration of declarations) {
     const name = declaration.name;
+    const destructured = ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name);
     const createsObject = declaration.initializer && ts.isNewExpression(declaration.initializer);
     special.set(name.getStart(source), {
       token: name.getText(source),
-      brief: ts.isIdentifier(name) ? 'The variable’s name.' : 'Unpacks values into these names.',
-      detail: ts.isIdentifier(name)
-        ? createsObject
-          ? `${name.getText(source)} holds a reference to the new object. Use ${name.getText(source)} to access that object later.`
-          : 'Use this name to read the stored value elsewhere in its scope.'
-        : 'Destructuring extracts selected properties or items into separate variables.',
+      brief: destructured ? 'Unpacks values into these names.' : 'The variable or property’s name.',
+      detail: destructured
+        ? 'Destructuring extracts selected properties or items into separate variables.'
+        : ts.isPrivateIdentifier(name)
+          ? 'A #private field is accessible only inside its declaring class. JavaScript enforces this at runtime.'
+          : createsObject
+            ? `${name.getText(source)} holds a reference to the new object. Use ${name.getText(source)} to access that object later.`
+            : 'Use this name to read the stored value elsewhere in its scope.',
     });
     if (declaration.type) {
+      expanded.set(declaration.type.getStart(source), declaration.type);
       const colon = declaration
         .getChildren(source)
         .find((child) => child.kind === ts.SyntaxKind.ColonToken);
@@ -150,12 +155,18 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
           'This annotation is checked by TypeScript and removed from the JavaScript output.',
       });
     }
-    if (declaration.initializer)
+    if (declaration.initializer) {
+      if (
+        !ts.isLiteralExpression(declaration.initializer) &&
+        !ts.isIdentifier(declaration.initializer)
+      )
+        expanded.set(declaration.initializer.getStart(source), declaration.initializer);
       special.set(declaration.initializer.getStart(source), {
         token: declaration.initializer.getText(source),
         brief: 'The starting value.',
         detail: 'This gives the name on the left its starting value.',
       });
+    }
   }
   const parts: Part[] = [];
   const scanner = ts.createScanner(
@@ -172,19 +183,11 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
     if (start >= node.end) break;
     const part = special.get(start);
     if (part?.token.length) {
-      const initializer = declarations.find(
-        (d) => d.initializer?.getStart(source) === start,
-      )?.initializer;
-      if (
-        initializer &&
-        !ts.isLiteralExpression(initializer) &&
-        !ts.isObjectLiteralExpression(initializer) &&
-        !ts.isArrayLiteralExpression(initializer) &&
-        !ts.isIdentifier(initializer)
-      )
-        parts.push(...statementParts(initializer, source, glossary));
+      const expandedNode = expanded.get(start);
+      if (expandedNode) parts.push(...statementParts(expandedNode, source, glossary));
       else parts.push({ ...part, start, end: start + part.token.length });
-      scanner.setTextPos(start + part.token.length);
+      // Missing syntax can produce short or zero-width AST nodes. Never rewind.
+      scanner.setTextPos(Math.max(scanner.getTextPos(), start + part.token.length));
       continue;
     }
     const token = scanner.getTokenText();
@@ -209,10 +212,11 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
 
 export function inspect(code: string, offset: number, selectionEnd = offset): Snippet {
   const source = parse(code);
+  const cursor = offset === code.length && offset > 0 ? offset - 1 : offset;
   let target: ts.Node | undefined;
   let identifier: ts.Identifier | undefined;
   function visit(node: ts.Node) {
-    if (!contains(node, offset, source)) return;
+    if (!contains(node, cursor, source)) return;
     if (isTarget(node)) target = node;
     if (ts.isIdentifier(node)) identifier = node;
     ts.forEachChild(node, visit);
@@ -230,7 +234,7 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
   let name: ts.Node | undefined;
   if (target && ts.isVariableStatement(target))
     name =
-      target.declarationList.declarations.find((d) => contains(d, offset, source))?.name ??
+      target.declarationList.declarations.find((d) => contains(d, cursor, source))?.name ??
       target.declarationList.declarations[0]?.name;
   else if (target && 'name' in target) name = (target as ts.NamedDeclaration).name;
   if (
@@ -248,7 +252,7 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
     symbolOffset: symbolNode?.getStart(source) ?? offset,
     explanation:
       target && start === target.getStart(source) && end === target.end
-        ? hoverExplanation(target, source, offset)
+        ? hoverExplanation(target, source, cursor)
         : undefined,
     parts:
       target && start === target.getStart(source) && end === target.end

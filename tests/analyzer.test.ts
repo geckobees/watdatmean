@@ -27,7 +27,17 @@ describe('TypeScript declaration breakdowns', () => {
   it('does not claim const makes objects immutable', () => {
     const result = inspect('const player = { score: 0 };', 7);
     expect(result.parts[0].detail).toContain('can still be changed');
-    expect(result.parts.map((p) => p.token)).toEqual(['const', 'player', '=', '{ score: 0 }', ';']);
+    expect(result.parts.map((p) => p.token)).toEqual([
+      'const',
+      'player',
+      '=',
+      '{',
+      'score',
+      ':',
+      '0',
+      '}',
+      ';',
+    ]);
   });
   it('handles strings containing punctuation and comments without splitting the initializer', () => {
     const result = inspect('const /* count */ text: string = "a;=b";', 20);
@@ -41,11 +51,21 @@ describe('TypeScript declaration breakdowns', () => {
       ';',
     ]);
   });
-  it('groups destructuring and generic type annotations', () => {
+  it('groups destructuring while unpacking generic type annotations', () => {
     expect(inspect('const { name, age } = user;', 10).parts[1].brief).toContain('Unpacks');
-    expect(inspect('let names: Array<string> = [];', 5).parts.map((p) => p.token)).toContain(
-      'Array<string>',
-    );
+    expect(inspect('let names: Array<string> = [];', 5).parts.map((p) => p.token)).toEqual([
+      'let',
+      'names',
+      ':',
+      'Array',
+      '<',
+      'string',
+      '>',
+      '=',
+      '[',
+      ']',
+      ';',
+    ]);
   });
   it('separates object creation from its constructor and explains the object reference', () => {
     const code = 'const board = new Scoreboard();';

@@ -4,17 +4,24 @@
 
 ## Try it
 
-1. Install `watdatmean-0.1.7.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel to load the new version.
+1. Install `watdatmean-0.1.8.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel to load the new version.
 2. Open a `.ts` file. Hover over code for a short paragraph explaining what it does, with code names highlighted in context. Functions describe their inputs and return types; object creation explains the constructor and reference; simple nested calls explain the inner and outer calls in order. Open the learning panel for individual syntax pieces.
    Inside an interface or object type, hover a property or method to explain just that member. Its learning-panel link opens the same member. Hover the interface heading for the whole definition.
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
    Under **The small pieces**, select a boxed word or symbol directly in the code. These pieces use filled boxes to distinguish them from underlined terms in explanations. The layout preserves your indentation, line breaks, and comments; you can also Tab to a piece and press Enter or Space to unpack it.
+   Complex declarations such as `const glossary: Record<string, [string, string]> = { ... };` unpack the generic type, tuple entries, and object values individually. The pieces remain available while you are still typing the declaration.
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
 5. Request an explanation, explore another example, or open **Try it yourself** to change code and see the difference.
 
 API keys are stored in **VS Code SecretStorage**, never in project settings or the panel. A provider API account with available credits is required for AI features. Chat subscriptions do not supply API credits. Keys are checked on the first request, not when saved. You can switch providers or remove a key through the Command Palette.
 
 Run **WatDatMean: Open Demo Project** for a small rewards-system example. [The demo walkthrough](demo/README.md) demonstrates the complete flow in three minutes.
+
+## If the learning panel does not open
+
+Run **WatDatMean: Reopen Learning Panel** from the Command Palette. This creates a fresh panel for the same code. A panel that does not finish loading also offers this action after ten seconds.
+
+If VS Code reports **Could not register service worker: InvalidStateError**, the failure occurs in VS Code before the extension's panel can load. Save your work, fully quit VS Code (**Cmd+Q** on macOS), and reopen it. This is a [reported VS Code webview issue](https://github.com/microsoft/vscode/issues/330595); reloading one window may not restart the affected browser process. Reopening the panel cannot repair a persistent error in that process.
 
 ## What works
 
