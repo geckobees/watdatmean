@@ -41,25 +41,11 @@ export function activate(context: vscode.ExtensionContext) {
           const snippet = inspect(document.getText(), offset);
           const md = new vscode.MarkdownString();
           md.appendMarkdown('**WatDatMean** · TypeScript\n\n');
-          if (snippet.parts.length) {
-            const focused = snippet.parts.findIndex(
-              (part) =>
-                part.start !== undefined &&
-                part.end !== undefined &&
-                part.start <= offset &&
-                offset < part.end,
-            );
-            const first = Math.max(0, Math.min(focused - 6, snippet.parts.length - 14));
-            if (first) md.appendMarkdown('*Earlier pieces in the learning panel…*\n\n');
-            for (const part of snippet.parts.slice(first, first + 14)) {
-              md.appendText(`${part.token} — ${part.brief}`);
-              md.appendMarkdown('  \n');
-            }
-            if (first + 14 < snippet.parts.length)
-              md.appendMarkdown('\n*More pieces in the learning panel…*\n');
-            md.appendMarkdown('\n*Instant explanation · no AI tokens*\n\n');
+          if (snippet.explanation) {
+            md.appendMarkdown(`${snippet.explanation}\n\n`);
+            md.appendMarkdown('*Instant explanation · no AI tokens*\n\n');
           } else
-            md.appendMarkdown('Understand this code, explore examples, and preview an edit.\n\n');
+            md.appendMarkdown('Open the learning panel to explore this code and try changes.\n\n');
           const args = encodeURIComponent(
             JSON.stringify([{ uri: document.uri.toString(), offset: document.offsetAt(position) }]),
           );
