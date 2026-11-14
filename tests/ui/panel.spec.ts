@@ -4,6 +4,27 @@ import { panelHtml } from '../../src/panel';
 import { inspect } from '../../src/analyzer';
 
 const snippet = inspect('class Game { private score: number = 0; }', 21);
+const weeklyLesson = {
+  title: 'Calling weeklySummary',
+  summary:
+    'The script calls a function named weeklySummary with the number 3 as its argument and prints the returned value to the console.',
+  steps: ['The argument 3 enters weeklySummary.'],
+  concepts: [
+    {
+      term: 'argument',
+      explanation:
+        'An argument is a value passed into a function when you call it. Here, that value is 3.',
+    },
+    {
+      term: 'function',
+      explanation:
+        'A function is a reusable block of code that can take inputs and return a result.',
+    },
+  ],
+  example: { code: 'log(3);', explanation: '3 is the argument passed to log.' },
+  predictions: [],
+  checks: [],
+};
 async function send(page: Page, data: unknown) {
   await page.evaluate((data) => window.dispatchEvent(new MessageEvent('message', { data })), data);
 }
@@ -298,4 +319,141 @@ test('continues in Try it yourself after applying a change or loading the latest
     true,
   );
   await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
+});
+
+test('opens and reopens underlined definitions with clicks and keyboard without AI requests', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  const argument = summary.getByRole('button', { name: 'Define argument', exact: true });
+  const definition = summary.getByRole('region', {
+    name: 'Definition of argument',
+    includeHidden: true,
+  });
+  await expect(definition).toBeHidden();
+  await argument.click();
+  await expect(argument).toHaveAttribute('aria-expanded', 'true');
+  await expect(definition).toContainText('Here, that value is 3');
+  await definition.getByRole('button', { name: 'Close definition' }).click();
+  await expect(definition).toBeHidden();
+  await expect(argument).toBeFocused();
+  await argument.press('Enter');
+  await expect(definition).toBeVisible();
+  await argument.press('Escape');
+  await expect(definition).toBeHidden();
+  await argument.press('Space');
+  await expect(definition).toBeVisible();
+  await summary.getByRole('button', { name: 'Define function', exact: true }).click();
+  await expect(definition).toBeHidden();
+  await expect(argument).toHaveAttribute('aria-expanded', 'false');
+  await expect(summary.getByRole('region', { name: 'Definition of function' })).toContainText(
+    'reusable block',
+  );
+  await argument.click();
+  await argument.click();
+  await expect(definition).toBeHidden();
+  for (const section of [
+    page.locator('#explanation li').first(),
+    page.locator('#explanation > .lesson > .concept-copy').last(),
+  ]) {
+    await section.getByRole('button', { name: 'Define argument', exact: true }).click();
+    await expect(section.getByRole('region', { name: 'Definition of argument' })).toBeVisible();
+  }
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+});
+
+test('requests a deeper concept explanation only explicitly and keeps its terms clickable', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  await summary.getByRole('button', { name: 'Define argument', exact: true }).click();
+  const definition = summary.getByRole('region', { name: 'Definition of argument' });
+  await definition.getByRole('button', { name: 'Explain further · AI' }).click();
+  expect(
+    await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+  ).toMatchObject({ type: 'request', task: 'concept', concept: 'argument' });
+  await send(page, {
+    type: 'lesson',
+    task: 'concept',
+    concept: 'argument',
+    provider: 'groq',
+    model: 'test',
+    lesson: {
+      ...weeklyLesson,
+      title: 'An input for the function',
+      summary: 'An argument supplies the value received by a parameter.',
+      steps: [],
+      concepts: [
+        {
+          term: 'parameter',
+          explanation: 'A parameter is the name that receives an input inside the function.',
+        },
+      ],
+      example: { code: '', explanation: '' },
+    },
+  });
+  await expect(definition).toContainText('An input for the function');
+  await definition.getByRole('button', { name: 'Define parameter', exact: true }).click();
+  const nested = definition.getByRole('region', { name: 'Definition of parameter' });
+  await expect(nested).toContainText('name that receives an input');
+  await expect(nested.getByRole('button', { name: 'Explain further · AI' })).toHaveCount(0);
+  await send(page, { type: 'busy', value: true });
+  await expect(definition.getByRole('button', { name: 'Explain further · AI' })).toBeDisabled();
+  await send(page, { type: 'busy', value: false });
+  await send(page, { type: 'stale' });
+  await expect(definition.getByRole('button', { name: 'Explain further · AI' })).toBeDisabled();
+});
+
+test('renders definitions as text and fits them into a narrow panel', async ({ page }) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  });
+  await page.setViewportSize({ width: 360, height: 900 });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  await summary.getByRole('button', { name: 'Define argument', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: 'work/panel-clickable-definition.png', fullPage: true });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: {
+      ...weeklyLesson,
+      concepts: [{ term: 'argument', explanation: '<img src=x onerror=alert(1)>' }],
+    },
+  });
+  await summary.getByRole('button', { name: 'Define argument', exact: true }).click();
+  await expect(summary.getByRole('region', { name: 'Definition of argument' })).toContainText(
+    '<img src=x onerror=alert(1)>',
+  );
+  await expect(page.locator('#explanation img')).toHaveCount(0);
+  await send(page, { type: 'selection', ...snippet, file: 'score.ts', line: 4 });
+  await expect(page.locator('.concept-definition')).toHaveCount(0);
 });
