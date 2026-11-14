@@ -162,7 +162,8 @@
       root.append(node('h3', 'Go a little deeper'));
       lesson.concepts.forEach((concept) => {
         const detail = node('details');
-        detail.append(node('summary', concept.term), node('p', concept.explanation));
+        detail.append(node('summary', concept.term));
+        if (concept.explanation) detail.append(node('p', concept.explanation));
         if (!nested) {
           const target = node('div', undefined, 'concept-result');
           target.hidden = true;
@@ -265,13 +266,23 @@
             );
       if (target) {
         target.hidden = false;
+        const usage = message.lesson.usage;
+        const usageLabel = message.cached
+          ? '0 new tokens'
+          : usage
+            ? `${usage.total} tokens (${usage.input} input + ${usage.output} output)`
+            : 'Token usage not reported';
         target.replaceChildren(
           renderLesson(
             message.lesson,
-            `${message.cached ? 'REUSED FROM CACHE · NO NEW REQUEST' : 'AI EXPLANATION'} · ${message.provider} / ${message.model}`,
+            `${message.cached ? 'REUSED FROM CACHE · NO NEW REQUEST' : 'AI EXPLANATION'} · ${message.provider} / ${message.model} · ${usageLabel}`,
             message.task === 'concept',
           ),
         );
+        if (!message.cached && usage?.total >= 500)
+          target.append(
+            node('p', 'Above the 500-token target. Your full context was kept.', 'muted'),
+          );
       }
       updateButtons();
     } else if (message.type === 'evidence') {

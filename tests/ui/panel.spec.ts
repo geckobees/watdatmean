@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { panelHtml } from '../../src/panel';
 import { inspect } from '../../src/analyzer';
+import { parseLesson } from '../../src/provider';
 
 const snippet = inspect('class Game { private score: number = 0; }', 21);
 async function send(page: Page, data: unknown) {
@@ -106,6 +107,57 @@ test('sends explicit explanation, example and concept requests; safely renders h
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
   ).toMatchObject({ task: 'example' });
 });
+test('renders concise results, loads concepts on click, and reports actual or cached usage', async ({
+  page,
+}) => {
+  const lesson = parseLesson(
+    JSON.stringify({ summary: 'The score starts at zero.', concepts: ['binding'] }),
+  );
+  const message = {
+    type: 'lesson',
+    task: 'explain',
+    cached: false,
+    provider: 'groq',
+    model: 'test',
+    lesson: { ...lesson, usage: { input: 420, output: 100, total: 520 } },
+  };
+  await send(page, message);
+  await expect(page.locator('#explanation')).toContainText('520 tokens (420 input + 100 output)');
+  await expect(page.locator('#explanation')).toContainText('Your full context was kept');
+  await expect(page.locator('#explanation')).not.toContainText('Put it into practice');
+  await expect(page.locator('#explanation')).not.toContainText('Walk through it');
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+  await page.getByText('binding', { exact: true }).click();
+  await page.getByRole('button', { name: 'Explain this concept' }).click();
+  expect(
+    await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+  ).toMatchObject({ task: 'concept', concept: 'binding' });
+  await send(page, {
+    type: 'lesson',
+    task: 'concept',
+    concept: 'binding',
+    cached: false,
+    provider: 'groq',
+    model: 'test',
+    lesson: parseLesson('{"summary":"A binding connects a name to a value."}'),
+  });
+  await expect(page.locator('.concept-result')).toContainText(
+    'A binding connects a name to a value.',
+  );
+  await send(page, { ...message, cached: true });
+  await expect(page.locator('#explanation')).toContainText('0 new tokens');
+  await expect(page.locator('#explanation')).not.toContainText('520 tokens');
+  await expect(page.locator('#explanation')).not.toContainText('Above the 500-token target');
+  await send(page, { ...message, lesson });
+  await expect(page.locator('#explanation')).toContainText('Token usage not reported');
+});
+
 test('unpacks method and nested call pieces locally', async ({ page }) => {
   const source = 'const board = new Scoreboard();\nboard.addCompletedTasks(3);';
   await send(page, {

@@ -120,8 +120,23 @@ class Tutor implements vscode.Disposable {
     );
   }
 
-  dispose() {
+  private cancelRequest() {
     this.abort?.abort();
+    this.abort = undefined;
+    this.busy = false;
+    this.send({ type: 'busy', value: false });
+  }
+
+  private invalidate(uri?: vscode.Uri) {
+    this.revision++;
+    this.preview = undefined;
+    this.evidence = undefined;
+    this.cancelRequest();
+    this.send({ type: uri?.toString() === this.selection?.document.uri.toString() ? 'stale' : 'contextChanged' });
+  }
+
+  dispose() {
+    this.cancelRequest();
     this.panel?.dispose();
     this.disposables.forEach((d) => d.dispose());
     this.cache.clear();
@@ -135,7 +150,7 @@ class Tutor implements vscode.Disposable {
     const settings = vscode.workspace.getConfiguration('watdatmean');
     const provider = settings.get<Provider>('provider', 'openai');
     return {
-      provider: provider in defaults ? provider : ('openai' as Provider),
+      provider: Object.hasOwn(defaults, provider) ? provider : ('openai' as Provider),
       model: settings.get<string>('model', '').trim(),
       audience: settings.get<Audience>('audience', 'beginner'),
     };
@@ -206,7 +221,7 @@ class Tutor implements vscode.Disposable {
       title: 'Remove a stored API key',
     });
     if (!provider) return;
-    this.abort?.abort();
+    this.cancelRequest();
     await this.extension.secrets.delete(`key.${provider}`);
     this.cache.clear();
     await this.sendConfig();
@@ -214,6 +229,7 @@ class Tutor implements vscode.Disposable {
   }
 
   clearCache() {
+    this.cancelRequest();
     this.cache.clear();
     void vscode.window.showInformationMessage('WatDatMean explanation cache cleared.');
   }
@@ -227,7 +243,7 @@ class Tutor implements vscode.Disposable {
       start = document.positionAt(args.offset);
       end = start;
     }
-    if (!document || document.languageId !== 'typescript' || !start || !end) {
+    if (!document || document.languageId !== 'typescript' || document.uri.scheme === 'watdatmean' || !start || !end) {
       void vscode.window.showInformationMessage(
         'Open a TypeScript (.ts) file and place your cursor on code, or select a snippet.',
       );
@@ -239,7 +255,7 @@ class Tutor implements vscode.Disposable {
       );
       return;
     }
-    this.abort?.abort();
+    this.cancelRequest();
     this.preview = undefined;
     this.evidence = undefined;
     const snippet = inspect(document.getText(), document.offsetAt(start), document.offsetAt(end));
@@ -271,10 +287,9 @@ class Tutor implements vscode.Disposable {
         ),
       );
       this.panel.onDidDispose(() => {
-        this.abort?.abort();
+        this.cancelRequest();
         this.panel = undefined;
         this.selection = undefined;
-        this.virtual.clear();
       });
     } else {
       this.panel.reveal(vscode.ViewColumn.Beside, true);
@@ -349,7 +364,7 @@ class Tutor implements vscode.Disposable {
       return;
     }
     if (m.type === 'cancel') {
-      this.abort?.abort();
+      this.cancelRequest();
       return;
     }
     if (m.type === 'refresh') {
@@ -394,6 +409,7 @@ class Tutor implements vscode.Disposable {
       const mode: Mode = task === 'impact' || m.mode === 'project' ? 'project' : 'standalone';
       const config = this.config();
       const key = await this.extension.secrets.get(`key.${config.provider}`);
+      if (abort.signal.aborted) return;
       if (!key) throw new Error('Connect an AI provider first. Use “Connect provider” above.');
       if (selection.snippet.code.length > 12000)
         throw new Error('Select a smaller block of code (under 12,000 characters).');
@@ -404,14 +420,16 @@ class Tutor implements vscode.Disposable {
         request.replacement = this.validateReplacement(m.replacement, selection);
       }
       if (mode === 'project') {
-        this.evidence = await collectContext(selection.document, selection.snippet);
-        request.context = this.evidence.context;
-        request.evidence = this.evidence.evidence;
-        this.send({ type: 'evidence', items: this.evidence.evidence, note: this.evidence.note });
+        const evidence = await collectContext(selection.document, selection.snippet);
+        if (abort.signal.aborted || revision !== this.revision) return;
+        this.evidence = evidence;
+        request.context = evidence.context;
+        request.evidence = evidence.evidence;
+        this.send({ type: 'evidence', items: evidence.evidence, note: evidence.note });
       }
       if (abort.signal.aborted) return;
       const model = config.model || defaults[config.provider];
-      const cacheKey = fingerprint({ version: 1, provider: config.provider, model, request });
+      const cacheKey = fingerprint({ version: 2, provider: config.provider, model, request });
       const cached = this.cache.get(cacheKey);
       const lesson = cached ?? (await generate(config.provider, model, key, request, abort.signal));
       if (abort.signal.aborted || selection !== this.selection) return;
@@ -429,9 +447,15 @@ class Tutor implements vscode.Disposable {
         provider: config.provider,
         model,
       });
+    } catch (error) {
+      if (!abort.signal.aborted) throw error;
     } finally {
-      this.busy = false;
-      this.send({ type: 'busy', value: false });
+      // A cancelled request may finish after a newer request has already started.
+      if (this.abort === abort) {
+        this.abort = undefined;
+        this.busy = false;
+        this.send({ type: 'busy', value: false });
+      }
     }
   }
 
@@ -445,16 +469,20 @@ class Tutor implements vscode.Disposable {
     revision: number,
     signal: AbortSignal,
   ) {
+    this.preview = undefined;
+    this.send({ type: 'previewReset' });
     const replacement = this.validateReplacement(value, selection);
     const source = selection.document.getText();
     const proposed =
       source.slice(0, selection.snippet.start) + replacement + source.slice(selection.snippet.end);
-    this.evidence = await collectContext(selection.document, selection.snippet);
+    const evidence = await collectContext(selection.document, selection.snippet);
     if (signal.aborted) return;
     if (selection !== this.selection || revision !== this.revision)
       throw new Error('Code changed while preparing the preview. Inspect it again.');
-    this.send({ type: 'evidence', items: this.evidence.evidence, note: this.evidence.note });
+    this.evidence = evidence;
+    this.send({ type: 'evidence', items: evidence.evidence, note: evidence.note });
     const errors = syntaxErrors(proposed);
+
     this.send({ type: 'preview', errors, replacement });
     this.preview = errors.length ? undefined : { replacement, revision };
     const id = randomBytes(8).toString('hex');
