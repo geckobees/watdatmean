@@ -9,6 +9,8 @@
   let evidence = [];
   let evidenceNote = '';
   let canApply = false;
+  let originalCode = '';
+  let focusAfterWork = false;
   const conceptTargets = new Map();
   const saved = vscode.getState() || {};
   $('mode').value = saved.mode || 'standalone';
@@ -19,16 +21,65 @@
     if (className) element.className = className;
     return element;
   };
+  function appendConceptText(parent, text, concepts) {
+    const terms = concepts
+      .filter((concept) => concept.term && concept.explanation)
+      .slice()
+      .sort((a, b) => b.term.length - a.term.length);
+    const word = (character) => !!character && /[\p{L}\p{N}_]/u.test(character);
+    let cursor = 0;
+    while (cursor < text.length) {
+      let match;
+      for (const concept of terms) {
+        const normalizedText = text.toLocaleLowerCase();
+        const normalizedTerm = concept.term.toLocaleLowerCase();
+        let index = normalizedText.indexOf(normalizedTerm, cursor);
+        while (index >= 0 && (word(text[index - 1]) || word(text[index + concept.term.length])))
+          index = normalizedText.indexOf(normalizedTerm, index + 1);
+        if (index < 0) continue;
+        if (!match || index < match.index) match = { index, concept };
+      }
+      if (!match) {
+        parent.append(document.createTextNode(text.slice(cursor)));
+        break;
+      }
+      if (match.index > cursor)
+        parent.append(document.createTextNode(text.slice(cursor, match.index)));
+      const term = node(
+        'span',
+        text.slice(match.index, match.index + match.concept.term.length),
+        'concept-term',
+      );
+      term.title = match.concept.explanation;
+      term.tabIndex = 0;
+      term.setAttribute('aria-label', `${term.textContent}: ${match.concept.explanation}`);
+      parent.append(term);
+      cursor = match.index + match.concept.term.length;
+    }
+  }
   const updateButtons = () => {
     document.querySelectorAll('.ai-action, .work-action').forEach((button) => {
       button.disabled = busy || stale;
     });
     $('apply').disabled = busy || stale || !canApply;
     $('replacement').disabled = busy || stale;
+    const unchanged = $('replacement').value === originalCode;
+    for (const id of ['preview', 'analyze', 'reset']) $(id).disabled = busy || stale || unchanged;
     $('mode').disabled = busy || tab === 'impact';
     $('audience').disabled = busy;
     $('refresh').disabled = busy;
+    if (focusAfterWork && !busy && !stale) {
+      focusAfterWork = false;
+      $('replacement').focus();
+    }
   };
+  function clearEvidence() {
+    evidence = [];
+    evidenceNote = '';
+    $('evidence').replaceChildren();
+    $('evidence-section').hidden = true;
+    document.querySelectorAll('.evidence-link').forEach((button) => { button.disabled = true; });
+  }
   function request(task, extra = {}) {
     $('error').hidden = true;
     post('request', {
@@ -64,10 +115,20 @@
     post('preview', { replacement: $('replacement').value });
   };
   $('apply').onclick = () => post('apply', { replacement: $('replacement').value });
+  $('reset').onclick = () => {
+    $('replacement').value = originalCode;
+    canApply = false;
+    $('error').hidden = true;
+    $('preview-status').textContent = 'Back to the current code in your file. Try another change.';
+    $('impact-result').replaceChildren();
+    updateButtons();
+    $('replacement').focus();
+  };
   $('cancel').onclick = () => post('cancel');
   $('replacement').oninput = () => {
     canApply = false;
-    $('preview-status').textContent = 'Replacement changed. Preview this version before applying.';
+    $('preview-status').textContent =
+      'Ready for another try. Choose “See what changes” to compare.';
     $('impact-result').replaceChildren();
     updateButtons();
   };
@@ -90,15 +151,18 @@
   }
   function renderLesson(lesson, meta, nested = false) {
     const root = node('article', undefined, 'lesson');
-    root.append(
-      node('div', meta, 'result-meta'),
-      node('h2', lesson.title),
-      node('p', lesson.summary),
-    );
+    root.append(node('div', meta, 'result-meta'), node('h2', lesson.title));
+    const summary = node('p');
+    appendConceptText(summary, lesson.summary, lesson.concepts);
+    root.append(summary);
     if (lesson.steps.length) {
       root.append(node('h3', 'Walk through it'));
       const list = node('ol');
-      lesson.steps.forEach((step) => list.append(node('li', step)));
+      lesson.steps.forEach((step) => {
+        const item = node('li');
+        appendConceptText(item, step, lesson.concepts);
+        list.append(item);
+      });
       root.append(list);
     }
     if (lesson.concepts.length) {
@@ -126,7 +190,9 @@
         pre.append(node('code', lesson.example.code));
         root.append(pre);
       }
-      root.append(node('p', lesson.example.explanation));
+      const exampleExplanation = node('p');
+      appendConceptText(exampleExplanation, lesson.example.explanation, lesson.concepts);
+      root.append(exampleExplanation);
     }
     lesson.predictions.forEach((prediction) => {
       const box = node('div', undefined, 'prediction');
@@ -157,6 +223,7 @@
       $('error').hidden = true;
       $('evidence-section').hidden = true;
       $('source').textContent = message.code;
+      originalCode = message.code;
       $('replacement').value = message.code;
       $('location').textContent = `${message.file}:${message.line}`;
       $('preview-status').textContent = '';
@@ -175,7 +242,7 @@
         };
         $('parts').append(button);
       });
-      selectTab('understand');
+      selectTab(message.keepTab ? tab : 'understand');
       updateButtons();
     } else if (message.type === 'config') {
       $('configure').textContent = message.hasKey
@@ -235,36 +302,47 @@
         $('evidence').append(item);
       });
       selectTab(tab);
+    } else if (message.type === 'previewReset') {
+      canApply = false;
+      $('preview-status').textContent = '';
+      updateButtons();
     } else if (message.type === 'preview') {
-      canApply = !message.errors.length;
+      canApply = !message.errors.length && message.replacement === $('replacement').value && !stale;
       $('preview-status').textContent = message.errors.length
-        ? `Fix syntax before applying: ${message.errors.join(' ')}`
-        : 'Diff opened. No syntax errors found. Type checks and tests have not been run.';
+        ? `Something needs fixing: ${message.errors.join(' ')} Edit your version and try again.`
+        : 'Comparison opened. Keep tinkering, or use this code in your file. No syntax errors found; code and tests have not been run.';
       updateButtons();
     } else if (message.type === 'stale') {
       stale = true;
       canApply = false;
       $('stale').hidden = false;
+      clearEvidence();
+      $('impact-result').replaceChildren();
       updateButtons();
     } else if (message.type === 'contextChanged') {
       canApply = false;
-      $('preview-status').textContent = 'Workspace changed. Preview again before applying.';
+      $('preview-status').textContent = 'Workspace changed. Choose “See what changes” again.';
       $('impact-result').replaceChildren();
       if (chosenMode === 'project') {
         $('explanation').replaceChildren();
         $('example-result').replaceChildren();
         conceptTargets.clear();
       }
+<<<<<<< HEAD
+      clearEvidence();
+=======
       if (evidenceNote) {
         evidenceNote =
-          'Workspace changed. Request a new explanation or preview to refresh these references.';
+          'Workspace changed. Compare again or request a new explanation to refresh these references.';
         $('evidence-note').textContent = evidenceNote;
       }
+>>>>>>> cesar-branch
       updateButtons();
     } else if (message.type === 'applied') {
       canApply = false;
+      focusAfterWork = true;
       $('preview-status').textContent =
-        'Applied to the editor. Review diagnostics, then run your tests. Ctrl/Cmd+Z undoes the edit.';
+        'Your file now uses this version. Keep tinkering below and compare again. Ctrl/Cmd+Z in the editor undoes the change.';
       updateButtons();
     }
   });
