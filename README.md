@@ -4,7 +4,7 @@
 
 ## Try it
 
-1. Install `watdatmean-0.1.0.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
+1. Install `watdatmean-0.1.1.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
 2. Open a `.ts` file. Hover over a declaration to see its pieces instantly.
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
@@ -73,6 +73,12 @@ UI tests require Playwright Chromium (`npx playwright install chromium`). Integr
 | `watdatmean.audience` | Default guidance: `beginner` or `experienced`. The panel can override it.                                         |
 
 Default model IDs are `gpt-5.4-mini`, `claude-haiku-4-5`, and `openai/gpt-oss-20b`. Model availability depends on the provider/account and may change; any compatible text model ID can be entered.
+
+Groq models with known [strict structured-output support](https://console.groq.com/docs/structured-outputs)
+receive the full lesson schema. Other Groq models use JSON object mode. Omitted optional
+sections are treated as empty; malformed fields produce a specific error without
+exposing the response content. The extension does not automatically retry or bill
+for an additional request when validation fails.
 
 ## Boundaries of this MVP
 

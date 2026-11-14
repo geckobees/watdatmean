@@ -1,4 +1,5 @@
 import type { LearningRequest, Lesson, Provider } from './types';
+import { groqResponseFormat } from './lesson-schema';
 
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-5.4-mini',
@@ -19,7 +20,8 @@ Beginner: plain language, define unfamiliar terms, trace a concrete value. Exper
 standalone mode: explain only supplied selected code. project mode: use supplied context, explicitly acknowledge gaps.
 explain task: explain behavior and give a concrete walkthrough. example task: teach the same concept in a DIFFERENT domain with runnable TypeScript and expected output. concept task: explain only the requested concept with an analogy and a small example.
 impact task: compare original code to replacement, predict changed behavior and possible callers/tests affected, and suggest checks. Do not claim tests were run, code is safe, or impact coverage is complete.
-Only provided evidence IDs may support predictions. These IDs establish references or definitions, NOT confirmed runtime behavior. All behavioral impact is a prediction. Do not invent filenames, references or evidence IDs. Use empty arrays when not relevant. No Markdown fences around JSON.`;
+Only provided evidence IDs may support predictions. These IDs establish references or definitions, NOT confirmed runtime behavior. All behavioral impact is a prediction. Do not invent filenames, references or evidence IDs.
+Always include every field in the JSON shape. Use [] for unused lists and {"code":"","explanation":""} for an unused example. title and summary must be nonempty strings. No Markdown fences around JSON.`;
 
 export function makeRequest(
   provider: Provider,
@@ -58,26 +60,38 @@ export function makeRequest(
         { role: 'system', content: instructions },
         { role: 'user', content: input },
       ],
-      response_format: { type: 'json_object' },
+      response_format: groqResponseFormat(model),
     };
   }
   return { url: endpoints[provider], headers, body: JSON.stringify(body) };
 }
 
-function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('The AI returned an invalid response. Please try again.');
+function invalidField(path: string, expected: string): never {
+  // Report only our own field names, never provider content or private source code.
+  throw new Error(
+    `The AI response has an invalid "${path}" field (expected ${expected}). Try again or choose a different model.`,
+  );
+}
+
+function record(value: unknown, path = 'response'): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalidField(path, 'an object');
   return value as Record<string, unknown>;
 }
 
-function string(value: unknown, max = 8000): string {
-  if (typeof value !== 'string')
-    throw new Error('The AI response was incomplete. Please try again.');
+function string(value: unknown, path: string, max = 8000): string {
+  if (typeof value !== 'string') invalidField(path, 'text');
   return value.slice(0, max);
 }
 
-function list(value: unknown): unknown[] {
-  if (!Array.isArray(value)) throw new Error('The AI response was incomplete. Please try again.');
+function requiredText(value: unknown, path: string, max = 8000): string {
+  const result = string(value, path, max);
+  if (!result.trim()) invalidField(path, 'nonempty text');
+  return result;
+}
+
+function optionalList(value: unknown, path: string): unknown[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) invalidField(path, 'an array');
   return value.slice(0, 8);
 }
 
@@ -94,26 +108,32 @@ export function parseLesson(text: string, validIds: string[] = []): Lesson {
     throw new Error('The AI did not return valid JSON. Try again or choose a different model.');
   }
   const data = record(parsed);
-  const example = record(data.example);
+  const example = data.example == null ? {} : record(data.example, 'example');
   return {
-    title: string(data.title, 180),
-    summary: string(data.summary),
-    steps: list(data.steps).map((v) => string(v)),
-    concepts: list(data.concepts).map((v) => {
-      const c = record(v);
-      return { term: string(c.term, 150), explanation: string(c.explanation) };
-    }),
-    example: { code: string(example.code), explanation: string(example.explanation) },
-    predictions: list(data.predictions).map((v) => {
-      const p = record(v);
+    title: requiredText(data.title, 'title', 180),
+    summary: requiredText(data.summary, 'summary'),
+    steps: optionalList(data.steps, 'steps').map((v) => string(v, 'steps[]')),
+    concepts: optionalList(data.concepts, 'concepts').map((v) => {
+      const c = record(v, 'concepts[]');
       return {
-        description: string(p.description),
-        evidenceIds: list(p.evidenceIds)
-          .map((v) => string(v))
+        term: requiredText(c.term, 'concepts[].term', 150),
+        explanation: requiredText(c.explanation, 'concepts[].explanation'),
+      };
+    }),
+    example: {
+      code: string(example.code ?? '', 'example.code'),
+      explanation: string(example.explanation ?? '', 'example.explanation'),
+    },
+    predictions: optionalList(data.predictions, 'predictions').map((v) => {
+      const p = record(v, 'predictions[]');
+      return {
+        description: requiredText(p.description, 'predictions[].description'),
+        evidenceIds: optionalList(p.evidenceIds, 'predictions[].evidenceIds')
+          .map((v) => string(v, 'predictions[].evidenceIds[]'))
           .filter((id) => validIds.includes(id)),
       };
     }),
-    checks: list(data.checks).map((v) => string(v)),
+    checks: optionalList(data.checks, 'checks').map((v) => string(v, 'checks[]')),
   };
 }
 
