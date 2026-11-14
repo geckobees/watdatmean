@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { generate, makeRequest, parseLesson } from '../src/provider';
+import { defaults, generate, makeRequest, parseLesson } from '../src/provider';
 import { prepareRequest } from '../src/budget';
 import type { LearningRequest, Provider } from '../src/types';
 
@@ -19,6 +19,16 @@ const lesson = {
   checks: [],
 };
 describe('provider protocols', () => {
+  it('disables reasoning on the supported Groq default without sending that option to other models', () => {
+    const body = JSON.parse(makeRequest('groq', defaults.groq, 'key', request).body);
+    expect(body.model).toBe('qwen/qwen3.8-27b');
+    expect(body.reasoning_effort).toBe('none');
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.max_completion_tokens).toBe(200);
+    expect(JSON.parse(makeRequest('groq', 'custom-model', 'key', request).body)).not.toHaveProperty(
+      'reasoning_effort',
+    );
+  });
   it.each(['openai', 'anthropic', 'groq'] as const)(
     'uses a fixed HTTPS endpoint and the %s authentication protocol',
     (provider) => {
@@ -90,7 +100,7 @@ describe('provider protocols', () => {
       expect(transport.mock.calls[0][1].redirect).toBe('error');
     },
   );
-  it.each([401, 403, 429, 500])(
+  it.each([400, 401, 403, 404, 429, 500])(
     'does not leak raw errors or secrets for HTTP %s',
     async (status) => {
       const transport = vi
@@ -104,6 +114,37 @@ describe('provider protocols', () => {
       } catch (error) {
         expect(String(error)).not.toContain('secret-and-private-code');
       }
+    },
+  );
+  it.each([
+    [400, 'json_validate_failed', 'could not produce valid JSON'],
+    [404, 'model_not_found', 'model is unavailable'],
+    [400, 'model_decommissioned', 'model is unavailable'],
+    [400, 'unknown-private-code', 'request format'],
+  ] as const)(
+    'classifies HTTP %s / %s without exposing the response body',
+    async (status, code, expected) => {
+      const transport = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code,
+              message: 'secret-and-private-code',
+              failed_generation: 'private source',
+            },
+          }),
+          { status },
+        ),
+      );
+      const error = await generate('groq', 'test', 'key', request, undefined, transport).catch(
+        (error) => error as Error,
+      );
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(expected);
+      expect((error as Error).message).not.toContain('secret-and-private-code');
+      expect((error as Error).message).not.toContain('private source');
+      expect((error as Error).message).not.toContain('unknown-private-code');
+      expect(transport).toHaveBeenCalledTimes(1);
     },
   );
   it('handles request cancellation', async () => {

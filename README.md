@@ -44,7 +44,7 @@ AI requests use short instructions for the selected action and a **200-token out
 
 The selected code, nearby context, reference snippets (including their locations), and replacement code retain the existing limits described above. They are not shortened to meet a token budget. **Under 500 total tokens is a target for small requests, not a guaranteed limit:** input tokens count too, so project context can exceed it. The panel shows provider-reported input, output, and total usage when available, and flags totals of 500 or more. Cached results show zero new tokens.
 
-OpenAI and Groq default to models without reasoning to leave the output budget for the answer. Existing model overrides are preserved; reasoning models may spend their output budget on internal reasoning and return a cut-short error. No automatic retries are made, including for truncated or invalid JSON responses.
+OpenAI defaults to a model without reasoning. Groq defaults to `qwen/qwen3.8-27b` with `reasoning_effort: none` to leave the output budget for the answer. Qwen is currently a preview model on Groq. Existing model overrides are preserved; reasoning models may spend their output budget on internal reasoning and return a cut-short error. No automatic retries are made, including for truncated or invalid JSON responses.
 
 ## Develop
 
@@ -80,7 +80,7 @@ UI tests require Playwright Chromium (`npx playwright install chromium`). Integr
 | `watdatmean.model`    | Model ID override for the selected provider. Configure through the command to switch model and provider together. |
 | `watdatmean.audience` | Default guidance: `beginner` or `experienced`. The panel can override it.                                         |
 
-Default model IDs are `gpt-4.1-mini`, `claude-haiku-4-5`, and `llama-3.1-8b-instant`. Model availability depends on the provider/account and may change; any compatible text model ID can be entered. To use a new default after previously configuring a model, run **WatDatMean: Configure AI Provider / API Key** and enter that model ID, or clear the `watdatmean.model` setting.
+Default model IDs are `gpt-4.1-mini`, `claude-haiku-4-5`, and `qwen/qwen3.8-27b`. Model availability depends on the provider/account and may change; any compatible text model ID can be entered. To use a new default after previously configuring a model, run **WatDatMean: Configure AI Provider / API Key** and enter that model ID, or clear the `watdatmean.model` setting.
 
 ## Boundaries of this MVP
 

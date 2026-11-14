@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
           const args = encodeURIComponent(
             JSON.stringify([{ uri: document.uri.toString(), offset: document.offsetAt(position) }]),
           );
-          md.appendMarkdown(`[Open learning panel →](command:watdatmean.inspect?${args})`);
+          md.appendMarkdown(`[Wat Dat Mean? →](command:watdatmean.inspect?${args})`);
           md.isTrusted = { enabledCommands: ['watdatmean.inspect'] };
           return new vscode.Hover(md);
         },

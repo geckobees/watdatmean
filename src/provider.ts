@@ -4,7 +4,7 @@ import type { LearningRequest, Lesson, Provider, TokenUsage } from './types';
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-4.1-mini',
   anthropic: 'claude-haiku-4-5',
-  groq: 'llama-3.1-8b-instant',
+  groq: 'qwen/qwen3.8-27b',
 };
 const endpoints: Record<Provider, string> = {
   openai: 'https://api.openai.com/v1/responses',
@@ -50,6 +50,7 @@ export function makeRequest(
         { role: 'user', content: input },
       ],
       response_format: { type: 'json_object' },
+      ...(model === 'qwen/qwen3.8-27b' ? { reasoning_effort: 'none' } : {}),
     };
   }
   return { url: endpoints[provider], headers, body: JSON.stringify(body), prepared };
@@ -155,13 +156,30 @@ export async function generate(
     throw new Error('Could not reach the AI provider. Check your connection and try again.');
   }
   if (!response.ok) {
+    // Only classify known codes; raw messages and failed generations can contain private code.
+    let code: unknown;
+    try {
+      const failure = await response.json();
+      code = failure?.error?.code;
+    } catch {
+      // Some provider/proxy errors are HTML or plain text.
+    }
+    if ((response.status === 400 || response.status === 422) && code === 'json_validate_failed')
+      throw new Error(
+        'The provider could not produce valid JSON within the response budget. Try a simpler question or a different model. Your model ID may still be valid.',
+      );
+    if (response.status === 404 || code === 'model_not_found' || code === 'model_decommissioned')
+      throw new Error(
+        'The selected model is unavailable or your API account cannot access it. Run WatDatMean: Configure AI Provider / API Key and choose an available model.' +
+          (provider === 'groq' ? ` The current Groq default is ${defaults.groq}.` : ''),
+      );
     const message =
       response.status === 401 || response.status === 403
         ? 'API key rejected or model access denied. Configure your provider and key again.'
         : response.status === 429
           ? 'Provider quota or rate limit reached. Check billing or wait before retrying.'
-          : response.status === 400 || response.status === 404
-            ? 'The provider rejected the request. Check the model ID in WatDatMean settings.'
+          : response.status === 400
+            ? 'The provider rejected the request format (HTTP 400). The model may not support these request options; try the current default model.'
             : `The AI provider returned HTTP ${response.status}. Please retry later.`;
     // Never display raw provider errors, which may echo request content or credentials.
     throw new Error(message);
