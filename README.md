@@ -1,6 +1,8 @@
 # WatDatMean
 
-**Learn programming through the code you are already working on.** A VS Code extension MVP for **TypeScript (`.ts`)**, with free local syntax explanations and optional OpenAI, Anthropic, or Groq help.
+
+
+**Coding with training wheels for beginners.** A VS Code extension MVP for **TypeScript (`.ts`)**, with free offline syntax explanations and optional OpenAI, Anthropic, or Groq help.
 
 ## Try it
 
@@ -8,8 +10,12 @@
 2. Open a `.ts` file. Hover over code for a short paragraph explaining what it does, with code names highlighted in context. Functions describe their inputs and return types; object creation explains the constructor and reference; simple nested calls explain the inner and outer calls in order. Open the learning panel for individual syntax pieces.
    Inside an interface or object type, hover a property or method to explain just that member. Its learning-panel link opens the same member. Hover the interface heading for the whole definition.
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
+<<<<<<< Updated upstream
    Under **The small pieces**, select a boxed word or symbol directly in the code. These pieces use filled boxes to distinguish them from underlined terms in explanations. The layout preserves your indentation, line breaks, and comments; you can also Tab to a piece and press Enter or Space to unpack it.
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
+=======
+4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq(qwen/qwen3.8-27b Recommended)**, enter your API key in the password prompt, and confirm a model ID available to your account.
+>>>>>>> Stashed changes
 5. Request an explanation, explore another example, or open **Try it yourself** to change code and see the difference.
 
 API keys are stored in **VS Code SecretStorage**, never in project settings or the panel. A provider API account with available credits is required for AI features. Chat subscriptions do not supply API credits. Keys are checked on the first request, not when saved. You can switch providers or remove a key through the Command Palette.
