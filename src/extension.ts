@@ -441,7 +441,7 @@ class Tutor implements vscode.Disposable {
       }
       if (abort.signal.aborted) return;
       const model = config.model || defaults[config.provider];
-      const cacheKey = fingerprint({ version: 1, provider: config.provider, model, request });
+      const cacheKey = fingerprint({ version: 2, provider: config.provider, model, request });
       const cached = this.cache.get(cacheKey);
       const lesson = cached ?? (await generate(config.provider, model, key, request, abort.signal));
       if (abort.signal.aborted || selection !== this.selection) return;

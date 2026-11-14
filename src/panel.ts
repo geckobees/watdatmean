@@ -85,8 +85,8 @@ export function panelHtml(
               <span class="step">01 / UNDERSTAND</span>
               <h2>A clearer picture, one idea at a time.</h2>
               <p>
-                Get a short explanation and a concrete walkthrough. Expand only the concepts you
-                want to explore.
+                Get a short explanation. Request examples and deeper concepts only when you want
+                them. Your selected code and project context are kept.
               </p>
               <button id="explain" class="primary ai-action">
                 Explain this code

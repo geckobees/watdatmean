@@ -38,6 +38,14 @@ Run **WatDatMean: Open Demo Project** for a small rewards-system example. [The d
 - AI output is schema-validated and rendered as text. Supporting-code links are resolved from local evidence IDs; model-generated paths or commands are never executed.
 - Untrusted workspaces allow local explanations but block AI requests and applying edits.
 
+## Token usage
+
+AI requests use short instructions for the selected action and a **200-token output cap** on every provider. Explanations return a brief summary and up to two concepts with short definitions, preserving clickable keyword definitions. Example code and deeper concept explanations are requested separately when you click their buttons. Local syntax explanations and cached results use no new API tokens.
+
+The selected code, nearby context, reference snippets (including their locations), and replacement code retain the existing limits described above. They are not shortened to meet a token budget. **Under 500 total tokens is a target for small requests, not a guaranteed limit:** input tokens count too, so project context can exceed it. The panel shows provider-reported input, output, and total usage when available, and flags totals of 500 or more. Cached results show zero new tokens.
+
+OpenAI defaults to a model without reasoning. Groq defaults to `qwen/qwen3.8-27b` with `reasoning_effort: none` to leave the output budget for the answer. Qwen is currently a preview model on Groq. Existing model overrides are preserved; reasoning models may spend their output budget on internal reasoning and return a cut-short error. No automatic retries are made, including for truncated or invalid JSON responses.
+
 ## Develop
 
 Use Node.js **22.12+** and npm. Clone/open this folder, then:
@@ -83,10 +91,10 @@ UI tests require Playwright Chromium (`npx playwright install chromium`). Integr
 | `watdatmean.model`    | Model ID override for the selected provider. Configure through the command to switch model and provider together. |
 | `watdatmean.audience` | Default guidance: `beginner` or `experienced`. The panel can override it.                                         |
 
-Default model IDs are `gpt-5.4-mini`, `claude-haiku-4-5`, and `openai/gpt-oss-20b`. Model availability depends on the provider/account and may change; any compatible text model ID can be entered.
+Default model IDs are `gpt-4.1-mini`, `claude-haiku-4-5`, and `qwen/qwen3.8-27b`. Model availability depends on the provider/account and may change; any compatible text model ID can be entered. To use a new default after previously configuring a model, run **WatDatMean: Configure AI Provider / API Key** and enter that model ID, or clear the `watdatmean.model` setting.
 
 Groq models with known [strict structured-output support](https://console.groq.com/docs/structured-outputs)
-receive the full lesson schema. Other Groq models use JSON object mode. Omitted optional
+receive a compact schema for the selected action. Other Groq models use JSON object mode. Omitted optional
 sections are treated as empty; malformed fields produce a specific error without
 exposing the response content. The extension does not automatically retry or bill
 for an additional request when validation fails.
