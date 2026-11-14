@@ -81,6 +81,14 @@ vi.mock('vscode', () => {
         return disposable();
       },
       onDidCloseTextDocument: disposable,
+      onDidChangeWorkspaceFolders: disposable,
+      onDidChangeConfiguration: disposable,
+      createFileSystemWatcher: () => ({
+        ...disposable(),
+        onDidCreate: disposable,
+        onDidChange: disposable,
+        onDidDelete: disposable,
+      }),
       getConfiguration: () => ({ get: (_name: string, fallback: unknown) => fallback }),
       asRelativePath: (uri: vscode.Uri) => uri.path,
       applyEdit: async (edit: { changes: { range: vscode.Range; text: string }[] }) => {
@@ -259,12 +267,27 @@ describe('repeatable code experiments in the extension host', () => {
     });
     await message({ type: 'apply', replacement: 'const score = 10;' });
     expect(host.text).toBe('const score = 5;\nconst untouched = 9;');
-    expect(last('error').message).toContain('changed');
+    expect(last('stale')).toMatchObject({ type: 'stale' });
     expect(host.messages.filter((m) => m.type === 'applied')).toEqual([]);
     expect(last('busy').value).toBe(false);
     await message({ type: 'refresh' });
     await message({ type: 'preview', replacement: 'const score = 10;' });
     await message({ type: 'apply', replacement: 'const score = 10;' });
     expect(last('selection').code).toBe('const score = 10;');
+  });
+
+  it('honors cancellation while an apply confirmation is open', async () => {
+    await start();
+    await message({ type: 'preview', replacement: 'const score = 10;' });
+    host.confirm.mockImplementationOnce(async () => {
+      await message({ type: 'cancel' });
+      return 'Use this code';
+    });
+    await message({ type: 'apply', replacement: 'const score = 10;' });
+    expect(host.text).toBe('const score = 0;\nconst untouched = 9;');
+    expect(host.messages.filter((m) => m.type === 'applied')).toEqual([]);
+    expect(last('busy').value).toBe(false);
+    await message({ type: 'preview', replacement: 'const score = 20;' });
+    expect(last('preview')).toMatchObject({ replacement: 'const score = 20;', errors: [] });
   });
 });

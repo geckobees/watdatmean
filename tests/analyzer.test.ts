@@ -76,6 +76,14 @@ describe('TypeScript declaration breakdowns', () => {
     expect(syntaxErrors('const x = ;').length).toBeGreaterThan(0);
     expect(syntaxErrors('const x: number = 1;')).toEqual([]);
   });
+  it('advances past zero-width syntax nodes while a declaration is incomplete', () => {
+    for (const code of ['const score=;', 'const score:=0;', 'const = 1;', 'let value:;']) {
+      const result = inspect(code, 1);
+      expect(result.parts.length).toBeGreaterThan(0);
+      expect(result.parts.length).toBeLessThan(code.length);
+      expect(result.parts.every((part) => part.token.length > 0)).toBe(true);
+    }
+  });
 });
 
 describe('instant explanations throughout TypeScript', () => {

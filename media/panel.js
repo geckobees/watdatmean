@@ -78,7 +78,9 @@
     evidenceNote = '';
     $('evidence').replaceChildren();
     $('evidence-section').hidden = true;
-    document.querySelectorAll('.evidence-link').forEach((button) => { button.disabled = true; });
+    document.querySelectorAll('.evidence-link').forEach((button) => {
+      button.disabled = true;
+    });
   }
   function request(task, extra = {}) {
     $('error').hidden = true;
@@ -328,15 +330,7 @@
         $('example-result').replaceChildren();
         conceptTargets.clear();
       }
-<<<<<<< HEAD
       clearEvidence();
-=======
-      if (evidenceNote) {
-        evidenceNote =
-          'Workspace changed. Compare again or request a new explanation to refresh these references.';
-        $('evidence-note').textContent = evidenceNote;
-      }
->>>>>>> cesar-branch
       updateButtons();
     } else if (message.type === 'applied') {
       canApply = false;

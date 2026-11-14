@@ -109,10 +109,11 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
   const special = new Map<number, Part>();
   for (const declaration of declarations) {
     const name = declaration.name;
+    const destructured = ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name);
     special.set(name.getStart(source), {
       token: name.getText(source),
-      brief: ts.isBindingPattern(name) ? 'Unpacks values into these names.' : 'The variable or property’s name.',
-      detail: ts.isBindingPattern(name)
+      brief: destructured ? 'Unpacks values into these names.' : 'The variable or property’s name.',
+      detail: destructured
         ? 'Destructuring extracts selected properties or items into separate variables.'
         : ts.isPrivateIdentifier(name)
           ? 'A #private field is accessible only inside its declaring class. JavaScript enforces this at runtime.'
@@ -148,14 +149,9 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
     const start = scanner.getTokenPos();
     if (start >= node.end) break;
     const part = special.get(start);
-<<<<<<< HEAD
     // TypeScript inserts zero-width nodes for missing syntax while the user types.
     // Rewinding to one of those nodes repeats the same token forever and exhausts memory.
     if (part && part.token.length > 0) {
-      parts.push(part);
-      scanner.setTextPos(Math.max(scanner.getTextPos(), start + part.token.length));
-=======
-    if (part) {
       const initializer = declarations.find(
         (d) => d.initializer?.getStart(source) === start,
       )?.initializer;
@@ -169,8 +165,7 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
       )
         parts.push(...statementParts(initializer, source, glossary));
       else parts.push({ ...part, start, end: start + part.token.length });
-      scanner.setTextPos(start + part.token.length);
->>>>>>> cesar-branch
+      scanner.setTextPos(Math.max(scanner.getTextPos(), start + part.token.length));
       continue;
     }
     const token = scanner.getTokenText();

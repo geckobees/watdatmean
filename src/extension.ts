@@ -103,13 +103,17 @@ class Tutor implements vscode.Disposable {
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (!event.contentChanges.length || event.document.uri.scheme === 'watdatmean') return;
-<<<<<<< HEAD
+        if (this.selection?.document.uri.toString() === event.document.uri.toString()) {
+          if (this.selection.version === event.document.version) return;
+          this.selection.range = trackRange(this.selection.range, event.contentChanges);
+        }
         this.invalidate(event.document.uri);
       }),
     );
     const watcher = vscode.workspace.createFileSystemWatcher('**/*.ts');
     const onFileChange = (uri: vscode.Uri) => {
-      if (!/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//i.test(uri.path)) this.invalidate(uri);
+      if (!/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//i.test(uri.path))
+        this.invalidate(uri);
     };
     this.disposables.push(
       watcher,
@@ -126,21 +130,6 @@ class Tutor implements vscode.Disposable {
         this.cancelRequest();
         this.cache.clear();
         void this.sendConfig();
-=======
-        this.revision++;
-        this.preview = undefined;
-        if (this.selection?.document.uri.toString() === event.document.uri.toString()) {
-          if (this.selection.version === event.document.version) return;
-          this.selection.range = trackRange(this.selection.range, event.contentChanges);
-          this.abort?.abort();
-          this.send({ type: 'stale' });
-        } else this.send({ type: 'contextChanged' });
->>>>>>> cesar-branch
-      }),
-    );
-    this.disposables.push(
-      vscode.workspace.onDidCloseTextDocument((document) => {
-        if (document.uri.scheme === 'watdatmean') this.virtual.delete(document.uri.toString());
       }),
     );
   }
@@ -157,7 +146,10 @@ class Tutor implements vscode.Disposable {
     this.preview = undefined;
     this.evidence = undefined;
     this.cancelRequest();
-    this.send({ type: uri?.toString() === this.selection?.document.uri.toString() ? 'stale' : 'contextChanged' });
+    this.send({
+      type:
+        uri?.toString() === this.selection?.document.uri.toString() ? 'stale' : 'contextChanged',
+    });
   }
 
   dispose() {
@@ -268,7 +260,13 @@ class Tutor implements vscode.Disposable {
       start = document.positionAt(args.offset);
       end = start;
     }
-    if (!document || document.languageId !== 'typescript' || document.uri.scheme === 'watdatmean' || !start || !end) {
+    if (
+      !document ||
+      document.languageId !== 'typescript' ||
+      document.uri.scheme === 'watdatmean' ||
+      !start ||
+      !end
+    ) {
       void vscode.window.showInformationMessage(
         'Open a TypeScript (.ts) file and place your cursor on code, or select a snippet.',
       );
@@ -302,29 +300,18 @@ class Tutor implements vscode.Disposable {
         },
       );
       this.panel.webview.html = this.html(this.panel.webview);
-<<<<<<< HEAD
       this.panel.webview.onDidReceiveMessage((message) => {
         const selection = this.selection;
         const panel = this.panel;
         return this.handle(message).catch((error) => {
           if (selection !== this.selection || panel !== this.panel) return;
-=======
-      this.panel.webview.onDidReceiveMessage((message) =>
-        this.handle(message).catch((error) =>
->>>>>>> cesar-branch
           this.send({
             type: 'error',
             message:
               error instanceof Error ? error.message : 'Something went wrong. Please try again.',
-<<<<<<< HEAD
           });
         });
       });
-=======
-          }),
-        ),
-      );
->>>>>>> cesar-branch
       this.panel.onDidDispose(() => {
         this.cancelRequest();
         this.panel = undefined;
@@ -357,7 +344,7 @@ class Tutor implements vscode.Disposable {
     if (document.isClosed) throw new Error('Reopen this file and inspect the code again.');
     const source = document.getText();
     if (source.length > 500000) throw new Error('Choose a TypeScript file smaller than 500 KB.');
-    this.abort?.abort();
+    this.cancelRequest();
     this.preview = undefined;
     this.evidence = undefined;
     this.selection = {
@@ -429,7 +416,7 @@ class Tutor implements vscode.Disposable {
     this.send({ type: 'busy', value: true });
     try {
       if (m.type === 'apply') {
-        if (typeof m.replacement === 'string') await this.apply(m.replacement);
+        if (typeof m.replacement === 'string') await this.apply(m.replacement, abort.signal);
         return;
       }
       if (m.type === 'preview') {
@@ -521,46 +508,38 @@ class Tutor implements vscode.Disposable {
     this.evidence = evidence;
     this.send({ type: 'evidence', items: evidence.evidence, note: evidence.note });
     const errors = syntaxErrors(proposed);
-<<<<<<< HEAD
-=======
-    this.send({ type: 'preview', errors, replacement });
-    this.preview = errors.length ? undefined : { replacement, revision };
->>>>>>> cesar-branch
     const id = randomBytes(8).toString('hex');
     const before = vscode.Uri.parse(`watdatmean:/${id}/original.ts`);
     const after = vscode.Uri.parse(`watdatmean:/${id}/proposed.ts`);
     this.virtual.set(before.toString(), source);
     this.virtual.set(after.toString(), proposed);
-<<<<<<< HEAD
     try {
       // Keep the editable source document open when the diff replaces the preview tab.
-      await vscode.window.showTextDocument(selection.document, { viewColumn: vscode.ViewColumn.One, preview: false, preserveFocus: true });
+      await vscode.window.showTextDocument(selection.document, {
+        viewColumn: vscode.ViewColumn.One,
+        preview: false,
+        preserveFocus: true,
+      });
       if (signal.aborted) return;
       await vscode.commands.executeCommand(
-        'vscode.diff', before, after, 'WatDatMean · Proposed edit',
-        { viewColumn: vscode.ViewColumn.One, preview: true },
+        'vscode.diff',
+        before,
+        after,
+        'WatDatMean · See what changes',
+        { viewColumn: vscode.ViewColumn.One, preview: true, preserveFocus: true },
       );
       if (signal.aborted || selection !== this.selection || revision !== this.revision) return;
       this.current();
       this.preview = errors.length ? undefined : { replacement, revision };
-      this.send({ type: 'preview', errors });
+      this.send({ type: 'preview', errors, replacement });
     } catch (error) {
       this.virtual.delete(before.toString());
       this.virtual.delete(after.toString());
       throw error;
     }
-=======
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      before,
-      after,
-      'WatDatMean · See what changes',
-      { viewColumn: vscode.ViewColumn.One, preview: true, preserveFocus: true },
-    );
->>>>>>> cesar-branch
   }
 
-  private async apply(replacement: string) {
+  private async apply(replacement: string, signal: AbortSignal) {
     this.trusted();
     const selection = this.current();
     assertPreviewCurrent(this.preview, replacement, this.revision);
@@ -570,7 +549,7 @@ class Tutor implements vscode.Disposable {
       { modal: true },
       'Use this code',
     );
-    if (confirmed !== 'Use this code') return;
+    if (confirmed !== 'Use this code' || signal.aborted) return;
     this.current();
     if (selection !== this.selection || preview !== this.preview)
       throw new Error('The code changed. Choose “See what changes” again.');
