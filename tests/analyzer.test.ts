@@ -47,6 +47,71 @@ describe('TypeScript declaration breakdowns', () => {
       'Array<string>',
     );
   });
+  it('separates object creation from its constructor and explains the object reference', () => {
+    const code = 'const board = new Scoreboard();';
+    const parts = inspect(code, 0).parts;
+    expect(parts.map((p) => p.token)).toEqual([
+      'const',
+      'board',
+      '=',
+      'new',
+      'Scoreboard',
+      '(',
+      ')',
+      ';',
+    ]);
+    expect(parts.find((p) => p.token === 'board')!.detail).toContain(
+      'board holds a reference to the new object',
+    );
+    expect(parts.find((p) => p.token === 'new')!.detail).toContain(
+      'new creates a Scoreboard object',
+    );
+    expect(parts.find((p) => p.token === 'Scoreboard')!.detail).toContain(
+      'A constructor is the setup code',
+    );
+    expect(parts.find((p) => p.token === '(')!.detail).toContain(
+      'Empty () means Scoreboard receives no inputs',
+    );
+    expect(parts.map((p) => p.detail).join(' ')).not.toContain('expression is evaluated');
+  });
+  it('keeps constructor inputs, comments, and nested creations separate at their original positions', () => {
+    const code = 'class App {\n  board = new /* setup */ widgets.Scoreboard(3, new Options());\n}';
+    const parts = inspect(code, code.indexOf('board')).parts;
+    expect(parts.map((p) => p.token)).toEqual([
+      'board',
+      '=',
+      'new',
+      'widgets',
+      '.',
+      'Scoreboard',
+      '(',
+      '3',
+      ',',
+      'new',
+      'Options',
+      '(',
+      ')',
+      ')',
+      ';',
+    ]);
+    expect(parts.find((p) => p.token === 'Scoreboard')!.detail).toContain(
+      'widgets.Scoreboard is the constructor',
+    );
+    expect(parts.find((p) => p.token === '3')!.brief).toContain('argument 1 to widgets.Scoreboard');
+    expect(parts.find((p) => p.token === '(')!.detail).toContain('inputs for widgets.Scoreboard');
+    for (const part of parts) expect(code.slice(part.start, part.end)).toBe(part.token);
+    for (let index = 1; index < parts.length; index++)
+      expect(parts[index].start).toBeGreaterThanOrEqual(parts[index - 1].end!);
+  });
+  it('handles constructors without parentheses and multiple declarations without grouping new', () => {
+    const parts = inspect('let board = new Scoreboard, other = new Scoreboard(3);', 0).parts;
+    expect(parts.filter((p) => p.token === 'new')).toHaveLength(2);
+    expect(parts.filter((p) => p.token === 'Scoreboard')).toHaveLength(2);
+    expect(parts.find((p) => p.token === 'other')!.detail).toContain(
+      'other holds a reference to the new object',
+    );
+    expect(parts.find((p) => p.token === '3')!.brief).toContain('argument 1 to Scoreboard');
+  });
   it('supports multiple declarations with separate initializers', () => {
     const result = inspect('let a = 1, b = 2;', 12);
     expect(result.symbol).toBe('b');
@@ -83,6 +148,40 @@ describe('instant explanations throughout TypeScript', () => {
   const part = (code: string, token: string, offset = 0) =>
     inspect(code, offset).parts.find((p) => p.token === token)!;
 
+  it('explains punctuation in an interface as descriptions of its actual properties', () => {
+    const code = 'export interface Part { token: string; start?: number; }';
+    const parts = inspect(code, 0).parts;
+    const colons = parts.filter((p) => p.token === ':');
+    expect(colons[0].detail).toContain('token should hold text, such as "hello"');
+    expect(colons[1].detail).toContain('start should hold a number, such as 3');
+    expect(parts.find((p) => p.token === ';')!.detail).toContain('description of token ends');
+    expect(
+      parts
+        .filter((p) => p.token === ':' || p.token === ';')
+        .map((p) => p.detail)
+        .join(' '),
+    ).not.toMatch(/compil|JavaScript|statement boundary|for header/);
+  });
+
+  it('distinguishes a variable type, a function input, and the value a function gives back', () => {
+    expect(part('const title: string = "hello";', ':').detail).toContain('title should hold text');
+    const code = 'function weeklySummary(completedTasks: number): string { return "done"; }';
+    const colons = inspect(code, 0).parts.filter((p) => p.token === ':');
+    expect(colons[0].detail).toContain('completedTasks should receive a number');
+    expect(colons[1].detail).toContain('weeklySummary should give back text');
+  });
+
+  it('only discusses loop separators when the semicolon belongs to a for loop', () => {
+    expect(part('log(3);', ';').detail).toContain('where this instruction ends');
+    const parts = inspect('for (let i = 0; i < 3; i++) { log(i); }', 0).parts;
+    const separators = parts.filter((p) => p.token === ';');
+    expect(separators).toHaveLength(2);
+    for (const separator of separators) {
+      expect(separator.detail).toContain('when to keep going');
+      expect(separator.detail).not.toContain('instruction ends');
+    }
+  });
+
   it('explains the demo method call from every character, including punctuation', () => {
     const call = 'board.addCompletedTasks(3);';
     const start = dashboard.indexOf(call);
@@ -103,7 +202,7 @@ describe('instant explanations throughout TypeScript', () => {
       expect(snippet.parts[2].brief).toContain('method being called on board');
       expect(snippet.parts[4].brief).toContain('argument 1 to board.addCompletedTasks');
       expect(snippet.parts[4].detail).toContain('parameter receives it');
-      expect(snippet.parts[6].brief).toBe('Ends the statement.');
+      expect(snippet.parts[6].brief).toBe('Ends this instruction.');
       for (const p of snippet.parts) expect(dashboard.slice(p.start, p.end)).toBe(p.token);
     }
     expect(inspect(dashboard, start + 7).symbol).toBe('addCompletedTasks');
@@ -214,7 +313,7 @@ describe('instant explanations throughout TypeScript', () => {
     ['class Scoreboard { run() {} }', 'class', 'blueprint'],
     ['interface Board { score: number; }', 'interface', 'shape'],
     ['type Level = "Starter" | "Explorer";', 'type', 'type alias'],
-    ['throw new Error("bad");', 'new', 'constructor'],
+    ['throw new Error("bad");', 'new', 'new object'],
     ['await fetch(url);', 'await', 'settles'],
     ['items.map(item => item * 2);', '=>', 'arrow function'],
     ['console.log({ score: 3 });', ':', 'property name'],

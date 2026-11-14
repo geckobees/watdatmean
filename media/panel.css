@@ -157,6 +157,8 @@ pre {
 }
 .source-card pre {
   max-height: 290px;
+  white-space: pre;
+  overflow-wrap: normal;
 }
 code {
   font-family: var(--vscode-editor-font-family, monospace);
@@ -176,26 +178,37 @@ code {
   padding: 2px 8px;
   font-size: 9px;
 }
-.parts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-.part {
+.parts-code {
+  max-height: 360px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  padding: 7px 12px;
-  color: var(--fg);
   background: var(--card);
-  font: 12px var(--vscode-editor-font-family, monospace);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre;
+  overflow-wrap: normal;
 }
-.part:hover,
+.part {
+  /* Draw each box inside its source width so tabs and code columns stay aligned. */
+  padding: 2px 0;
+  border-radius: 3px;
+  color: var(--vscode-button-secondaryForeground, var(--fg));
+  background: var(--vscode-button-secondaryBackground, #303b3a);
+  box-shadow: inset 0 0 0 1px var(--vscode-contrastBorder, var(--line));
+  cursor: pointer;
+  text-decoration: none;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.part:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #3e4e46);
+}
 .part.selected {
-  border-color: var(--accent);
-  color: var(--accent);
+  color: var(--vscode-editor-selectionForeground, var(--fg));
+  background: var(--vscode-editor-selectionBackground, #315540);
+  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder, var(--accent));
+}
+.part:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #9bd7b4);
+  outline-offset: 2px;
 }
 .part-detail {
   border-left: 2px solid var(--accent);

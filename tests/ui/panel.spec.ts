@@ -1,9 +1,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { panelHtml } from '../../src/panel';
 import { inspect } from '../../src/analyzer';
 
 const snippet = inspect('class Game { private score: number = 0; }', 21);
+// Exercise installed assets as well as workspace assets, without recording the screen.
+const assetRoot = process.env.WATDATMEAN_UI_ASSET_ROOT ?? process.cwd();
+const captureScreenshots = process.env.WATDATMEAN_UI_SCREENSHOTS === '1';
 const weeklyLesson = {
   title: 'Calling weeklySummary',
   summary:
@@ -42,7 +46,7 @@ test.beforeEach(async ({ page }) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('.js') || path.endsWith('.css')) {
       await route.fulfill({
-        body: readFileSync(`media${path}`),
+        body: readFileSync(resolve(assetRoot, `media${path}`)),
         contentType: path.endsWith('.js') ? 'application/javascript' : 'text/css',
       });
     } else
@@ -83,12 +87,186 @@ test('shows instant explanations without requesting AI, and fits a narrow panel'
         ).length,
     ),
   ).toBe(0);
-  await page.screenshot({ path: 'work/panel-wide.png', fullPage: true });
+  if (captureScreenshots) await page.screenshot({ path: 'work/panel-wide.png', fullPage: true });
   await page.setViewportSize({ width: 360, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: 'work/panel-narrow.png', fullPage: true });
+  if (captureScreenshots) await page.screenshot({ path: 'work/panel-narrow.png', fullPage: true });
+});
+test('lets beginners unpack new and the constructor independently without changing the code layout', async ({
+  page,
+}) => {
+  const code = 'const board = new Scoreboard();';
+  await send(page, { type: 'selection', ...inspect(code, 0), file: 'dashboard.ts', line: 1 });
+  const parts = page.locator('#parts');
+  expect(await parts.textContent()).toBe(code);
+  await parts.getByRole('button', { name: 'new', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('new creates a Scoreboard object');
+  await parts.getByRole('button', { name: 'Scoreboard', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('A constructor is the setup code');
+  await expect(parts.getByRole('button', { name: 'new', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await parts.getByRole('button', { name: '(', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText(
+    'Empty () means Scoreboard receives no inputs',
+  );
+  await parts.getByRole('button', { name: 'board', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText(
+    'board holds a reference to the new object',
+  );
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+});
+test('lays out clickable interface pieces like the source and selects repeated pieces independently', async ({
+  page,
+}) => {
+  const code = `export interface Part {
+  token: string;
+  brief: string;
+  detail: string;
+  start?: number;
+  end?: number;
+}`;
+  const prefix = 'const note = "token: string";\n\n';
+  await send(page, {
+    type: 'selection',
+    ...inspect(prefix + code, prefix.length),
+    file: 'types.ts',
+    line: 3,
+  });
+  const parts = page.locator('#parts');
+  expect(await parts.textContent()).toBe(code);
+  const first = await parts.getByRole('button', { name: 'export', exact: true }).boundingBox();
+  const token = await parts.getByRole('button', { name: 'token', exact: true }).boundingBox();
+  const brief = await parts.getByRole('button', { name: 'brief', exact: true }).boundingBox();
+  const close = await parts.getByRole('button', { name: '}', exact: true }).boundingBox();
+  expect(token!.x - first!.x).toBeCloseTo((2 * first!.width) / 'export'.length, 0);
+  expect(brief!.x).toBeCloseTo(token!.x, 1);
+  expect(brief!.y).toBeGreaterThan(token!.y);
+  expect(close!.x).toBeCloseTo(first!.x, 1);
+  expect(close!.y).toBeGreaterThan(brief!.y);
+
+  const strings = parts.getByRole('button', { name: 'string', exact: true });
+  await strings.nth(1).click();
+  await expect(strings.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(strings.nth(0)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#part-detail')).toContainText('Stores text');
+  await parts.getByRole('button', { name: 'interface', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#part-detail')).toContainText('creates no runtime object');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Space');
+  await expect(parts.getByRole('button', { name: 'Part', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(parts.locator('.selected')).toHaveCount(1);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+  await parts.getByRole('button', { name: 'token', exact: true }).click();
+  if (captureScreenshots)
+    await page.locator('#syntax-section').screenshot({ path: 'work/panel-indented-pieces.png' });
+});
+
+test('preserves tabs, blank lines, comments, and multiline pieces as safe source text', async ({
+  page,
+}) => {
+  const code =
+    'export interface Part {\r\n\t// Keep this comment and spacing.\r\n\ttoken: string;\r\n\r\n\tdetail: {\r\n\t\tlabel: "<img src=x onerror=alert(1)>";\r\n\t};\r\n}';
+  await send(page, { type: 'selection', ...inspect(code, 0), file: 'types.ts', line: 1 });
+  expect(await page.locator('#parts').textContent()).toBe(code);
+  await expect(page.locator('#parts img')).toHaveCount(0);
+  const multiline = page.locator('#parts .part').filter({ hasText: 'label:' });
+  await multiline.focus();
+  await page.keyboard.press('Enter');
+  await expect(multiline).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-detail')).toBeVisible();
+  const aligned = await page.evaluate(() => {
+    const source = document.getElementById('source')!.firstChild!;
+    const parts = document.getElementById('parts')!;
+    const origin = parts.querySelector('.part')!.getBoundingClientRect();
+    const start = document.createRange();
+    start.setStart(source, 0);
+    start.setEnd(source, 1);
+    const sourceOrigin = start.getBoundingClientRect();
+    return ['token', 'detail'].map((name) => {
+      const index = source.textContent!.indexOf(name + ':');
+      const range = document.createRange();
+      range.setStart(source, index);
+      range.setEnd(source, index + name.length);
+      const original = range.getBoundingClientRect();
+      const piece = parts.querySelector(`[aria-label="${name}"]`)!.getBoundingClientRect();
+      return {
+        x: piece.x - origin.x,
+        y: piece.y - origin.y,
+        expectedX: original.x - sourceOrigin.x,
+        expectedY: original.y - sourceOrigin.y,
+      };
+    });
+  });
+  for (const position of aligned) {
+    expect(position.x).toBeCloseTo(position.expectedX, 1);
+    expect(position.y).toBeCloseTo(position.expectedY, 1);
+  }
+});
+
+test('opens only the selected interface member and keeps its pieces clickable', async ({
+  page,
+}) => {
+  const source = 'export interface Part {\n  token: string;\n  start?: number;\n}';
+  await send(page, {
+    type: 'selection',
+    ...inspect(source, source.indexOf('start?')),
+    file: 'types.ts',
+    line: 3,
+  });
+  expect(await page.locator('#source').textContent()).toBe('start?: number;');
+  expect(await page.locator('#parts').textContent()).toBe('start?: number;');
+  await expect(
+    page.locator('#parts').getByRole('button', { name: 'token', exact: true }),
+  ).toHaveCount(0);
+  await page.locator('#parts').getByRole('button', { name: '?', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('optional');
+  await page.locator('#parts').getByRole('button', { name: ':', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('start should hold a number');
+});
+
+test('keeps long lines intact within a narrow panel and resets the selected piece on refresh', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  const code = `const message = \`First line\n\t${'A long line of text. '.repeat(10)}\nLast line\`;`;
+  await send(page, { type: 'selection', ...inspect(code, 0), file: 'message.ts', line: 1 });
+  expect(await page.locator('#parts').textContent()).toBe(code);
+  const scrolling = await page.locator('.parts-code').evaluate((el) => ({
+    width: el.clientWidth,
+    content: el.scrollWidth,
+    whiteSpace: getComputedStyle(el).whiteSpace,
+  }));
+  expect(scrolling.content).toBeGreaterThan(scrolling.width);
+  expect(scrolling.whiteSpace).toBe('pre');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#parts').getByRole('button', { name: 'message', exact: true }).click();
+  await expect(page.locator('#part-detail')).toBeVisible();
+  if (captureScreenshots)
+    await page.locator('#syntax-section').screenshot({ path: 'work/panel-pieces-narrow.png' });
+  await send(page, { type: 'selection', ...snippet, file: 'score.ts', line: 4 });
+  expect(await page.locator('#parts').textContent()).toBe(snippet.code);
+  await expect(page.locator('#parts .selected')).toHaveCount(0);
+  await expect(page.locator('#part-detail')).toBeHidden();
 });
 test('sends explicit explanation, example and concept requests; safely renders hostile content', async ({
   page,
@@ -163,7 +341,8 @@ test('unpacks method and nested call pieces locally', async ({ page }) => {
       ),
     ),
   ).toEqual([]);
-  await page.screenshot({ path: 'work/panel-nested-call.png', fullPage: true });
+  if (captureScreenshots)
+    await page.screenshot({ path: 'work/panel-nested-call.png', fullPage: true });
 });
 test('only enables applying the exact preview and disables it after edits or stale code', async ({
   page,
@@ -318,7 +497,8 @@ test('continues in Try it yourself after applying a change or loading the latest
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
+  if (captureScreenshots)
+    await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
 });
 
 test('opens and reopens underlined definitions with clicks and keyboard without AI requests', async ({
@@ -438,7 +618,8 @@ test('renders definitions as text and fits them into a narrow panel', async ({ p
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: 'work/panel-clickable-definition.png', fullPage: true });
+  if (captureScreenshots)
+    await page.screenshot({ path: 'work/panel-clickable-definition.png', fullPage: true });
   await send(page, {
     type: 'lesson',
     task: 'explain',

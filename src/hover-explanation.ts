@@ -292,6 +292,26 @@ export function hoverExplanation(target: ts.Node, source: ts.SourceFile, offset:
     return declaration(declarations.find(focused) ?? declarations[0]) + exported(target);
   }
   if (ts.isPropertyDeclaration(target)) return declaration(target);
+  if (ts.isPropertySignature(target)) {
+    const name = ref(target.name);
+    const meaning =
+      target.type && ts.isFunctionTypeNode(target.type)
+        ? `a function that ${functionMeaning(target.type)}`
+        : target.type
+          ? typeMeaning(target.type)
+          : 'a value';
+    return `${name} is ${target.questionToken ? 'an optional' : 'a required'} property on an object that should hold ${meaning}.${target.questionToken ? ` ${ref('?')} means it can be left out.` : ''}${has(target, ts.SyntaxKind.ReadonlyKeyword) ? ` ${ref('readonly')} asks TypeScript to flag attempts to replace this value.` : ''}`;
+  }
+  if (ts.isMethodSignature(target))
+    return `${ref(target.name)} describes a method (a function on an object) that ${functionMeaning(target)}.${target.questionToken ? ` ${ref('?')} means the method can be left out.` : ''}`;
+  if (ts.isCallSignatureDeclaration(target))
+    return `This line describes a value you can call like a function. It ${functionMeaning(target)}.`;
+  if (ts.isConstructSignatureDeclaration(target))
+    return `This line describes a value you can use with ${ref('new')} to create an object. It ${functionMeaning(target)}.`;
+  if (ts.isIndexSignatureDeclaration(target)) {
+    const key = target.parameters[0];
+    return `${ref(`[${key ? text(key) : 'key'}]`)} describes values you can look up using ${key?.type ? typeMeaning(key.type) : 'a property name'}. Each result should be ${typeMeaning(target.type)}.${has(target, ts.SyntaxKind.ReadonlyKeyword) ? ` ${ref('readonly')} asks TypeScript to flag attempts to replace these values.` : ''}`;
+  }
   if (ts.isFunctionDeclaration(target) || ts.isMethodDeclaration(target)) {
     const name = target.name ? ref(target.name) : 'This function';
     const role = ts.isMethodDeclaration(target)
