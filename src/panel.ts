@@ -32,7 +32,7 @@ export function panelHtml(
         <main>
           <div class="eyebrow">
             YOUR CODE, UNDERSTOOD
-            <span class="badge">TYPESCRIPT</span>
+            <span class="badge" id="language">TYPESCRIPT</span>
           </div>
           <h1>Make it make sense.</h1>
           <p class="intro">

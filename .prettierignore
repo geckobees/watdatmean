@@ -10,3 +10,6 @@ demo/out/
 licenses/
 package-lock.json
 *.vsix
+intellij/build/
+intellij/.gradle/
+intellij/.intellijPlatform/

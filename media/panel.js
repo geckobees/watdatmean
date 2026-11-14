@@ -1,8 +1,8 @@
 /* All code and model output is rendered as text, never as HTML. */
 (() => {
-  const vscode = acquireVsCodeApi();
+  const host = window.watdatmeanHost || acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
-  const post = (type, extra = {}) => vscode.postMessage({ type, ...extra });
+  const post = (type, extra = {}) => host.postMessage({ type, ...extra });
   let busy = false;
   let stale = false;
   let tab = 'understand';
@@ -12,7 +12,7 @@
   let originalCode = '';
   let focusAfterWork = false;
   const conceptTargets = new Map();
-  const saved = vscode.getState() || {};
+  const saved = host.getState() || {};
   $('mode').value = saved.mode || 'standalone';
   let chosenMode = $('mode').value;
   const node = (tag, text, className) => {
@@ -78,7 +78,9 @@
     evidenceNote = '';
     $('evidence').replaceChildren();
     $('evidence-section').hidden = true;
-    document.querySelectorAll('.evidence-link').forEach((button) => { button.disabled = true; });
+    document.querySelectorAll('.evidence-link').forEach((button) => {
+      button.disabled = true;
+    });
   }
   function request(task, extra = {}) {
     $('error').hidden = true;
@@ -136,7 +138,7 @@
     $(id).onchange = () => {
       if (id === 'mode') chosenMode = $('mode').value;
       saved.audience = $('audience').value;
-      vscode.setState({ mode: chosenMode, audience: $('audience').value });
+      host.setState({ mode: chosenMode, audience: $('audience').value });
       $('explanation').replaceChildren();
       $('example-result').replaceChildren();
       $('impact-result').replaceChildren();
@@ -222,6 +224,7 @@
       $('stale').hidden = true;
       $('error').hidden = true;
       $('evidence-section').hidden = true;
+      $('language').textContent = (message.language || 'TypeScript').toUpperCase();
       $('source').textContent = message.code;
       originalCode = message.code;
       $('replacement').value = message.code;
@@ -307,10 +310,16 @@
       $('preview-status').textContent = '';
       updateButtons();
     } else if (message.type === 'preview') {
-      canApply = !message.errors.length && message.replacement === $('replacement').value && !stale;
+      canApply =
+        message.syntaxChecked !== false &&
+        !message.errors.length &&
+        message.replacement === $('replacement').value &&
+        !stale;
       $('preview-status').textContent = message.errors.length
         ? `Something needs fixing: ${message.errors.join(' ')} Edit your version and try again.`
-        : 'Comparison opened. Keep tinkering, or use this code in your file. No syntax errors found; code and tests have not been run.';
+        : message.syntaxChecked === false
+          ? 'Comparison opened. This language has no syntax checker installed; applying edits is unavailable.'
+          : 'Comparison opened. Keep tinkering, or use this code in your file. No syntax errors found; code and tests have not been run.';
       updateButtons();
     } else if (message.type === 'stale') {
       stale = true;
@@ -328,15 +337,7 @@
         $('example-result').replaceChildren();
         conceptTargets.clear();
       }
-<<<<<<< HEAD
       clearEvidence();
-=======
-      if (evidenceNote) {
-        evidenceNote =
-          'Workspace changed. Compare again or request a new explanation to refresh these references.';
-        $('evidence-note').textContent = evidenceNote;
-      }
->>>>>>> cesar-branch
       updateButtons();
     } else if (message.type === 'applied') {
       canApply = false;

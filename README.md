@@ -1,16 +1,15 @@
 # WatDatMean
 
-**Learn programming through the code you are already working on.** A VS Code extension MVP for **TypeScript (`.ts`)**, with free local syntax explanations and optional OpenAI, Anthropic, or Groq help.
+**Learn programming through the code you are already working on.** WatDatMean supports **VS Code** and **IntelliJ IDEA** with a shared learning engine and panel. VS Code provides TypeScript (`.ts`) hover breakdowns; IntelliJ explains selected code in the editor's language. Both provide free local TypeScript syntax explanations and optional OpenAI, Anthropic, or Groq help.
+
+For IntelliJ installation, automatic Node.js setup, language capabilities, and builds, see [the IntelliJ guide](intellij/README.md). This release targets IntelliJ **2022.3–2025.2.x**; the same Java 17 plugin has been tested on Community 2022.3 and 2025.2.4.
 
 ## Try it
 
-<<<<<<< HEAD
+### Visual Studio Code
+
 1. Install `watdatmean-0.1.2.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
-2. Open a `.ts` file. Hover over a declaration to see its pieces instantly.
-=======
-1. Install `watdatmean-0.1.0.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
 2. Open a `.ts` file. Hover over code—declarations, method calls, returns, conditions, and more—to see its pieces instantly.
->>>>>>> cesar-branch
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
 5. Request an explanation, explore another example, or open **Try it yourself** to change code and see the difference.
@@ -53,6 +52,8 @@ npm run check
 npm test
 npm run build
 ```
+
+IntelliJ users do not need to install Node separately: the plugin detects a compatible runtime or downloads a private, checksum-verified copy. Building from source still requires Node and npm. IntelliJ build outputs are ignored by Git; commit its `src/`, build configuration, and shared bridge sources.
 
 Run `npm run dev` to build and open a persistent development window with the demo workspace.
 It uses an isolated profile in `.vscode-dev` and bypasses the JavaScript debugger, so you

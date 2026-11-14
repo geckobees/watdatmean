@@ -2,6 +2,11 @@
 
 ## 0.1.2
 
+- Reconcile the merged hover breakdowns, local binding explanations, concept tooltips, and repeatable edit experiments with both IDE adapters.
+- Restore the IntelliJ plugin source and build/test scripts; support IntelliJ 2022.3–2025.2.x with Java 17.
+- Detect Node.js 22.12+ and optionally download a private, checksum-verified runtime for IntelliJ.
+- Share language-aware AI requests and the learning panel while retaining VS Code's TypeScript features.
+- Fix merge markers, missing provider/development modules, stale preview handling, and panel disposal.
 - Prevent an infinite hover-scanner loop and memory exhaustion while declarations are incomplete during editing.
 - Test malformed declarations in a memory-limited process and hover behavior after real VS Code edits.
 - Keep low reasoning effort for Groq GPT-OSS models and omit the option for other models.

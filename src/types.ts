@@ -26,6 +26,7 @@ export interface Evidence {
   test: boolean;
 }
 export interface LearningRequest {
+  language?: string;
   task: Task;
   audience: Audience;
   mode: Mode;

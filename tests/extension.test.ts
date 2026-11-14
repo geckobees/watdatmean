@@ -13,6 +13,8 @@ const host = vi.hoisted(() => ({
   text: '',
   version: 1,
   confirm: vi.fn(),
+  closePanel: undefined as (() => void) | undefined,
+  panelClosed: false,
 }));
 
 vi.mock('../src/context', () => ({
@@ -81,6 +83,14 @@ vi.mock('vscode', () => {
         return disposable();
       },
       onDidCloseTextDocument: disposable,
+      onDidChangeWorkspaceFolders: disposable,
+      onDidChangeConfiguration: disposable,
+      createFileSystemWatcher: () => ({
+        dispose() {},
+        onDidCreate: disposable,
+        onDidChange: disposable,
+        onDidDelete: disposable,
+      }),
       getConfiguration: () => ({ get: (_name: string, fallback: unknown) => fallback }),
       asRelativePath: (uri: vscode.Uri) => uri.path,
       applyEdit: async (edit: { changes: { range: vscode.Range; text: string }[] }) => {
@@ -112,11 +122,18 @@ vi.mock('vscode', () => {
       createWebviewPanel: () => ({
         ...disposable(),
         reveal() {},
-        onDidDispose: disposable,
+        onDidDispose: (callback: () => void) => {
+          host.closePanel = () => {
+            host.panelClosed = true;
+            callback();
+          };
+          return disposable();
+        },
         webview: {
           cspSource: 'test:',
           asWebviewUri: (uri: vscode.Uri) => uri,
           postMessage: (message: Record<string, unknown>) => {
+            if (host.panelClosed) throw new Error('Webview is disposed');
             host.messages.push(message);
             return Promise.resolve(true);
           },
@@ -186,10 +203,18 @@ beforeEach(() => {
   host.messages.length = 0;
   host.comparisons.length = 0;
   host.version = 1;
+  host.panelClosed = false;
   host.confirm.mockReset().mockResolvedValue('Use this code');
 });
 
 describe('repeatable code experiments in the extension host', () => {
+  it('closes the panel without sending messages to a disposed webview', async () => {
+    await start();
+    expect(() => host.closePanel!()).not.toThrow();
+    await externalEdit(0, 0, '// changed after closing\n');
+    expect(host.messages.filter((m) => m.type === 'error')).toEqual([]);
+  });
+
   it('compares repeatedly and recovers from syntax errors without modifying the file', async () => {
     await start();
     const original = host.text;
@@ -199,6 +224,7 @@ describe('repeatable code experiments in the extension host', () => {
       expect(host.comparisons.at(-1)?.before).toBe(original);
       expect(host.comparisons.at(-1)?.after).toBe(replacement + '\nconst untouched = 9;');
       expect(last('preview').errors.length > 0).toBe(replacement === 'const score = ;');
+      expect(last('preview').replacement).toBe(replacement);
       expect(last('busy').value).toBe(false);
     }
     expect(host.messages.filter((m) => m.type === 'error')).toEqual([]);

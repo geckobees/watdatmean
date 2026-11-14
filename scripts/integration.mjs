@@ -28,12 +28,19 @@ const args = [
 const executable =
   process.env.VSCODE_EXECUTABLE || (process.platform === 'win32' ? 'code.cmd' : 'code');
 const resultFile = resolve(`.vscode-test/result-${randomUUID()}.json`);
-const child = spawn(executable, args, {
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-  windowsHide: true,
-  env: { ...process.env, WATDATMEAN_TEST_RESULT: resultFile },
-});
+const shell = process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable);
+if (shell && [executable, ...args].some((value) => /["%\r\n]/.test(value)))
+  throw new Error('Use a VS Code executable path without quotes or percent signs.');
+const child = spawn(
+  shell ? `"${executable}"` : executable,
+  shell ? args.map((arg) => `"${arg}"`) : args,
+  {
+    stdio: 'inherit',
+    shell,
+    windowsHide: true,
+    env: { ...process.env, WATDATMEAN_TEST_RESULT: resultFile },
+  },
+);
 const timeout = setTimeout(() => {
   console.error('Integration test timed out.');
   child.kill();

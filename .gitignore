@@ -10,3 +10,8 @@ playwright-report/
 demo/out/
 .env*
 !.env.example
+
+intellij/build/
+intellij/.gradle/
+intellij/.intellijPlatform/
+.idea/

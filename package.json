@@ -115,8 +115,11 @@
     "test": "vitest run",
     "vscode:prepublish": "npm run check && npm run build",
     "package": "vsce package --no-dependencies --allow-missing-repository",
-    "test:ui": "playwright test",
-    "test:integration": "node scripts/integration.mjs"
+    "test:ui": "node scripts/build-intellij.mjs && playwright test",
+    "test:integration": "node scripts/integration.mjs",
+    "build:intellij": "node scripts/build-intellij.mjs",
+    "package:intellij": "node scripts/package-intellij.mjs",
+    "test:intellij": "node scripts/test-intellij.mjs"
   },
   "dependencies": {
     "typescript": "^5.9.3"
