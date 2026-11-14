@@ -330,6 +330,17 @@ textarea {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.concept-term {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.concept-term:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #9bd7b4);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 .lesson ol,
 .lesson ul {
   padding-left: 22px;

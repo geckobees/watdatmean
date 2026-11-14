@@ -1,5 +1,5 @@
 import { panelHtml } from './panel';
-import { assertPreviewCurrent, validateReplacement } from './edit';
+import { assertPreviewCurrent, trackRange, validateReplacement, type OffsetRange } from './edit';
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { inspect, syntaxErrors } from './analyzer';
@@ -12,6 +12,7 @@ interface Selection {
   document: vscode.TextDocument;
   version: number;
   snippet: Snippet;
+  range: OffsetRange;
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -36,14 +37,26 @@ export function activate(context: vscode.ExtensionContext) {
       {
         provideHover(document, position) {
           if (document.getText().length > 500000) return;
-          const snippet = inspect(document.getText(), document.offsetAt(position));
+          const offset = document.offsetAt(position);
+          const snippet = inspect(document.getText(), offset);
           const md = new vscode.MarkdownString();
           md.appendMarkdown('**WatDatMean** · TypeScript\n\n');
           if (snippet.parts.length) {
-            for (const part of snippet.parts.slice(0, 14)) {
+            const focused = snippet.parts.findIndex(
+              (part) =>
+                part.start !== undefined &&
+                part.end !== undefined &&
+                part.start <= offset &&
+                offset < part.end,
+            );
+            const first = Math.max(0, Math.min(focused - 6, snippet.parts.length - 14));
+            if (first) md.appendMarkdown('*Earlier pieces in the learning panel…*\n\n');
+            for (const part of snippet.parts.slice(first, first + 14)) {
               md.appendText(`${part.token} — ${part.brief}`);
               md.appendMarkdown('  \n');
             }
+            if (first + 14 < snippet.parts.length)
+              md.appendMarkdown('\n*More pieces in the learning panel…*\n');
             md.appendMarkdown('\n*Instant explanation · no AI tokens*\n\n');
           } else
             md.appendMarkdown('Understand this code, explore examples, and preview an edit.\n\n');
@@ -90,6 +103,7 @@ class Tutor implements vscode.Disposable {
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (!event.contentChanges.length || event.document.uri.scheme === 'watdatmean') return;
+<<<<<<< HEAD
         this.invalidate(event.document.uri);
       }),
     );
@@ -112,6 +126,21 @@ class Tutor implements vscode.Disposable {
         this.cancelRequest();
         this.cache.clear();
         void this.sendConfig();
+=======
+        this.revision++;
+        this.preview = undefined;
+        if (this.selection?.document.uri.toString() === event.document.uri.toString()) {
+          if (this.selection.version === event.document.version) return;
+          this.selection.range = trackRange(this.selection.range, event.contentChanges);
+          this.abort?.abort();
+          this.send({ type: 'stale' });
+        } else this.send({ type: 'contextChanged' });
+>>>>>>> cesar-branch
+      }),
+    );
+    this.disposables.push(
+      vscode.workspace.onDidCloseTextDocument((document) => {
+        if (document.uri.scheme === 'watdatmean') this.virtual.delete(document.uri.toString());
       }),
     );
   }
@@ -254,10 +283,12 @@ class Tutor implements vscode.Disposable {
     this.cancelRequest();
     this.preview = undefined;
     this.evidence = undefined;
+    const snippet = inspect(document.getText(), document.offsetAt(start), document.offsetAt(end));
     this.selection = {
       document,
       version: document.version,
-      snippet: inspect(document.getText(), document.offsetAt(start), document.offsetAt(end)),
+      snippet,
+      range: { start: snippet.start, end: snippet.end },
     };
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
@@ -271,18 +302,29 @@ class Tutor implements vscode.Disposable {
         },
       );
       this.panel.webview.html = this.html(this.panel.webview);
+<<<<<<< HEAD
       this.panel.webview.onDidReceiveMessage((message) => {
         const selection = this.selection;
         const panel = this.panel;
         return this.handle(message).catch((error) => {
           if (selection !== this.selection || panel !== this.panel) return;
+=======
+      this.panel.webview.onDidReceiveMessage((message) =>
+        this.handle(message).catch((error) =>
+>>>>>>> cesar-branch
           this.send({
             type: 'error',
             message:
               error instanceof Error ? error.message : 'Something went wrong. Please try again.',
+<<<<<<< HEAD
           });
         });
       });
+=======
+          }),
+        ),
+      );
+>>>>>>> cesar-branch
       this.panel.onDidDispose(() => {
         this.cancelRequest();
         this.panel = undefined;
@@ -294,11 +336,12 @@ class Tutor implements vscode.Disposable {
     }
   }
 
-  private sendSelection() {
+  private sendSelection(keepTab = false) {
     if (!this.selection) return;
     const { document, snippet } = this.selection;
     this.send({
       type: 'selection',
+      keepTab,
       code: snippet.code,
       parts: snippet.parts,
       symbol: snippet.symbol,
@@ -308,13 +351,36 @@ class Tutor implements vscode.Disposable {
     void this.sendConfig();
   }
 
+  private refreshSelection() {
+    if (!this.selection) return;
+    const { document, range } = this.selection;
+    if (document.isClosed) throw new Error('Reopen this file and inspect the code again.');
+    const source = document.getText();
+    if (source.length > 500000) throw new Error('Choose a TypeScript file smaller than 500 KB.');
+    this.abort?.abort();
+    this.preview = undefined;
+    this.evidence = undefined;
+    this.selection = {
+      document,
+      version: document.version,
+      range,
+      // An empty selection is an insertion point after deletion. Do not
+      // accidentally select and replace the statement following it.
+      snippet:
+        range.start === range.end
+          ? { code: '', ...range, symbol: '', symbolOffset: range.start, parts: [] }
+          : inspect(source, range.start, range.end),
+    };
+    this.sendSelection(true);
+  }
+
   private current(): Selection {
     if (!this.selection) throw new Error('Inspect some TypeScript code first.');
     if (
       this.selection.document.isClosed ||
       this.selection.document.version !== this.selection.version
     )
-      throw new Error('This code has changed. Inspect it again to refresh the explanation.');
+      throw new Error('Your file changed. Choose “Use latest code” to continue.');
     return this.selection;
   }
 
@@ -341,11 +407,7 @@ class Tutor implements vscode.Disposable {
       return;
     }
     if (m.type === 'refresh') {
-      if (this.selection)
-        await this.inspectEditor({
-          uri: this.selection.document.uri.toString(),
-          offset: this.selection.snippet.start,
-        });
+      this.refreshSelection();
       return;
     }
     if (m.type === 'openEvidence' && typeof m.id === 'string') {
@@ -357,12 +419,8 @@ class Tutor implements vscode.Disposable {
         });
       return;
     }
-    if (m.type === 'apply' && typeof m.replacement === 'string') {
-      await this.apply(m.replacement);
-      return;
-    }
     if (this.busy) return;
-    if (m.type !== 'request' && m.type !== 'preview') return;
+    if (m.type !== 'request' && m.type !== 'preview' && m.type !== 'apply') return;
     const selection = this.current();
     this.busy = true;
     const abort = new AbortController();
@@ -370,6 +428,10 @@ class Tutor implements vscode.Disposable {
     const revision = this.revision;
     this.send({ type: 'busy', value: true });
     try {
+      if (m.type === 'apply') {
+        if (typeof m.replacement === 'string') await this.apply(m.replacement);
+        return;
+      }
       if (m.type === 'preview') {
         await this.makePreview(
           typeof m.replacement === 'string' ? m.replacement : '',
@@ -459,11 +521,17 @@ class Tutor implements vscode.Disposable {
     this.evidence = evidence;
     this.send({ type: 'evidence', items: evidence.evidence, note: evidence.note });
     const errors = syntaxErrors(proposed);
+<<<<<<< HEAD
+=======
+    this.send({ type: 'preview', errors, replacement });
+    this.preview = errors.length ? undefined : { replacement, revision };
+>>>>>>> cesar-branch
     const id = randomBytes(8).toString('hex');
     const before = vscode.Uri.parse(`watdatmean:/${id}/original.ts`);
     const after = vscode.Uri.parse(`watdatmean:/${id}/proposed.ts`);
     this.virtual.set(before.toString(), source);
     this.virtual.set(after.toString(), proposed);
+<<<<<<< HEAD
     try {
       // Keep the editable source document open when the diff replaces the preview tab.
       await vscode.window.showTextDocument(selection.document, { viewColumn: vscode.ViewColumn.One, preview: false, preserveFocus: true });
@@ -481,6 +549,15 @@ class Tutor implements vscode.Disposable {
       this.virtual.delete(after.toString());
       throw error;
     }
+=======
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      before,
+      after,
+      'WatDatMean · See what changes',
+      { viewColumn: vscode.ViewColumn.One, preview: true, preserveFocus: true },
+    );
+>>>>>>> cesar-branch
   }
 
   private async apply(replacement: string) {
@@ -489,15 +566,18 @@ class Tutor implements vscode.Disposable {
     assertPreviewCurrent(this.preview, replacement, this.revision);
     const preview = this.preview;
     const confirmed = await vscode.window.showWarningMessage(
-      'Apply the previewed edit? Impact predictions are not guarantees. Tests have not been run.',
+      'Use this code in your file? This changes the editor’s contents. You can undo it. The code has not been run.',
       { modal: true },
-      'Apply edit',
+      'Use this code',
     );
-    if (confirmed !== 'Apply edit') return;
+    if (confirmed !== 'Use this code') return;
     this.current();
     if (selection !== this.selection || preview !== this.preview)
-      throw new Error('The inspected code changed. Preview the edit again.');
+      throw new Error('The code changed. Choose “See what changes” again.');
     assertPreviewCurrent(this.preview, replacement, this.revision);
+    const source = selection.document.getText();
+    const expected =
+      source.slice(0, selection.snippet.start) + replacement + source.slice(selection.snippet.end);
     const edit = new vscode.WorkspaceEdit();
     edit.replace(
       selection.document.uri,
@@ -510,11 +590,18 @@ class Tutor implements vscode.Disposable {
     if (!(await vscode.workspace.applyEdit(edit)))
       throw new Error('VS Code could not apply the edit.');
     this.preview = undefined;
-    this.send({ type: 'applied' });
-    await vscode.window.showTextDocument(selection.document, { viewColumn: vscode.ViewColumn.One });
-    void vscode.window.showInformationMessage(
-      'Edit applied to the editor. Review diagnostics and run your tests. Undo with Ctrl/Cmd+Z.',
-    );
+    if (this.selection === selection && selection.document.getText() === expected) {
+      selection.range = {
+        start: selection.snippet.start,
+        end: selection.snippet.start + replacement.length,
+      };
+      this.refreshSelection();
+      this.send({ type: 'applied' });
+      await vscode.window.showTextDocument(selection.document, {
+        viewColumn: vscode.ViewColumn.One,
+        preserveFocus: true,
+      });
+    }
   }
 
   private html(webview: vscode.Webview) {

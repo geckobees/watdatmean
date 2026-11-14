@@ -41,12 +41,14 @@ export function panelHtml(
           <section class="source-card">
             <div class="source-heading">
               <span id="location">Select code in your editor</span>
-              <button id="refresh" class="quiet" title="Refresh inspected code">↻ Refresh</button>
+              <button id="refresh" class="quiet" title="Load the current code from your file">
+                ↻ Use latest code
+              </button>
             </div>
             <pre><code id="source"></code></pre>
           </section>
           <div id="stale" class="notice" hidden>
-            This code changed. Refresh to inspect the latest version.
+            Your file changed. Choose “Use latest code” to continue with the updated version.
           </div>
           <section id="syntax-section" hidden>
             <div class="section-heading">
@@ -60,7 +62,7 @@ export function panelHtml(
           <nav class="tabs" aria-label="Learning views">
             <button class="tab active" data-tab="understand" aria-pressed="true">Understand</button>
             <button class="tab" data-tab="examples" aria-pressed="false">Another example</button>
-            <button class="tab" data-tab="impact" aria-pressed="false">Preview an edit</button>
+            <button class="tab" data-tab="impact" aria-pressed="false">Try it yourself</button>
           </nav>
           <div class="preferences">
             <label>
@@ -107,27 +109,29 @@ export function panelHtml(
           </section>
           <section id="impact" class="view" hidden>
             <div class="prompt-card">
-              <span class="step">03 / THINK IT THROUGH</span>
+              <span class="step">03 / TRY IT YOURSELF</span>
               <h2>What happens if you change this?</h2>
               <p>
-                Edit the replacement below. Preview the diff and real references for free, then ask
-                AI about likely behavior changes.
+                Tinker with your version below, then compare it with your file. Keep changing it and
+                trying again. Your file changes only when you choose “Use this code”.
               </p>
-              <label for="replacement">Proposed replacement</label>
+              <label for="replacement">Your version</label>
               <textarea
                 id="replacement"
                 spellcheck="false"
                 rows="8"
-                aria-label="Proposed replacement code"
+                aria-label="Your version of the code"
               ></textarea>
               <div class="actions">
-                <button id="preview" class="secondary work-action">
-                  Preview diff & references
-                </button>
-                <button id="analyze" class="primary ai-action">Explain likely impact ↗</button>
+                <button id="preview" class="secondary work-action">See what changes</button>
+                <button id="analyze" class="primary ai-action">Explain the change · AI ↗</button>
+                <button id="reset" class="quiet work-action">Start over</button>
               </div>
-              <div id="preview-status"></div>
-              <button id="apply" class="secondary" disabled>Apply previewed edit</button>
+              <p class="muted">
+                Comparing checks syntax and shows the difference. It does not run your code.
+              </p>
+              <div id="preview-status" role="status"></div>
+              <button id="apply" class="secondary" disabled>Use this code</button>
             </div>
             <div id="impact-result"></div>
           </section>
@@ -148,8 +152,8 @@ export function panelHtml(
           <footer>
             <span id="provider-status">Local explanations are ready.</span>
             <p>
-              AI runs only when you ask. “Just this code” sends your selection; project mode and
-              impact also send nearby code and up to 12 reference snippets. AI answers may be
+              AI runs only when you ask. “Just this code” sends your selection; project and change
+              explanations also send nearby code and up to 12 reference snippets. AI answers may be
               wrong—check the code and tests.
             </p>
           </footer>

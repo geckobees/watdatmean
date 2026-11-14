@@ -106,21 +106,63 @@ test('sends explicit explanation, example and concept requests; safely renders h
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
   ).toMatchObject({ task: 'example' });
 });
+test('unpacks method and nested call pieces locally', async ({ page }) => {
+  const source = 'const board = new Scoreboard();\nboard.addCompletedTasks(3);';
+  await send(page, {
+    type: 'selection',
+    ...inspect(source, source.lastIndexOf('board')),
+    file: 'dashboard.ts',
+    line: 9,
+  });
+  await expect(page.locator('#syntax-section')).toBeVisible();
+  await page.getByRole('button', { name: 'board', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('new Scoreboard instance');
+  await page.getByRole('button', { name: '.', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('dot itself does not run it');
+  await page.getByRole('button', { name: '3', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('argument 1 to board.addCompletedTasks');
+  await send(page, {
+    type: 'selection',
+    ...inspect('console.log(weeklySummary(3));', 0),
+    file: 'dashboard.ts',
+    line: 10,
+  });
+  await page.getByRole('button', { name: 'weeklySummary', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText(
+    'result is passed as argument 1 to console.log',
+  );
+  await page.setViewportSize({ width: 360, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+  await page.screenshot({ path: 'work/panel-nested-call.png', fullPage: true });
+});
 test('only enables applying the exact preview and disables it after edits or stale code', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: 'Preview an edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
   await expect(page.locator('#apply')).toBeDisabled();
   await page.locator('#replacement').fill('private score: number = 10;');
   await page.locator('#preview').click();
   expect(
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
   ).toMatchObject({ type: 'preview', replacement: 'private score: number = 10;' });
-  await send(page, { type: 'preview', errors: [] });
+  await send(page, { type: 'preview', errors: [], replacement: 'private score: number = 10;' });
   await expect(page.locator('#apply')).toBeEnabled();
   await page.locator('#replacement').fill('private score: number = 20;');
   await expect(page.locator('#apply')).toBeDisabled();
-  await send(page, { type: 'preview', errors: ['Expression expected.'] });
+  await send(page, {
+    type: 'preview',
+    errors: ['Expression expected.'],
+    replacement: 'private score: number = 20;',
+  });
   await expect(page.locator('#preview-status')).toContainText('Expression expected');
   await send(page, { type: 'stale' });
   await expect(page.locator('#analyze')).toBeDisabled();
@@ -128,7 +170,7 @@ test('only enables applying the exact preview and disables it after edits or sta
   await expect(page.locator('#refresh')).toBeEnabled();
 });
 test('displays confirmed evidence separately and manages loading and errors', async ({ page }) => {
-  await page.getByRole('button', { name: 'Preview an edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
   await send(page, {
     type: 'evidence',
     note: 'References are confirmed; behavior is predicted.',
@@ -148,6 +190,7 @@ test('displays confirmed evidence separately and manages loading and errors', as
   expect(
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
   ).toMatchObject({ type: 'openEvidence', id: 'E1' });
+  await page.locator('#replacement').fill('private score: number = 30;');
   await send(page, { type: 'busy', value: true });
   await expect(page.locator('#progress')).toBeVisible();
   await expect(page.locator('#replacement')).toBeDisabled();
@@ -156,4 +199,103 @@ test('displays confirmed evidence separately and manages loading and errors', as
   await send(page, { type: 'error', message: 'API key rejected.' });
   await expect(page.getByRole('alert')).toHaveText('API key rejected.');
   await expect(page.locator('#analyze')).toBeEnabled();
+});
+
+test('supports repeated comparisons, syntax fixes, and starting over', async ({ page }) => {
+  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  await expect(
+    page.getByText('Comparing checks syntax and shows the difference. It does not run your code.'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'See what changes', exact: true })).toBeDisabled();
+  for (const replacement of [
+    'private score: number = 10;',
+    'private score: number = ;',
+    'private score: number = 20;',
+  ]) {
+    await page.getByRole('textbox', { name: 'Your version of the code' }).fill(replacement);
+    await page.getByRole('button', { name: 'See what changes', exact: true }).click();
+    expect(
+      await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+    ).toMatchObject({ type: 'preview', replacement });
+    await send(page, { type: 'busy', value: true });
+    const errors = replacement.includes('= ;') ? ['Expression expected.'] : [];
+    await send(page, { type: 'preview', errors, replacement });
+    await send(page, { type: 'busy', value: false });
+    await expect(page.locator('#replacement')).toBeEnabled();
+    await expect(page.locator('#preview')).toBeEnabled();
+    if (errors.length) await expect(page.locator('#apply')).toBeDisabled();
+    else await expect(page.locator('#apply')).toBeEnabled();
+  }
+  await page.getByRole('button', { name: 'Start over', exact: true }).click();
+  await expect(page.locator('#replacement')).toHaveValue(snippet.code);
+  await expect(page.locator('#apply')).toBeDisabled();
+  await expect(page.locator('#preview-status')).toContainText('Try another change');
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'apply',
+      ),
+    ),
+  ).toEqual([]);
+});
+
+test('continues in Try it yourself after applying a change or loading the latest code', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  let current = snippet.code;
+  for (const replacement of ['private score: number = 10;', 'private score: number = 200;']) {
+    await page.locator('#replacement').fill(replacement);
+    await page.locator('#preview').click();
+    await send(page, { type: 'preview', errors: [], replacement });
+    await page.getByRole('button', { name: 'Use this code', exact: true }).click();
+    expect(
+      await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+    ).toMatchObject({ type: 'apply', replacement });
+    await send(page, { type: 'busy', value: true });
+    await send(page, { type: 'stale' });
+    await send(page, {
+      type: 'selection',
+      code: replacement,
+      parts: [],
+      file: 'score.ts',
+      line: 4,
+      keepTab: true,
+    });
+    await send(page, { type: 'applied' });
+    await send(page, { type: 'busy', value: false });
+    await expect(
+      page.getByRole('button', { name: 'Try it yourself', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#stale')).toBeHidden();
+    await expect(page.locator('#replacement')).toBeEnabled();
+    await expect(page.locator('#replacement')).toHaveValue(replacement);
+    await expect(page.locator('#source')).toHaveText(replacement);
+    await expect(page.locator('#preview-status')).toContainText('Keep tinkering');
+    current = replacement;
+  }
+  await page.locator('#replacement').fill('private score = 999;');
+  await page.locator('#reset').click();
+  await expect(page.locator('#replacement')).toHaveValue(current);
+  await send(page, { type: 'stale' });
+  await page.getByRole('button', { name: 'Use latest code' }).click();
+  expect(
+    await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+  ).toMatchObject({ type: 'refresh' });
+  await send(page, {
+    type: 'selection',
+    code: 'private score = 5;',
+    parts: [],
+    file: 'score.ts',
+    line: 4,
+    keepTab: true,
+  });
+  await page.locator('#replacement').fill('private score = 6;');
+  await expect(page.locator('#preview')).toBeEnabled();
+  await expect(page.locator('#impact')).toBeVisible();
+  await page.setViewportSize({ width: 360, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
 });
