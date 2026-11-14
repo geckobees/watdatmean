@@ -24,12 +24,16 @@ export async function run() {
   }
 }
 async function checks() {
+  const hoverText = (hovers: vscode.Hover[] | undefined) =>
+    (
+      hovers
+        ?.flatMap((h) => h.contents.map((c) => (typeof c === 'string' ? c : c.value)))
+        .join('\n') ?? ''
+    )
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\\([^\w\s])/g, '$1');
   const hasTutorHover = (hovers: vscode.Hover[] | undefined) =>
-    hovers?.some((h) =>
-      h.contents.some((content) =>
-        (typeof content === 'string' ? content : content.value).includes('WatDatMean'),
-      ),
-    );
+    hoverText(hovers).includes('WatDatMean');
   const extension = vscode.extensions.getExtension('watdatmean.watdatmean');
   assert.ok(extension, 'Extension is installed in the development host');
   await extension.activate();
@@ -59,6 +63,39 @@ async function checks() {
     );
   }
   assert.ok(hasTutorHover(hovers), 'Actual hover provider returns local learning content');
+  const dashboard = await vscode.workspace.openTextDocument(
+    vscode.Uri.joinPath(folder.uri, 'dashboard.ts'),
+  );
+  for (const [code, meaning] of [
+    ['board.addCompletedTasks(3);', 'argument 1 to board.addCompletedTasks'],
+    ['console.log(weeklySummary(3));', 'argument 1 to weeklySummary'],
+  ]) {
+    const start = dashboard.getText().indexOf(code);
+    for (const relative of [0, code.indexOf('.'), code.indexOf('3'), code.length - 1]) {
+      const actual = await vscode.commands.executeCommand<vscode.Hover[]>(
+        'vscode.executeHoverProvider',
+        dashboard.uri,
+        dashboard.positionAt(start + relative),
+      );
+      const content = hoverText(actual);
+      assert.ok(content.includes(meaning), `Instant breakdown at ${code}:${relative}: ${content}`);
+      assert.ok(content.includes('no AI tokens'));
+      assert.ok(content.includes('command:watdatmean.inspect?'), 'Panel link is present for calls');
+    }
+  }
+  const longCall = await vscode.workspace.openTextDocument({
+    language: 'typescript',
+    content: `log(${Array.from({ length: 30 }, (_, i) => i).join(', ')});`,
+  });
+  const tail = await vscode.commands.executeCommand<vscode.Hover[]>(
+    'vscode.executeHoverProvider',
+    longCall.uri,
+    longCall.positionAt(longCall.getText().indexOf('29')),
+  );
+  assert.ok(
+    hoverText(tail).includes('argument 30 to log'),
+    'Long hovers include the piece under the cursor',
+  );
   await vscode.commands.executeCommand('watdatmean.inspect');
   for (
     let attempt = 0;

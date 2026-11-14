@@ -1,5 +1,6 @@
 import ts from 'typescript';
 import type { Part, Snippet } from './types';
+import { statementParts } from './syntax';
 
 const glossary: Record<string, [string, string]> = {
   const: [
@@ -67,6 +68,10 @@ const glossary: Record<string, [string, string]> = {
     'Makes this declaration available to other modules.',
     'Other files can import an exported name. Exporting does not execute the code in a different process.',
   ],
+  import: [
+    'Loads a value or type from another module.',
+    'The module system resolves the path or package, loads that module (or reuses its loaded instance), then makes the requested export available under this local name. The exact file chosen depends on the project’s module and build settings. An `import type` is used only for TypeScript checking and is removed from the JavaScript output.',
+  ],
   declare: [
     'Describes a value supplied elsewhere.',
     'An ambient declaration provides type information without generating JavaScript for this declaration.',
@@ -95,8 +100,9 @@ function isTarget(node: ts.Node) {
   );
 }
 
-export function declarationParts(node: ts.Node, source: ts.SourceFile): Part[] {
-  if (!ts.isVariableStatement(node) && !ts.isPropertyDeclaration(node)) return [];
+export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
+  if (!ts.isVariableStatement(node) && !ts.isPropertyDeclaration(node))
+    return statementParts(node, source, glossary);
   const declarations = ts.isVariableStatement(node)
     ? [...node.declarationList.declarations]
     : [node];
@@ -141,7 +147,19 @@ export function declarationParts(node: ts.Node, source: ts.SourceFile): Part[] {
     if (start >= node.end) break;
     const part = special.get(start);
     if (part) {
-      parts.push(part);
+      const initializer = declarations.find(
+        (d) => d.initializer?.getStart(source) === start,
+      )?.initializer;
+      if (
+        initializer &&
+        !ts.isLiteralExpression(initializer) &&
+        !ts.isObjectLiteralExpression(initializer) &&
+        !ts.isArrayLiteralExpression(initializer) &&
+        !ts.isNewExpression(initializer) &&
+        !ts.isIdentifier(initializer)
+      )
+        parts.push(...statementParts(initializer, source, glossary));
+      else parts.push({ ...part, start, end: start + part.token.length });
       scanner.setTextPos(start + part.token.length);
       continue;
     }
@@ -149,6 +167,8 @@ export function declarationParts(node: ts.Node, source: ts.SourceFile): Part[] {
     const entry = glossary[token];
     parts.push({
       token,
+      start,
+      end: scanner.getTextPos(),
       brief:
         entry?.[0] ??
         (token === ','
@@ -204,7 +224,7 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
     symbolOffset: symbolNode?.getStart(source) ?? offset,
     parts:
       target && start === target.getStart(source) && end === target.end
-        ? declarationParts(target, source)
+        ? syntaxParts(target, source)
         : [],
   };
 }

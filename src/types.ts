@@ -6,6 +6,8 @@ export interface Part {
   token: string;
   brief: string;
   detail: string;
+  start?: number;
+  end?: number;
 }
 export interface Snippet {
   code: string;
