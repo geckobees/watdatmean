@@ -1,0 +1,137 @@
+{
+  "name": "watdatmean",
+  "displayName": "WatDatMean — Learn in Your Code",
+  "description": "Understand TypeScript, explore examples, and preview edit impact without leaving VS Code.",
+  "version": "0.1.0",
+  "publisher": "watdatmean",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geckobees/watdatmean.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Education",
+    "Other"
+  ],
+  "keywords": [
+    "learn",
+    "typescript",
+    "explain",
+    "beginner",
+    "ai"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:typescript"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Local explanations work; AI requests and edits require a trusted workspace."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "watdatmean.inspect",
+        "title": "WatDatMean: Explain Selection or Code at Cursor"
+      },
+      {
+        "command": "watdatmean.configure",
+        "title": "WatDatMean: Configure AI Provider / API Key"
+      },
+      {
+        "command": "watdatmean.removeKey",
+        "title": "WatDatMean: Remove API Key"
+      },
+      {
+        "command": "watdatmean.clearCache",
+        "title": "WatDatMean: Clear Explanation Cache"
+      },
+      {
+        "command": "watdatmean.demo",
+        "title": "WatDatMean: Open Demo Project"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "watdatmean.inspect",
+          "when": "editorLangId == typescript",
+          "group": "navigation@10"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "watdatmean.inspect",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus && editorLangId == typescript"
+      }
+    ],
+    "configuration": {
+      "title": "WatDatMean",
+      "properties": {
+        "watdatmean.provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "groq"
+          ],
+          "default": "openai",
+          "scope": "application",
+          "description": "Provider used for on-demand explanations. Configure the API key with the WatDatMean command."
+        },
+        "watdatmean.model": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Optional model ID override for the selected provider. Leave blank for the default."
+        },
+        "watdatmean.audience": {
+          "type": "string",
+          "enum": [
+            "beginner",
+            "experienced"
+          ],
+          "default": "beginner",
+          "description": "Adjust explanation vocabulary and focus."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "vscode:prepublish": "npm run check && npm run build",
+    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "test:ui": "playwright test",
+    "test:integration": "node scripts/integration.mjs"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
+    "prettier": "^3.10.1",
+    "vitest": "^5.1.0"
+  },
+  "overrides": {
+    "@vscode/vsce": {
+      "minimatch": "^11.0.1"
+    }
+  }
+}

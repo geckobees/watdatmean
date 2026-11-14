@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.vsix
+.vscode-test/
+coverage/
+work/
+test-results/
+playwright-report/
+demo/out/
+.env*
+!.env.example

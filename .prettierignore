@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vscode-test/
+work/
+test-results/
+playwright-report/
+coverage/
+demo/out/
+licenses/
+package-lock.json
+*.vsix
