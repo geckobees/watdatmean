@@ -119,6 +119,7 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
     ? [...node.declarationList.declarations]
     : [node];
   const special = new Map<number, Part>();
+  const expanded = new Map<number, ts.Node>();
   for (const declaration of declarations) {
     const name = declaration.name;
     const destructured = ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name);
@@ -135,6 +136,7 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
             : 'Use this name to read the stored value elsewhere in its scope.',
     });
     if (declaration.type) {
+      expanded.set(declaration.type.getStart(source), declaration.type);
       const colon = declaration
         .getChildren(source)
         .find((child) => child.kind === ts.SyntaxKind.ColonToken);
@@ -153,12 +155,18 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
           'This annotation is checked by TypeScript and removed from the JavaScript output.',
       });
     }
-    if (declaration.initializer)
+    if (declaration.initializer) {
+      if (
+        !ts.isLiteralExpression(declaration.initializer) &&
+        !ts.isIdentifier(declaration.initializer)
+      )
+        expanded.set(declaration.initializer.getStart(source), declaration.initializer);
       special.set(declaration.initializer.getStart(source), {
         token: declaration.initializer.getText(source),
         brief: 'The starting value.',
         detail: 'This gives the name on the left its starting value.',
       });
+    }
   }
   const parts: Part[] = [];
   const scanner = ts.createScanner(
@@ -175,19 +183,10 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
     if (start >= node.end) break;
     const part = special.get(start);
     // TypeScript inserts zero-width nodes for missing syntax while the user types.
-    // Rewinding to one of those nodes repeats the same token forever and exhausts memory.
+    // Skip those nodes and never rewind the scanner while expanding valid pieces.
     if (part && part.token.length > 0) {
-      const initializer = declarations.find(
-        (d) => d.initializer?.getStart(source) === start,
-      )?.initializer;
-      if (
-        initializer &&
-        !ts.isLiteralExpression(initializer) &&
-        !ts.isObjectLiteralExpression(initializer) &&
-        !ts.isArrayLiteralExpression(initializer) &&
-        !ts.isIdentifier(initializer)
-      )
-        parts.push(...statementParts(initializer, source, glossary));
+      const expandedNode = expanded.get(start);
+      if (expandedNode) parts.push(...statementParts(expandedNode, source, glossary));
       else parts.push({ ...part, start, end: start + part.token.length });
       scanner.setTextPos(Math.max(scanner.getTextPos(), start + part.token.length));
       continue;
@@ -214,10 +213,11 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
 
 export function inspect(code: string, offset: number, selectionEnd = offset): Snippet {
   const source = parse(code);
+  const cursor = offset === code.length && offset > 0 ? offset - 1 : offset;
   let target: ts.Node | undefined;
   let identifier: ts.Identifier | undefined;
   function visit(node: ts.Node) {
-    if (!contains(node, offset, source)) return;
+    if (!contains(node, cursor, source)) return;
     if (isTarget(node)) target = node;
     if (ts.isIdentifier(node)) identifier = node;
     ts.forEachChild(node, visit);
@@ -235,7 +235,7 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
   let name: ts.Node | undefined;
   if (target && ts.isVariableStatement(target))
     name =
-      target.declarationList.declarations.find((d) => contains(d, offset, source))?.name ??
+      target.declarationList.declarations.find((d) => contains(d, cursor, source))?.name ??
       target.declarationList.declarations[0]?.name;
   else if (target && 'name' in target) name = (target as ts.NamedDeclaration).name;
   if (
@@ -253,7 +253,7 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
     symbolOffset: symbolNode?.getStart(source) ?? offset,
     explanation:
       target && start === target.getStart(source) && end === target.end
-        ? hoverExplanation(target, source, offset)
+        ? hoverExplanation(target, source, cursor)
         : undefined,
     parts:
       target && start === target.getStart(source) && end === target.end

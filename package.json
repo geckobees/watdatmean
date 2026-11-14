@@ -2,7 +2,7 @@
   "name": "watdatmean",
   "displayName": "WatDatMean — Learn in Your Code",
   "description": "Understand TypeScript, explore examples, and preview edit impact without leaving VS Code.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "watdatmean",
   "repository": {
     "type": "git",
@@ -38,6 +38,10 @@
       {
         "command": "watdatmean.inspect",
         "title": "WatDatMean: Explain Selection or Code at Cursor"
+      },
+      {
+        "command": "watdatmean.reopenPanel",
+        "title": "WatDatMean: Reopen Learning Panel"
       },
       {
         "command": "watdatmean.configure",

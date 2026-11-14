@@ -126,6 +126,31 @@ test('lets beginners unpack new and the constructor independently without changi
     ),
   ).toEqual([]);
 });
+test('unpacks a long Record and tuple declaration, including when its object is unfinished', async ({
+  page,
+}) => {
+  const header = 'const glossary: Record<string, [string, string]> = {';
+  for (const code of [header, header + '\n  const: ["brief", "detail"],\n};']) {
+    await send(page, { type: 'selection', ...inspect(code, 0), file: 'analyzer.ts', line: 6 });
+    const parts = page.locator('#parts');
+    expect(await parts.textContent()).toBe(code);
+    await parts.getByRole('button', { name: 'Record', exact: true }).click();
+    await expect(page.locator('#part-detail')).toContainText(
+      'text keys each hold a pair of text values',
+    );
+    const strings = parts.getByRole('button', { name: 'string', exact: true });
+    await strings.nth(0).click();
+    await expect(page.locator('#part-detail')).toContainText('Each key is text');
+    await strings.nth(1).click();
+    await expect(page.locator('#part-detail')).toContainText('Entry 1 should be text');
+    await strings.nth(2).click();
+    await expect(page.locator('#part-detail')).toContainText('Entry 2 should be text');
+    await page.setViewportSize({ width: 360, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  }
+});
 test('lays out clickable interface pieces like the source and selects repeated pieces independently', async ({
   page,
 }) => {
