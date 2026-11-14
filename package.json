@@ -123,6 +123,7 @@
     "test:integration": "node scripts/integration.mjs"
   },
   "dependencies": {
+    "package": "^1.0.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
