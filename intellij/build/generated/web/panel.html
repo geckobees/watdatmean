@@ -1,0 +1,922 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <meta
+          http-equiv="Content-Security-Policy"
+          content="default-src 'none'; style-src 'nonce-__WDM_NONCE__'; script-src 'nonce-__WDM_NONCE__';"
+        />
+        <style nonce="__WDM_NONCE__">:root {
+  color-scheme: light dark;
+  --bg: var(--vscode-editor-background, #14181b);
+  --fg: var(--vscode-editor-foreground, #e4e8e5);
+  --muted: var(--vscode-descriptionForeground, #a0aaa7);
+  --line: var(--vscode-widget-border, #39413e);
+  --accent: #9bd7b4;
+  --card: var(--vscode-sideBar-background, #1c2223);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font-family: var(--vscode-font-family, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.65;
+}
+button,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #9bd7b4);
+  outline-offset: 3px;
+}
+[hidden] {
+  display: none !important;
+}
+header {
+  padding: 22px 26px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand strong {
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+}
+.brand small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+.logo {
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #18392a;
+  border-radius: 12px 12px 12px 3px;
+  width: 36px;
+  height: 36px;
+  font: 700 21px monospace;
+}
+.accent {
+  color: var(--accent);
+}
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 30px 26px;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  letter-spacing: 1.7px;
+  font-size: 9px;
+  font-weight: 600;
+  gap: 12px;
+}
+.badge {
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 8px;
+}
+h1 {
+  margin: 16px 0 7px;
+  font-size: clamp(24px, 5vw, 34px);
+  font-weight: 550;
+  letter-spacing: -1.3px;
+  line-height: 1.2;
+}
+h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 550;
+  letter-spacing: -0.3px;
+}
+h3 {
+  font-size: 12px;
+  margin: 21px 0 8px;
+}
+p {
+  margin: 8px 0 16px;
+}
+.intro,
+.muted {
+  color: var(--muted);
+}
+.intro {
+  max-width: 470px;
+}
+.source-card {
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.source-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font: 11px var(--vscode-editor-font-family, monospace);
+}
+#location {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+pre {
+  margin: 0;
+  padding: 18px;
+  overflow: auto;
+  font: 12px/1.8 var(--vscode-editor-font-family, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
+}
+.source-card pre {
+  max-height: 290px;
+}
+code {
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pill {
+  color: var(--accent);
+  background: #78b99412;
+  border: 1px solid #78b99435;
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 9px;
+}
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.part {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 12px;
+  color: var(--fg);
+  background: var(--card);
+  font: 12px var(--vscode-editor-font-family, monospace);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.part:hover,
+.part.selected {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.part-detail {
+  border-left: 2px solid var(--accent);
+  margin: 13px 0;
+  padding: 8px 14px;
+  background: var(--card);
+}
+.part-detail p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  gap: 22px;
+  margin: 30px 0 18px;
+}
+.tab {
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tab.active {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+.preferences {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+label {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+}
+.preferences label {
+  flex: 1;
+}
+select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--card);
+  color: var(--fg);
+  font-size: 11px;
+}
+.prompt-card {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+}
+.step {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 1.4px;
+}
+.prompt-card p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.primary,
+.secondary,
+.quiet {
+  border: 0;
+  border-radius: 5px;
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.primary {
+  background: var(--accent);
+  color: #143b27;
+  font-weight: 650;
+}
+.primary span {
+  margin-left: 20px;
+}
+.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+.quiet {
+  padding: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+.quiet:hover {
+  color: var(--fg);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+textarea {
+  width: 100%;
+  resize: vertical;
+  margin-top: 7px;
+  padding: 12px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font: 12px/1.7 var(--vscode-editor-font-family, monospace);
+  tab-size: 2;
+}
+.lesson {
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.lesson .result-meta {
+  color: var(--muted);
+  font-size: 9px;
+  margin-bottom: 8px;
+  letter-spacing: 0.8px;
+}
+.lesson p,
+.lesson li {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lesson ol,
+.lesson ul {
+  padding-left: 22px;
+}
+.lesson li {
+  padding-left: 4px;
+  margin-bottom: 9px;
+}
+.lesson pre {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+details {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+details p {
+  margin: 10px 0;
+  color: var(--muted);
+}
+.concept-result {
+  padding: 12px;
+  margin-top: 10px;
+  border-left: 2px solid var(--accent);
+}
+.concept-result .lesson {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.prediction {
+  padding: 12px;
+  border-left: 2px solid #d2af70;
+  background: var(--card);
+  margin-bottom: 10px;
+}
+.prediction small {
+  color: #d2af70;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.prediction p {
+  margin: 5px 0;
+}
+.evidence-link {
+  color: var(--vscode-textLink-foreground, #9bd7b4);
+  text-decoration: underline;
+  border: 0;
+  background: transparent;
+  padding: 3px 5px 3px 0;
+  font-size: 11px;
+  text-align: left;
+}
+#evidence-section {
+  margin-top: 28px;
+}
+.evidence-item {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin: 8px 0;
+  padding: 10px 12px;
+}
+.evidence-item pre {
+  padding: 8px 0 0;
+  max-height: 180px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.evidence-type {
+  font-size: 9px;
+  color: var(--muted);
+}
+.notice,
+.error {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+}
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.error {
+  border-color: var(--vscode-inputValidation-errorBorder, #b66e6e);
+  color: var(--vscode-errorForeground, #edaaaa);
+}
+.spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+footer {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 15px;
+  color: var(--muted);
+  font-size: 10px;
+}
+footer p {
+  font-size: 10px;
+  margin-top: 6px;
+}
+#provider-status {
+  color: var(--fg);
+}
+#preview-status {
+  margin: 12px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+body.vscode-light {
+  --accent: #26774e;
+}
+body.vscode-light .primary {
+  color: white;
+}
+@media (max-width: 450px) {
+  header {
+    padding: 18px;
+  }
+  main {
+    padding: 24px 18px;
+  }
+  .brand small {
+    display: none;
+  }
+  .tabs {
+    gap: 15px;
+  }
+  .tab {
+    font-size: 11px;
+  }
+  .prompt-card {
+    padding: 17px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+</style>
+        <title>WatDatMean</title>
+      </head>
+      <body>
+        <header>
+          <div class="brand">
+            <span class="logo">w?</span>
+            <div>
+              <strong>
+                watdatmean
+                <span class="accent">.</span>
+              </strong>
+              <small>A little clarity goes a long way.</small>
+            </div>
+          </div>
+          <button id="configure" class="quiet">Connect provider</button>
+        </header>
+        <main>
+          <div class="eyebrow">
+            YOUR CODE, UNDERSTOOD
+            <span class="badge" id="language">TYPESCRIPT</span>
+          </div>
+          <h1>Make it make sense.</h1>
+          <p class="intro">
+            Start with the small pieces. See how they fit. Make your next change with context.
+          </p>
+          <section class="source-card">
+            <div class="source-heading">
+              <span id="location">Select code in your editor</span>
+              <button id="refresh" class="quiet" title="Refresh inspected code">↻ Refresh</button>
+            </div>
+            <pre><code id="source"></code></pre>
+          </section>
+          <div id="stale" class="notice" hidden>
+            This code changed. Refresh to inspect the latest version.
+          </div>
+          <section id="syntax-section" hidden>
+            <div class="section-heading">
+              <h2>The small pieces</h2>
+              <span class="pill">Instant · 0 tokens</span>
+            </div>
+            <p class="muted">Select a piece to unpack it. These explanations work offline.</p>
+            <div id="parts" class="parts"></div>
+            <div id="part-detail" class="part-detail" hidden></div>
+          </section>
+          <nav class="tabs" aria-label="Learning views">
+            <button class="tab active" data-tab="understand" aria-pressed="true">Understand</button>
+            <button class="tab" data-tab="examples" aria-pressed="false">Another example</button>
+            <button class="tab" data-tab="impact" aria-pressed="false">Preview an edit</button>
+          </nav>
+          <div class="preferences">
+            <label>
+              Context
+              <select id="mode">
+                <option value="standalone">Just this code</option>
+                <option value="project">In this project</option>
+              </select>
+            </label>
+            <label>
+              Guidance
+              <select id="audience">
+                <option value="beginner">Learning the basics</option>
+                <option value="experienced">Getting up to speed</option>
+              </select>
+            </label>
+          </div>
+          <section id="understand" class="view">
+            <div class="prompt-card">
+              <span class="step">01 / UNDERSTAND</span>
+              <h2>A clearer picture, one idea at a time.</h2>
+              <p>
+                Get a short explanation and a concrete walkthrough. Expand only the concepts you
+                want to explore.
+              </p>
+              <button id="explain" class="primary ai-action">
+                Explain this code
+                <span>↗</span>
+              </button>
+            </div>
+            <div id="explanation"></div>
+          </section>
+          <section id="examples" class="view" hidden>
+            <div class="prompt-card">
+              <span class="step">02 / CONNECT THE DOTS</span>
+              <h2>Same idea. A different situation.</h2>
+              <p>Explore a fresh example so you can use the pattern beyond this file.</p>
+              <button id="example" class="primary ai-action">
+                Show another example
+                <span>↗</span>
+              </button>
+            </div>
+            <div id="example-result"></div>
+          </section>
+          <section id="impact" class="view" hidden>
+            <div class="prompt-card">
+              <span class="step">03 / THINK IT THROUGH</span>
+              <h2>What happens if you change this?</h2>
+              <p>
+                Edit the replacement below. Preview the diff and real references for free, then ask
+                AI about likely behavior changes.
+              </p>
+              <label for="replacement">Proposed replacement</label>
+              <textarea
+                id="replacement"
+                spellcheck="false"
+                rows="8"
+                aria-label="Proposed replacement code"
+              ></textarea>
+              <div class="actions">
+                <button id="preview" class="secondary work-action">
+                  Preview diff & references
+                </button>
+                <button id="analyze" class="primary ai-action">Explain likely impact ↗</button>
+              </div>
+              <div id="preview-status"></div>
+              <button id="apply" class="secondary" disabled>Apply previewed edit</button>
+            </div>
+            <div id="impact-result"></div>
+          </section>
+          <section id="evidence-section" hidden>
+            <div class="section-heading">
+              <h2>Supporting code</h2>
+              <span class="pill">Language service</span>
+            </div>
+            <p id="evidence-note" class="muted"></p>
+            <div id="evidence"></div>
+          </section>
+          <div id="progress" class="notice" role="status" hidden>
+            <span class="spinner"></span>
+            <span>Connecting the dots…</span>
+            <button id="cancel" class="quiet">Cancel</button>
+          </div>
+          <div id="error" class="error" role="alert" hidden></div>
+          <footer>
+            <span id="provider-status">Local explanations are ready.</span>
+            <p>
+              AI runs only when you ask. “Just this code” sends your selection; project mode and
+              impact also send nearby code and up to 12 reference snippets. AI answers may be
+              wrong—check the code and tests.
+            </p>
+          </footer>
+        </main>
+        <script nonce="__WDM_NONCE__">/*__WDM_BRIDGE__*/
+/* All code and model output is rendered as text, never as HTML. */
+(() => {
+  const host = window.watdatmeanHost || acquireVsCodeApi();
+  const $ = (id) => document.getElementById(id);
+  const post = (type, extra = {}) => host.postMessage({ type, ...extra });
+  let busy = false;
+  let stale = false;
+  let tab = 'understand';
+  let evidence = [];
+  let evidenceNote = '';
+  let canApply = false;
+  const conceptTargets = new Map();
+  const saved = host.getState() || {};
+  $('mode').value = saved.mode || 'standalone';
+  let chosenMode = $('mode').value;
+  const node = (tag, text, className) => {
+    const element = document.createElement(tag);
+    if (text !== undefined) element.textContent = text;
+    if (className) element.className = className;
+    return element;
+  };
+  const updateButtons = () => {
+    document.querySelectorAll('.ai-action, .work-action').forEach((button) => {
+      button.disabled = busy || stale;
+    });
+    $('apply').disabled = busy || stale || !canApply;
+    $('replacement').disabled = busy || stale;
+    $('mode').disabled = busy || tab === 'impact';
+    $('audience').disabled = busy;
+    $('refresh').disabled = busy;
+  };
+  function request(task, extra = {}) {
+    $('error').hidden = true;
+    post('request', {
+      task,
+      mode: $('mode').value,
+      audience: $('audience').value,
+      replacement: $('replacement').value,
+      ...extra,
+    });
+  }
+  function selectTab(name) {
+    tab = name;
+    $('mode').value = name === 'impact' ? 'project' : chosenMode;
+    for (const view of ['understand', 'examples', 'impact']) $(view).hidden = view !== name;
+    document.querySelectorAll('.tab').forEach((button) => {
+      button.classList.toggle('active', button.dataset.tab === name);
+      button.setAttribute('aria-pressed', String(button.dataset.tab === name));
+    });
+    $('evidence-section').hidden =
+      !evidenceNote || (name !== 'impact' && $('mode').value !== 'project');
+    updateButtons();
+  }
+  document
+    .querySelectorAll('.tab')
+    .forEach((button) => button.addEventListener('click', () => selectTab(button.dataset.tab)));
+  $('configure').onclick = () => post('configure');
+  $('refresh').onclick = () => post('refresh');
+  $('explain').onclick = () => request('explain');
+  $('example').onclick = () => request('example');
+  $('analyze').onclick = () => request('impact');
+  $('preview').onclick = () => {
+    $('error').hidden = true;
+    post('preview', { replacement: $('replacement').value });
+  };
+  $('apply').onclick = () => post('apply', { replacement: $('replacement').value });
+  $('cancel').onclick = () => post('cancel');
+  $('replacement').oninput = () => {
+    canApply = false;
+    $('preview-status').textContent = 'Replacement changed. Preview this version before applying.';
+    $('impact-result').replaceChildren();
+    updateButtons();
+  };
+  for (const id of ['mode', 'audience'])
+    $(id).onchange = () => {
+      if (id === 'mode') chosenMode = $('mode').value;
+      saved.audience = $('audience').value;
+      host.setState({ mode: chosenMode, audience: $('audience').value });
+      $('explanation').replaceChildren();
+      $('example-result').replaceChildren();
+      $('impact-result').replaceChildren();
+      conceptTargets.clear();
+      selectTab(tab);
+    };
+  function evidenceLink(id) {
+    const entry = evidence.find((e) => e.id === id);
+    const button = node('button', entry ? `${entry.file}:${entry.line}` : id, 'evidence-link');
+    button.onclick = () => post('openEvidence', { id });
+    return button;
+  }
+  function renderLesson(lesson, meta, nested = false) {
+    const root = node('article', undefined, 'lesson');
+    root.append(
+      node('div', meta, 'result-meta'),
+      node('h2', lesson.title),
+      node('p', lesson.summary),
+    );
+    if (lesson.steps.length) {
+      root.append(node('h3', 'Walk through it'));
+      const list = node('ol');
+      lesson.steps.forEach((step) => list.append(node('li', step)));
+      root.append(list);
+    }
+    if (lesson.concepts.length) {
+      root.append(node('h3', 'Go a little deeper'));
+      lesson.concepts.forEach((concept) => {
+        const detail = node('details');
+        detail.append(node('summary', concept.term), node('p', concept.explanation));
+        if (!nested) {
+          const target = node('div', undefined, 'concept-result');
+          target.hidden = true;
+          const more = node('button', 'Explain this concept ↗', 'secondary ai-action');
+          more.onclick = () => {
+            conceptTargets.set(concept.term, target);
+            request('concept', { concept: concept.term });
+          };
+          detail.append(more, target);
+        }
+        root.append(detail);
+      });
+    }
+    if (lesson.example.code || lesson.example.explanation) {
+      root.append(node('h3', 'Put it into practice'));
+      if (lesson.example.code) {
+        const pre = node('pre');
+        pre.append(node('code', lesson.example.code));
+        root.append(pre);
+      }
+      root.append(node('p', lesson.example.explanation));
+    }
+    lesson.predictions.forEach((prediction) => {
+      const box = node('div', undefined, 'prediction');
+      box.append(
+        node('small', 'Predicted effect · verify before relying on it'),
+        node('p', prediction.description),
+      );
+      prediction.evidenceIds.forEach((id) => box.append(evidenceLink(id)));
+      root.append(box);
+    });
+    if (lesson.checks.length) {
+      root.append(node('h3', 'Things to check'));
+      const list = node('ul');
+      lesson.checks.forEach((check) => list.append(node('li', check)));
+      root.append(list);
+    }
+    return root;
+  }
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    if (message.type === 'selection') {
+      stale = false;
+      canApply = false;
+      evidence = [];
+      evidenceNote = '';
+      conceptTargets.clear();
+      $('stale').hidden = true;
+      $('error').hidden = true;
+      $('evidence-section').hidden = true;
+      $('source').textContent = message.code;
+      $('language').textContent = (message.language || 'TypeScript').toUpperCase();
+      $('replacement').value = message.code;
+      $('location').textContent = `${message.file}:${message.line}`;
+      $('preview-status').textContent = '';
+      for (const id of ['explanation', 'example-result', 'impact-result', 'parts', 'evidence'])
+        $(id).replaceChildren();
+      $('part-detail').hidden = true;
+      $('syntax-section').hidden = !message.parts.length;
+      message.parts.forEach((part) => {
+        const button = node('button', part.token, 'part');
+        button.title = part.brief;
+        button.onclick = () => {
+          document.querySelectorAll('.part').forEach((p) => p.classList.remove('selected'));
+          button.classList.add('selected');
+          $('part-detail').hidden = false;
+          $('part-detail').replaceChildren(node('strong', part.brief), node('p', part.detail));
+        };
+        $('parts').append(button);
+      });
+      selectTab('understand');
+      updateButtons();
+    } else if (message.type === 'config') {
+      $('configure').textContent = message.hasKey
+        ? `${message.provider} · Settings`
+        : 'Connect provider';
+      $('provider-status').textContent = message.hasKey
+        ? `${message.provider} / ${message.model} · Ready on demand`
+        : 'No API key needed for the small pieces. Connect a provider for AI help.';
+      $('audience').value = saved.audience || message.audience;
+    } else if (message.type === 'busy') {
+      busy = message.value;
+      $('progress').hidden = !busy;
+      updateButtons();
+    } else if (message.type === 'error') {
+      $('error').textContent = message.message;
+      $('error').hidden = false;
+    } else if (message.type === 'lesson') {
+      const target =
+        message.task === 'concept'
+          ? conceptTargets.get(message.concept)
+          : $(
+              message.task === 'impact'
+                ? 'impact-result'
+                : message.task === 'example'
+                  ? 'example-result'
+                  : 'explanation',
+            );
+      if (target) {
+        target.hidden = false;
+        target.replaceChildren(
+          renderLesson(
+            message.lesson,
+            `${message.cached ? 'REUSED FROM CACHE · NO NEW REQUEST' : 'AI EXPLANATION'} · ${message.provider} / ${message.model}`,
+            message.task === 'concept',
+          ),
+        );
+      }
+      updateButtons();
+    } else if (message.type === 'evidence') {
+      evidence = message.items;
+      evidenceNote = message.note;
+      $('evidence-note').textContent = message.note;
+      $('evidence').replaceChildren();
+      evidence.forEach((entry) => {
+        const item = node('div', undefined, 'evidence-item');
+        item.append(
+          node(
+            'div',
+            `Confirmed ${entry.kind}${entry.test ? ' · Test file' : ''}`,
+            'evidence-type',
+          ),
+          evidenceLink(entry.id),
+        );
+        const pre = node('pre');
+        pre.append(node('code', entry.code));
+        item.append(pre);
+        $('evidence').append(item);
+      });
+      selectTab(tab);
+    } else if (message.type === 'preview') {
+      canApply = !message.errors.length && message.syntaxChecked !== false;
+      $('preview-status').textContent = message.errors.length
+        ? `Fix syntax before applying: ${message.errors.join(' ')}`
+        : message.syntaxChecked === false
+          ? 'Diff opened. No syntax checker is available for this language. Apply the change manually after review.'
+          : 'Diff opened. No syntax errors found. Type checks and tests have not been run.';
+      updateButtons();
+    } else if (message.type === 'stale') {
+      stale = true;
+      canApply = false;
+      $('stale').hidden = false;
+      updateButtons();
+    } else if (message.type === 'contextChanged') {
+      canApply = false;
+      $('preview-status').textContent = 'Workspace changed. Preview again before applying.';
+      $('impact-result').replaceChildren();
+      if (chosenMode === 'project') {
+        $('explanation').replaceChildren();
+        $('example-result').replaceChildren();
+        conceptTargets.clear();
+      }
+      if (evidenceNote) {
+        evidenceNote =
+          'Workspace changed. Request a new explanation or preview to refresh these references.';
+        $('evidence-note').textContent = evidenceNote;
+      }
+      updateButtons();
+    } else if (message.type === 'applied') {
+      canApply = false;
+      $('preview-status').textContent =
+        'Applied to the editor. Review diagnostics, then run your tests. Ctrl/Cmd+Z undoes the edit.';
+      updateButtons();
+    }
+  });
+  post('ready');
+})();
+</script>
+      </body>
+    </html>
+  
