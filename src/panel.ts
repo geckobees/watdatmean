@@ -10,118 +10,142 @@ export function panelHtml(
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <meta
           http-equiv="Content-Security-Policy"
-          content="default-src 'none'; style-src ${assets.cspSource}; script-src 'nonce-${nonce}';"
+          content="default-src 'none'; style-src ${assets.cspSource}; font-src ${assets.cspSource}; script-src 'nonce-${nonce}';"
         />
         <link rel="stylesheet" href="${assets.css}" />
         <title>WatDatMean</title>
       </head>
       <body>
-        <header>
+        <header class="app-header">
           <div class="brand">
-            <span class="logo">w?</span>
-            <div>
-              <strong>
-                watdatmean
-                <span class="accent">.</span>
-              </strong>
-              <small>A little clarity goes a long way.</small>
-            </div>
+            <span class="brand-mark" aria-hidden="true">{}</span>
+            <strong>watdatmean</strong>
           </div>
-          <button id="configure" class="quiet">Connect provider</button>
+          <button
+            id="sound-toggle"
+            class="text-control"
+            aria-pressed="false"
+            title="Turn on interaction sounds"
+          >
+            Sound off
+          </button>
         </header>
         <main>
-          <div class="eyebrow">
-            YOUR CODE, UNDERSTOOD
-            <span class="badge">TYPESCRIPT</span>
-          </div>
-          <h1>Make it make sense.</h1>
-          <p class="intro">
-            Start with the small pieces. See how they fit. Make your next change with context.
-          </p>
-          <section class="source-card">
+          <section class="workbench" aria-label="Selected code">
+            <div class="pieces-intro">
+              <h1 id="pieces-heading">Code</h1>
+            </div>
             <div class="source-heading">
-              <span id="location">Select code in your editor</span>
+              <div class="file-location">
+                <span class="file-icon" aria-hidden="true">ts</span>
+                <span id="location">Select code in your editor</span>
+              </div>
               <button id="refresh" class="quiet" title="Load the current code from your file">
-                ↻ Use latest code
+                <span aria-hidden="true">↻</span>
+                Use latest code
               </button>
             </div>
-            <pre><code id="source"></code></pre>
-          </section>
-          <div id="stale" class="notice" hidden>
-            Your file changed. Choose “Use latest code” to continue with the updated version.
-          </div>
-          <section id="syntax-section" hidden>
-            <div class="section-heading">
-              <h2>The small pieces</h2>
-              <span class="pill">Instant · 0 tokens</span>
+            <div id="stale" class="notice" hidden>
+              Your file changed. Choose “Use latest code” to continue with the updated version.
             </div>
-            <p class="muted">Select a boxed piece to unpack it. These explanations work offline.</p>
-            <pre
-              class="parts-code"
-            ><code id="parts" class="parts" aria-label="Code pieces to explore"></code></pre>
-            <div
-              id="part-detail"
-              class="part-detail"
-              aria-live="polite"
-              aria-atomic="true"
-              hidden
-            ></div>
+            <section id="syntax-section" hidden aria-labelledby="pieces-heading">
+              <pre
+                class="parts-code"
+              ><code id="parts" class="parts" aria-label="Code pieces to explore"></code></pre>
+              <div class="piece-reading">
+                <div id="piece-placeholder" class="piece-placeholder">
+                  <div>
+                    <p>Select a word or symbol</p>
+                    <span>Its explanation will appear here.</span>
+                  </div>
+                </div>
+                <div
+                  id="part-detail"
+                  class="part-detail"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  hidden
+                ></div>
+                <div id="piece-navigation" class="piece-navigation" hidden>
+                  <span id="piece-position" class="muted"></span>
+                  <div class="piece-navigation-actions">
+                    <button id="previous-piece" class="icon-button" aria-label="Previous piece">
+                      ←
+                    </button>
+                    <button id="next-piece" class="icon-button" aria-label="Next piece">→</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <details id="source-disclosure" class="source-disclosure">
+              <summary>Original code</summary>
+              <pre><code id="source"></code></pre>
+            </details>
           </section>
-          <nav class="tabs" aria-label="Learning views">
-            <button class="tab active" data-tab="understand" aria-pressed="true">Understand</button>
-            <button class="tab" data-tab="examples" aria-pressed="false">Another example</button>
-            <button class="tab" data-tab="impact" aria-pressed="false">Try it yourself</button>
+          <nav class="tabs" aria-label="Learning views" data-active="understand">
+            <button class="tab active" data-tab="understand" aria-pressed="true">
+              Explanation
+            </button>
+            <button class="tab" data-tab="examples" aria-pressed="false">Example</button>
+            <button class="tab" data-tab="impact" aria-pressed="false">Edit code</button>
           </nav>
-          <div class="preferences">
-            <label>
-              Context
-              <select id="mode">
-                <option value="standalone">Just this code</option>
-                <option value="project">In this project</option>
-              </select>
-            </label>
-            <label>
-              Guidance
-              <select id="audience">
-                <option value="beginner">Learning the basics</option>
-                <option value="experienced">Getting up to speed</option>
-              </select>
-            </label>
+          <details class="explanation-settings">
+            <summary aria-label="Explanation settings">
+              <span id="settings-summary">Learning the basics · Just this code</span>
+            </summary>
+            <div class="preferences">
+              <label>
+                Context
+                <select id="mode">
+                  <option value="standalone">Just this code</option>
+                  <option value="project">In this project</option>
+                </select>
+              </label>
+              <label>
+                Guidance
+                <select id="audience">
+                  <option value="beginner">Learning the basics</option>
+                  <option value="experienced">Getting up to speed</option>
+                </select>
+              </label>
+            </div>
+          </details>
+          <div id="progress" class="notice" role="status" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Generating explanation…</span>
+            <button id="cancel" class="quiet">Cancel</button>
           </div>
+          <div id="error" class="error" role="alert" hidden></div>
           <section id="understand" class="view">
             <div class="prompt-card">
-              <span class="step">01 / UNDERSTAND</span>
-              <h2>A clearer picture, one idea at a time.</h2>
-              <p>
-                Get a short explanation and a concrete walkthrough. Expand only the concepts you
-                want to explore.
-              </p>
+              <h2>Explanation</h2>
+              <p>Explain the selected code and its concepts.</p>
               <button id="explain" class="primary ai-action">
                 Explain this code
-                <span>↗</span>
+                <span aria-hidden="true">↗</span>
               </button>
+              <span class="action-note">With your AI provider</span>
             </div>
             <div id="explanation"></div>
           </section>
           <section id="examples" class="view" hidden>
             <div class="prompt-card">
-              <span class="step">02 / CONNECT THE DOTS</span>
-              <h2>Same idea. A different situation.</h2>
-              <p>Explore a fresh example so you can use the pattern beyond this file.</p>
+              <h2>Example</h2>
+              <p>Generate another example using the same concepts.</p>
               <button id="example" class="primary ai-action">
                 Show another example
-                <span>↗</span>
+                <span aria-hidden="true">↗</span>
               </button>
+              <span class="action-note">With your AI provider</span>
             </div>
             <div id="example-result"></div>
           </section>
           <section id="impact" class="view" hidden>
             <div class="prompt-card">
-              <span class="step">03 / TRY IT YOURSELF</span>
-              <h2>What happens if you change this?</h2>
+              <h2>Edit code</h2>
               <p>
-                Tinker with your version below, then compare it with your file. Keep changing it and
-                trying again. Your file changes only when you choose “Use this code”.
+                Edit the code below, then compare it with your file. Changes are applied only when
+                you choose “Use this code”.
               </p>
               <label for="replacement">Your version</label>
               <textarea
@@ -151,19 +175,22 @@ export function panelHtml(
             <p id="evidence-note" class="muted"></p>
             <div id="evidence"></div>
           </section>
-          <div id="progress" class="notice" role="status" hidden>
-            <span class="spinner"></span>
-            <span>Connecting the dots…</span>
-            <button id="cancel" class="quiet">Cancel</button>
-          </div>
-          <div id="error" class="error" role="alert" hidden></div>
           <footer>
-            <span id="provider-status">Local explanations are ready.</span>
-            <p>
-              AI runs only when you ask. “Just this code” sends your selection; project and change
-              explanations also send nearby code and up to 12 reference snippets. AI answers may be
-              wrong—check the code and tests.
-            </p>
+            <div class="footer-heading">
+              <span id="provider-status">Local explanations are ready.</span>
+              <button id="configure" class="quiet">Connect provider</button>
+            </div>
+            <div class="footer-options">
+              <details class="privacy-note">
+                <summary>About AI &amp; your code</summary>
+                <p>
+                  AI runs only when you ask. “Just this code” sends your selection; project and
+                  change explanations also send nearby code and up to 12 reference snippets. AI
+                  answers may be wrong—check the code and tests.
+                </p>
+              </details>
+              <button id="motion-toggle" class="quiet" aria-pressed="true">Motion on</button>
+            </div>
           </footer>
         </main>
         <script nonce="${nonce}" src="${assets.script}"></script>

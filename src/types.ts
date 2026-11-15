@@ -45,3 +45,16 @@ export interface Lesson {
   predictions: { description: string; evidenceIds: string[] }[];
   checks: string[];
 }
+export interface TokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+}
+export interface Generation {
+  lesson: Lesson;
+  model: string;
+  usage?: TokenUsage;
+}
