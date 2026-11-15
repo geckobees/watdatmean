@@ -84,6 +84,14 @@ startup before the extension activates ([reported VS Code issue](https://github.
 use `npm run dev` or Ctrl+F5 if that happens. For automatic rebuilds, run `npm run watch`
 separately and reload the development window after changes.
 
+On Mac, **Fn+F5** runs this same F5 configuration and opens an **Extension Development Host**.
+If its learning panel reports `Could not register service worker` / `InvalidStateError`,
+stop debugging, save your work, fully quit VS Code with **Cmd+Q**, and then reopen the project
+and press **Fn+F5** again. A window reload alone can leave the failed browser state running.
+If the error persists, run `npm run dev` from the project root: its separate user-data directory
+avoids sharing the regular VS Code browser cache. F5 or Ctrl+F5 uses the regular VS Code
+user-data directory; changing only a named VS Code profile does not separate that browser cache.
+
 `npm run test:integration` is for automated checks: its temporary window closes when the
 tests finish. Use `npm run dev` for interactive testing.
 

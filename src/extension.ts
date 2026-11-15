@@ -324,9 +324,10 @@ class Tutor implements vscode.Disposable {
     panel.onDidDispose(() => {
       if (this.panel !== panel) return;
       clearTimeout(this.panelLoadTimer);
-      this.cancelRequest();
+      // VS Code has already disposed the webview; detach it before cancellation sends UI state.
       this.panel = undefined;
       this.panelReady = false;
+      this.cancelRequest();
       this.selection = undefined;
     });
     this.panelLoadTimer = setTimeout(() => {

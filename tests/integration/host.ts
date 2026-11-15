@@ -38,7 +38,7 @@ async function checks() {
   assert.ok(extension, 'Extension is installed in the development host');
   await extension.activate();
   const commands = await vscode.commands.getCommands();
-  for (const name of ['inspect', 'configure', 'removeKey', 'clearCache', 'demo'])
+  for (const name of ['inspect', 'reopenPanel', 'configure', 'removeKey', 'clearCache', 'demo'])
     assert.ok(commands.includes(`watdatmean.${name}`));
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder);
@@ -133,6 +133,30 @@ async function checks() {
   assert.ok(
     vscode.window.tabGroups.all.some((g) => g.tabs.some((t) => t.label === 'WatDatMean')),
     'Learning panel opens',
+  );
+  // VS Code disposes the webview before notifying the extension. Closing and reopening
+  // must clear the old panel reference without sending messages to that disposed webview.
+  const panelTab = vscode.window.tabGroups.all
+    .flatMap((group) => group.tabs)
+    .find((tab) => tab.label === 'WatDatMean')!;
+  assert.ok(await vscode.window.tabGroups.close(panelTab), 'Learning panel closes');
+  await vscode.window.showTextDocument(document);
+  await vscode.commands.executeCommand('watdatmean.inspect');
+  await vscode.commands.executeCommand('watdatmean.reopenPanel');
+  for (
+    let attempt = 0;
+    attempt < 10 &&
+    !vscode.window.tabGroups.all.some((g) => g.tabs.some((t) => t.label === 'WatDatMean'));
+    attempt++
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  assert.equal(
+    vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .filter((tab) => tab.label === 'WatDatMean').length,
+    1,
+    'Exactly one learning panel remains after closing, inspecting, and reopening',
   );
   // Allow the built-in TypeScript service to initialize, then inspect real cross-file references.
   await vscode.extensions.getExtension('vscode.typescript-language-features')?.activate();

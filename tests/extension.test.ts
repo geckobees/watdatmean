@@ -21,6 +21,7 @@ const host = vi.hoisted(() => ({
   panels: [] as {
     disposed: boolean;
     html: string;
+    dispose?: () => void;
     receive?: (message: unknown) => Promise<void> | undefined;
     onDispose?: () => void;
   }[],
@@ -150,35 +151,42 @@ vi.mock('vscode', () => {
       createWebviewPanel: () => {
         const state: (typeof host.panels)[number] = { disposed: false, html: '' };
         host.panels.push(state);
-        return {
-          dispose() {
-            state.disposed = true;
-            state.onDispose?.();
+        const webview = {
+          get html() {
+            return state.html;
           },
+          set html(html: string) {
+            state.html = html;
+            if (host.readyOnLoad) void state.receive?.({ type: 'ready' });
+          },
+          cspSource: 'test:',
+          asWebviewUri: (uri: vscode.Uri) => uri,
+          postMessage: (message: Record<string, unknown>) => {
+            host.messages.push(message);
+            return Promise.resolve(true);
+          },
+          onDidReceiveMessage: (callback: typeof host.receive) => {
+            host.receive = callback;
+            state.receive = callback;
+            return disposable();
+          },
+        };
+        state.dispose = () => {
+          if (state.disposed) return;
+          state.disposed = true;
+          state.onDispose?.();
+        };
+        return {
+          dispose: state.dispose,
           reveal() {},
           onDidDispose: (callback: () => void) => {
             state.onDispose = callback;
             return disposable();
           },
-          webview: {
-            get html() {
-              return state.html;
-            },
-            set html(html: string) {
-              state.html = html;
-              if (host.readyOnLoad) void state.receive?.({ type: 'ready' });
-            },
-            cspSource: 'test:',
-            asWebviewUri: (uri: vscode.Uri) => uri,
-            postMessage: (message: Record<string, unknown>) => {
-              host.messages.push(message);
-              return Promise.resolve(true);
-            },
-            onDidReceiveMessage: (callback: typeof host.receive) => {
-              host.receive = callback;
-              state.receive = callback;
-              return disposable();
-            },
+          get webview() {
+            // VS Code marks the panel disposed before firing onDidDispose.
+            if (state.disposed) throw new Error('Webview is disposed');
+            return webview;
           },
         };
       },
@@ -319,6 +327,14 @@ describe('AI token reporting', () => {
 });
 
 describe('learning panel startup and recovery', () => {
+  it('can close a failed panel and inspect code again without messaging a disposed webview', async () => {
+    await start(undefined, undefined, false);
+    expect(() => host.panels[0].dispose!()).not.toThrow();
+    await host.commands.get('watdatmean.inspect')!();
+    await message({ type: 'ready' });
+    expect(host.panels).toHaveLength(2);
+    expect(last('selection').code).toBe('const score = 0;');
+  });
   it('catches ready even when the panel loads immediately', async () => {
     host.readyOnLoad = true;
     await start('const glossary: Record<string, [string, string]> = {};', [0, 0], false);
