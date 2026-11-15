@@ -34,6 +34,26 @@ public final class SmokeStarter implements ApplicationStarter {
         var result = bridge.call("inspect", input).get(20, TimeUnit.SECONDS).getAsJsonObject();
         check(result.get("symbol").getAsString().equals("score"), "Java/Node stdio bridge returns the TypeScript symbol");
         check(!result.getAsJsonArray("parts").isEmpty(), "Shared offline syntax explanations");
+        for (String code : List.of(
+          "export interface Options {\n  label?: string;\n}",
+          "// prefix\nconst glossary: Record<string, [string, string]> = {",
+          "type Record<K,V> = [K,V];\nconst pair: Record<string, number> = value;")) {
+          var types = new JsonObject(); types.addProperty("code", code);
+          int start = code.contains("label?") ? code.indexOf("label?") : code.indexOf("const");
+          types.addProperty("start", start); types.addProperty("end", start); types.addProperty("language", "typescript");
+          var inspected = bridge.call("inspect", types).get(20, TimeUnit.SECONDS).getAsJsonObject();
+          check(inspected.get("start").getAsInt() == start, "Shared type selection keeps its source offset");
+          check(!inspected.getAsJsonArray("parts").isEmpty(), "Type pieces survive incomplete code and custom utilities");
+          String explanation = inspected.get("explanation").getAsString();
+          if (code.contains("label?")) check(explanation.contains("optional property"), "Native bridge focuses interface members");
+          if (code.contains("glossary")) check(explanation.contains("incomplete"), "Incomplete object remains honest");
+          if (code.startsWith("type Record")) check(!explanation.contains("text keys"), "Custom utility is not mistaken for a built-in");
+          for (var part : inspected.getAsJsonArray("parts")) {
+            var piece = part.getAsJsonObject();
+            check(code.substring(piece.get("start").getAsInt(), piece.get("end").getAsInt()).equals(piece.get("token").getAsString()), "Type pieces have exact source ranges");
+          }
+        }
+        System.out.println("PASS: native bridge interface member selection, unfinished types, custom utilities, and source offsets");
         for (String language : List.of("python", "javascript", "typescriptreact")) {
           String code = language.equals("python") ? "import math as m\nscore = m.sqrt(9)\nprint(score)" : language.equals("javascript") ? "const score = 3;" : "const score = <button>Hi</button>;";
           var multi = new JsonObject(); multi.addProperty("code", code); multi.addProperty("start", code.indexOf("score")); multi.addProperty("end", code.indexOf("score")); multi.addProperty("language", language);
@@ -58,6 +78,7 @@ public final class SmokeStarter implements ApplicationStarter {
       } finally { bridge.dispose(); }
       if (Boolean.getBoolean("watdatmean.test.ui")) {
         try (var panel = new PanelSmoke()) { panel.run(); }
+        RecoverySmoke.run();
       }
       Files.writeString(Path.of(System.getProperty("watdatmean.test.result")), "PASS: plugin actions, native Java hover and documentation, edit confirmation/cancellation, Java method/selection capture, Java syntax checks, unsupported-language guard, document invalidation, Node runtime checks, cancellation, packaged Java/Node bridge"
         + (Boolean.getBoolean("watdatmean.test.ui") ? ", and native JCEF panel" : "") + ".\n");
@@ -70,7 +91,7 @@ public final class SmokeStarter implements ApplicationStarter {
   }
   private void editorChecks() {
     var project = ProjectManager.getInstance().getDefaultProject();
-    for (String action : List.of("Inspect", "Configure", "RemoveKey", "ClearCache"))
+    for (String action : List.of("Inspect", "ReopenPanel", "Configure", "RemoveKey", "ClearCache"))
       check(ActionManager.getInstance().getAction("WatDatMean." + action) != null, "Registered action " + action);
     String source = "class Demo { int doubleIt(int value) { return value * 2; } }";
     var file = new LightVirtualFile("Demo.java", FileTypeManager.getInstance().getFileTypeByExtension("java"), source);

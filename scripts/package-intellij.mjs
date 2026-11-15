@@ -13,6 +13,14 @@ const jdk = option('--java-home', process.env.JAVA_HOME);
 if (!ide || !jdk)
   throw new Error('Set INTELLIJ_HOME and JAVA_HOME (JDK 17+) or pass --ide-home and --java-home.');
 const product = JSON.parse(await readFile(path.join(ide, 'product-info.json'), 'utf8'));
+const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+const descriptor = await readFile('intellij/src/main/resources/META-INF/plugin.xml', 'utf8');
+if (
+  !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version) ||
+  !descriptor.includes(`<version>${version}</version>`)
+)
+  throw new Error('VS Code and IntelliJ package versions must match.');
+const archive = `dist/intellij/watdatmean-intellij-${version}.zip`;
 if (!product.buildNumber.startsWith('223.'))
   throw new Error(
     'Compile against IntelliJ IDEA 2022.3 (build 223) to preserve backward compatibility. Use --runtime-home to test newer IDEs.',
@@ -91,11 +99,9 @@ run('jar', [
   '--create',
   '--no-manifest',
   '--file',
-  path.resolve('dist/intellij/watdatmean-intellij-0.1.2.zip'),
+  path.resolve(archive),
   '-C',
   path.dirname(staging),
   'watdatmean',
 ]);
-console.log(
-  'Created dist/intellij/watdatmean-intellij-0.1.2.zip against IntelliJ ' + product.version,
-);
+console.log('Created ' + archive + ' against IntelliJ ' + product.version);

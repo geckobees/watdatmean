@@ -52,7 +52,7 @@ final class EditSmoke {
       System.out.println("PASS: native edit confirmation, cancellation, duplicate-apply guard, source invalidation, and successful apply");
     } finally { EditorFactory.getInstance().releaseEditor(editor); }
   }
-  private static void prepare(Tutor tutor, SourceContext.Selection selection, String replacement) {
+  static void prepare(Tutor tutor, SourceContext.Selection selection, String replacement) {
     try {
       var select = Tutor.class.getDeclaredMethod("select", SourceContext.Selection.class, boolean.class);
       select.setAccessible(true); select.invoke(tutor, selection, false);

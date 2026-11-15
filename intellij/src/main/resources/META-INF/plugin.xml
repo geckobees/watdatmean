@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>com.watdatmean.intellij</id>
   <name>WatDatMean — Learn in Your Code</name>
-  <version>0.1.2</version>
+  <version>0.1.8</version>
   <vendor url="https://github.com/geckobees/watdatmean">WatDatMean</vendor>
   <description><![CDATA[
     Understand selected code, explore examples, and preview edits in IntelliJ IDEA.
@@ -25,6 +25,10 @@
       <add-to-group group-id="ToolsMenu" anchor="last"/>
       <keyboard-shortcut keymap="$default" first-keystroke="control alt E"/>
       <keyboard-shortcut keymap="Mac OS X" first-keystroke="meta alt E"/>
+    </action>
+    <action id="WatDatMean.ReopenPanel" class="com.watdatmean.intellij.ReopenPanelAction"
+            text="WatDatMean: Reopen Learning Panel" description="Reload the panel using the latest version of its selected code">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
     </action>
     <action id="WatDatMean.Configure" class="com.watdatmean.intellij.ConfigureAction"
             text="WatDatMean: Configure AI Provider / Node.js">

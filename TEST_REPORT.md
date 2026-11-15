@@ -1,6 +1,27 @@
 # WatDatMean teaching fixes and testing — November 14, 2026
 
-## Current revision: Java arrays and exception handling
+## Current revision: main quality-of-life integration
+
+Integrated main `406a344` with TainBranch `17548d1`, resolving ten conflicted files while retaining this session's explanation work. Both editor packages are version **0.1.8**.
+
+- Shared boxed code pieces preserve original whitespace, comments, repeated tokens, source offsets, and keyboard navigation. IntelliJ now sends the selection start offset; Java and Python pieces remain clickable away from the beginning of a file.
+- TypeScript interface members open independently, and complex types, tuples, objects, constructors, and incomplete declarations unpack locally. Constructor pieces retain written import origins and nested-call relationships. Locally declared/imported utility names are not assumed to be standard built-ins.
+- Both editors offer **Reopen Learning Panel**. Recovery refreshes the saved selection, cancels old work, and invalidates edit previews. IntelliJ disposes the old browser and listeners; stale browser messages cannot reach its replacement. Source files remain unchanged by recovery.
+- Preserved Python checking, native Java hover and origins, automatic IntelliJ themes, compact walkthroughs, collapsed definitions/practice, optional deeper help, examples, project context, caching, and confirmed edits. Kept the Python parser dependency; omitted main's unused `package` dependency.
+
+Validation for this integration:
+
+- TypeScript type check and **832 unit/adapter tests** pass.
+- **34 browser-panel tests** pass, including both editor panels, Python import origins and indentation, boxed source ranges, keyboard interaction, compact Java output, and edit safeguards.
+- Stress checks pass **1,200 mutations** and large/deep/malformed TypeScript and Python inputs.
+- **150 independently compiled Java 17 fixtures** still match every output character. The original Womb trace remains four steps with `null0A1 B6A11 B106A11 A11B106aa\n`.
+- Actual VS Code and IntelliJ **2022.3** host checks cover the shared teaching path, 125 independent Java programs plus Womb, Python/JavaScript/TSX checking, and the new TypeScript selection/type behavior. Native IntelliJ checks also cover live light/dark themes, variable origins, edit confirmation, and repeated panel recovery after source edits.
+
+The provider, prompt budgets, lesson schema, local teaching, Java interpreter, and shared bridge core are unchanged from `17548d1`. Supported Java examples continue to report **0 API tokens**, as before; no provider requests were made for this integration. This verifies preservation of the local path and request settings, not a new live-model quality evaluation. IntelliJ was tested on 2022.3 for this integration; newer IDE versions were not rerun.
+
+Reproduce with `npm run check`, `npm test`, `npm run test:stress`, `npm run test:ui`, `npm run test:integration`, and `npm run test:intellij -- --ide-home <2022.3 SDK> --java-home <JDK 17+> --ui`. The Java reference check is `node scripts/check-java-teaching.mjs <JDK 17+> <Java 17 runtime>`.
+
+## Preserved revision: Java arrays and exception handling
 
 Both editors now share checked local explanations for array literals, sized/default creation, indexed reads/writes and increments, `length`, aliases, fields, parameters, return values and up to three dimensions (including ragged rows). Enhanced loops read the same array once and observe later element updates. `clone` and `Arrays.copyOf` create a new outer array; nested rows remain shared where Java uses a shallow copy. `Arrays.toString` and `deepToString` provide deterministic item output. Covariant array reads retain the expression's declared component type for field selection, while virtual calls still use the actual object. Stores check the allocation's actual component type. These rules follow [JLS arrays](https://docs.oracle.com/javase/specs/jls/se17/html/jls-10.html) and [assignment evaluation](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.26.1).
 
@@ -56,11 +77,11 @@ The trace tracks fields by **declaring class**, not just name. A constructor's b
 
 The complete compiler-verified output is `null0A1 B6A11 B106A11 A11B106aa\n`. The first three chunks each end with one space; the last ends with a newline. In the final expression, `x.s/x.n` are A's fields, the B casts select B's fields, and both `who()` calls select A's static method. The walkthrough explains the same object, separate fields, casting, left-to-right concatenation, Java library origins and the practical risk of calling an override during construction.
 
-| Same full Java request | Total API tokens | Result |
-| --- | ---: | --- |
-| Prior successful live Qwen response | 2,526 | Correct |
-| Prior repeated live Qwen response | 2,713 | Incorrect `x.s` ownership and final output |
-| Current local trace, direct VS Code path and IntelliJ bridge | **0** | Correct complete output, zero transport calls |
+| Same full Java request                                       | Total API tokens | Result                                        |
+| ------------------------------------------------------------ | ---------------: | --------------------------------------------- |
+| Prior successful live Qwen response                          |            2,526 | Correct                                       |
+| Prior repeated live Qwen response                            |            2,713 | Incorrect `x.s` ownership and final output    |
+| Current local trace, direct VS Code path and IntelliJ bridge |            **0** | Correct complete output, zero transport calls |
 
 The original live responses remain in `tests/quality/groq-reasoning-2026-11-14.json`; neither failure nor usage was overwritten. This revision needs no new live API call: the supported request bypasses the model entirely, eliminating its 1,024 hidden reasoning tokens along with its other tokens. Model-backed requests retain their previous prompts, reasoning settings and completion ceilings. Simple TypeScript/Python/Java literal cases stay free, and concept/example/edit/practice actions remain available.
 
@@ -76,12 +97,12 @@ Both editors now derive a reviewed local walkthrough for a narrow grammar of lit
 
 The initial experiment simply disabled Qwen reasoning for the three simple snippets. All three replies omitted their walkthrough steps and output, despite receiving the same instructions and completion ceilings. Those responses are **failed quality tests**, not successful savings. The shipped optimization uses a local explanation for those fully understood forms instead. Other model-backed explanations retain their original settings. Groq documents `none` and `low`/`medium`/`high` for this Qwen model, but does not document a smaller positive reasoning tier or a separate reasoning-token budget ([API reference](https://console.groq.com/docs/api-reference#chat-create)).
 
-| Fixture | Before total | Shipped total | Hidden reasoning before → after | Result |
-| --- | ---: | ---: | ---: | --- |
-| TypeScript greeting with a stored name | 805 | **0** | 172 → 0 | Correct output, two local steps |
-| Python greeting with a stored name | 716 | **0** | 114 → 0 | Correct output, two local steps |
-| Java literal `println` | 930 | **0** | 125 → 0 | Correct output, one local step plus stream origin |
-| Full tricky Java construction program | 2,526 | 2,713 | 1,024 → 1,024 | Same request/settings; new AI reply has a field-hiding error |
+| Fixture                                | Before total | Shipped total | Hidden reasoning before → after | Result                                                       |
+| -------------------------------------- | -----------: | ------------: | ------------------------------: | ------------------------------------------------------------ |
+| TypeScript greeting with a stored name |          805 |         **0** |                         172 → 0 | Correct output, two local steps                              |
+| Python greeting with a stored name     |          716 |         **0** |                         114 → 0 | Correct output, two local steps                              |
+| Java literal `println`                 |          930 |         **0** |                         125 → 0 | Correct output, one local step plus stream origin            |
+| Full tricky Java construction program  |        2,526 |         2,713 |                   1,024 → 1,024 | Same request/settings; new AI reply has a field-hiding error |
 
 For the three eligible simple examples, total usage falls from **2,451 to zero**, including **411 hidden reasoning tokens**, with zero transport calls through both the direct VS Code engine and IntelliJ bridge. This is a narrow eligibility result, not a claim that arbitrary code is free. The local walkthroughs explain assignment, the `+` operation, printing/newlines and the standard output function. They avoid the baseline Java reply's irrelevant constructor-related concepts and the baseline Python wording that attributed string joining to `print` instead of `+`.
 
@@ -93,12 +114,12 @@ Validation: **474 unit/adapter tests**, **18 browser panel tests**, TypeScript c
 
 Final live comparison on Groq `qwen/qwen3.8-27b` (one response per final condition):
 
-| Fixture | Input before | Input after | Total before | Total after |
-| --- | ---: | ---: | ---: | ---: |
-| Java construction, hidden fields and static calls | 1,313 | 1,050 | 2,905 | 2,526 |
-| Python closures and default arguments | 864 | 649 | 1,450 | 1,244 |
-| TypeScript import and supplied helper | 768 | 652 | 1,122 | 1,086 |
-| **Total** | **2,945** | **2,351** | **5,477** | **4,856** |
+| Fixture                                           | Input before | Input after | Total before | Total after |
+| ------------------------------------------------- | -----------: | ----------: | -----------: | ----------: |
+| Java construction, hidden fields and static calls |        1,313 |       1,050 |        2,905 |       2,526 |
+| Python closures and default arguments             |          864 |         649 |        1,450 |       1,244 |
+| TypeScript import and supplied helper             |          768 |         652 |        1,122 |       1,086 |
+| **Total**                                         |    **2,945** |   **2,351** |    **5,477** |   **4,856** |
 
 Input decreased **20.2%**, completion usage (including reasoning) decreased **1.1%** from 2,532 to 2,505, and total usage decreased **11.3%**. All three final answers matched the complete expected output, including newlines. They retained four/three/three walkthrough steps and restored nine definitions locally from term names. Unfamiliar definitions and explicit deeper explanations remain supported. Savings vary: Python and TypeScript completions individually grew slightly, while their total usage still fell. This comparison does not establish universal savings or AI accuracy.
 

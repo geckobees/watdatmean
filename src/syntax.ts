@@ -1,8 +1,47 @@
 import ts from 'typescript';
 import { bindingLookup } from './bindings';
 import type { Part } from './types';
+import { describeType, standardTypeReference } from './type-description';
 
 type Explanation = [brief: string, detail: string];
+
+export function typeAnnotationExplanation(
+  node: ts.Node,
+  source: ts.SourceFile,
+): Explanation | undefined {
+  const declaration = node as ts.NamedDeclaration & { type?: ts.TypeNode };
+  if (!declaration.type) return;
+  const type = declaration.type;
+  const name = declaration.name?.getText(source) ?? 'this value';
+  const kind =
+    type.kind === ts.SyntaxKind.StringKeyword
+      ? 'text, such as "hello"'
+      : type.kind === ts.SyntaxKind.NumberKeyword
+        ? 'a number, such as 3'
+        : type.kind === ts.SyntaxKind.BooleanKeyword
+          ? 'true or false'
+          : describeType(type, source);
+  if (ts.isFunctionLike(node)) {
+    const functionName = declaration.name?.getText(source) ?? 'this function';
+    return [
+      'Says what kind of value this function gives back.',
+      type.kind === ts.SyntaxKind.VoidKeyword
+        ? `The : void after (...) says ${functionName} does not give back a value for the caller to use.`
+        : type.kind === ts.SyntaxKind.NeverKeyword
+          ? `The : never says ${functionName} cannot finish normally: it throws an error or keeps running.`
+          : `The : ${type.getText(source)} after (...) says ${functionName} should give back ${kind}.`,
+    ];
+  }
+  return ts.isParameter(node)
+    ? [
+        'Says what kind of input this function expects.',
+        `The : ${type.getText(source)} says ${name} should receive ${kind} when the function is called.`,
+      ]
+    : [
+        'Says what kind of value belongs here.',
+        `The : ${type.getText(source)} says ${name} should hold ${kind}.`,
+      ];
+}
 
 const keywords: Record<string, string> = {
   function: 'Defines a function: reusable code that runs when called.',
@@ -133,15 +172,28 @@ export function statementParts(
     const input = argument(node);
     return input ? ` Its result is passed as ${input}.` : '';
   }
+  function constructorName(name: ts.Node): Explanation {
+    const origin =
+      ts.isIdentifier(name) || ts.isPrivateIdentifier(name)
+        ? imported(name)
+        : ts.isPropertyAccessExpression(name) && ts.isIdentifier(name.expression)
+          ? imported(name.expression)
+          : '';
+    return explain(
+      'The constructor that sets up the new object.',
+      `${text(name)} is the constructor used here. A constructor is the setup code that runs when the object is created.${result(name.parent)}${origin}`,
+    );
+  }
   function identifier(node: ts.Identifier | ts.PrivateIdentifier): Explanation {
     const parent = node.parent;
+    if (ts.isTypeReferenceNode(parent) && parent.typeName === node)
+      return explain(
+        'The name of a type: a description of allowed values.',
+        `${text(parent)} describes ${describeType(parent, source)}.`,
+      );
     if (ts.isPropertyAccessExpression(parent) && parent.name === node) {
       const called = isCall(parent.parent) && parent.parent.expression === parent;
-      if (called && ts.isNewExpression(parent.parent))
-        return explain(
-          'The constructor accessed on this object.',
-          'The new expression creates an instance using this member as its constructor.',
-        );
+      if (called && ts.isNewExpression(parent.parent)) return constructorName(parent);
       return explain(
         called
           ? `The method being called on ${text(parent.expression)}.`
@@ -151,11 +203,10 @@ export function statementParts(
           : 'Reading a member can retrieve a stored value or run a getter. Access alone does not call a method.',
       );
     }
-    if (isCall(parent) && parent.expression === node)
+    if (ts.isNewExpression(parent) && parent.expression === node) return constructorName(node);
+    if (ts.isCallExpression(parent) && parent.expression === node)
       return explain(
-        ts.isNewExpression(parent)
-          ? `The constructor used to create an instance.${result(parent)}`
-          : `The function being called.${result(parent)}`,
+        `The function being called.${result(parent)}`,
         `The parentheses supply the inputs and run ${text(node)}.${result(parent)}${imported(node)}`,
       );
     if (ts.isParameter(parent) && parent.name === node)
@@ -220,6 +271,31 @@ export function statementParts(
     const token = node.getText(source);
     const parent = node.parent;
     if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) return identifier(node);
+    if (token === 'new' && ts.isNewExpression(parent))
+      return explain(
+        'Creates a new object (an instance).',
+        `new creates a ${text(parent.expression)} object and calls its constructor to set it up.`,
+      );
+    if (ts.isTypeNode(node) && ts.isTupleTypeNode(parent)) {
+      const index = parent.elements.indexOf(node);
+      if (index >= 0)
+        return explain(
+          `The type of entry ${index + 1} in this list.`,
+          `Entry ${index + 1} should be ${describeType(node, source)}. The order of entries matters.`,
+        );
+    }
+    if (
+      node.kind === ts.SyntaxKind.StringKeyword &&
+      ts.isTypeReferenceNode(parent) &&
+      ts.isIdentifier(parent.typeName) &&
+      parent.typeName.text === 'Record' &&
+      standardTypeReference(parent, source) &&
+      parent.typeArguments?.[0] === node
+    )
+      return explain(
+        'Text keys for this object.',
+        'Each key is text, such as "const". The second type describes the value stored under each key.',
+      );
     if (ts.isTypeNode(node))
       return explain(
         glossary[token]?.[0] ?? 'The type TypeScript checks here.',
@@ -275,6 +351,13 @@ export function statementParts(
     }
     if (token === '(' || token === ')') {
       const open = token === '(';
+      if (ts.isNewExpression(parent))
+        return explain(
+          open ? 'Starts the inputs for the constructor.' : 'Ends the inputs for the constructor.',
+          parent.arguments?.length
+            ? `The values inside (...) are inputs for ${text(parent.expression)} to use when setting up the new object.`
+            : `Empty () means ${text(parent.expression)} receives no inputs to set up the new object.`,
+        );
       if (isCall(parent)) {
         const role = argument(parent)
           ? 'Inner'
@@ -307,13 +390,32 @@ export function statementParts(
           : 'Ends this group or condition.',
       );
     }
-    if (token === ';')
+    if (token === ';') {
+      if (ts.isForStatement(parent))
+        return explain(
+          'Separates the parts of this loop.',
+          'The two semicolons split the loop into three parts: where to start, when to keep going, and what changes after each repeat.',
+        );
+      if (ts.isPropertySignature(parent))
+        return explain(
+          'Ends this property’s description.',
+          `The ; marks where the description of ${text(parent.name)} ends. The next property goes after it.`,
+        );
+      if (
+        ts.isMethodSignature(parent) ||
+        ts.isCallSignatureDeclaration(parent) ||
+        ts.isConstructSignatureDeclaration(parent) ||
+        ts.isIndexSignatureDeclaration(parent)
+      )
+        return explain(
+          'Ends this entry.',
+          'The ; marks the end of this description, so another entry can follow it.',
+        );
       return explain(
-        ts.isForStatement(parent)
-          ? 'Separates the loop’s setup, condition, and update.'
-          : 'Ends the statement.',
-        'A semicolon marks a statement boundary; in a for header it separates setup, condition, and update.',
+        'Ends this instruction.',
+        'Think of ; as a full stop: it marks where this instruction ends.',
       );
+    }
     if (token === ',')
       return explain('Separates arguments, parameters, declarations, or items in this list.');
     if (token === ':') {
@@ -321,7 +423,7 @@ export function statementParts(
         return explain('Introduces the value chosen when the condition is falsy.');
       if (ts.isPropertyAssignment(parent))
         return explain('Separates the property name from its value.');
-      return glossary[':'];
+      return typeAnnotationExplanation(parent, source) ?? glossary[':'];
     }
     if (token === '?')
       return explain(
@@ -331,8 +433,24 @@ export function statementParts(
       );
     if (token === '=>')
       return explain(
-        'Separates an arrow function’s inputs from its body.',
-        'An expression body returns its value automatically. A block body uses return explicitly. Arrow functions inherit this from the surrounding code.',
+        ts.isFunctionTypeNode(parent)
+          ? 'Separates the input types from the type of result this function gives back.'
+          : 'Separates an arrow function’s inputs from its body.',
+        ts.isFunctionTypeNode(parent)
+          ? 'This describes a function. The inputs are on the left, and the expected result is on the right; it does not run the function.'
+          : 'An expression body returns its value automatically. A block body uses return explicitly. Arrow functions inherit this from the surrounding code.',
+      );
+    if ((token === '[' || token === ']') && ts.isTupleTypeNode(parent))
+      return explain(
+        token === '['
+          ? 'Starts a list of types in a fixed order (a tuple).'
+          : 'Ends the list of types in this tuple.',
+        `${text(parent)} describes ${describeType(parent, source)}.`,
+      );
+    if ((token === '[' || token === ']') && ts.isArrayTypeNode(parent))
+      return explain(
+        'Says this is an array (a list).',
+        `Each item should be ${describeType(parent.elementType, source)}.`,
       );
     if (token === '[' || token === ']')
       return explain(
@@ -375,7 +493,14 @@ export function statementParts(
       );
     if (token === '~') return explain('Flips the bits of the numeric value.');
     if (token === '<' || token === '>')
-      return explain('Encloses type arguments or type parameters; this is not a value comparison.');
+      return explain(
+        'Groups the type details between < and >.',
+        'For example, Record<string, number> describes an object with text keys and number values. These brackets describe types; they do not compare values.',
+      );
+    if (token === '|' && ts.isUnionTypeNode(parent))
+      return explain('Allows a value to match either type.');
+    if (token === '&' && ts.isIntersectionTypeNode(parent))
+      return explain('Requires a value to match both types.');
     if (token === '=') return explain('Assigns the initial or default value.');
     if (token === 'return' && ts.isReturnStatement(parent) && !parent.expression)
       return explain('Ends this function without a value; the caller receives undefined.');
@@ -419,7 +544,7 @@ export function statementParts(
       }
       return;
     }
-    if (ts.isTypeNode(node)) {
+    if (ts.isTypeNode(node) && (ts.isTypeLiteralNode(node) || !node.getChildCount(source))) {
       add(node, describe(node));
       return;
     }

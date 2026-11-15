@@ -78,8 +78,28 @@ async function checks() {
     `PASS: ${javaCases.length} independent Java examples including arrays and exception handling in VS Code host, all at zero tokens`,
   );
   const commands = await vscode.commands.getCommands();
-  for (const name of ['inspect', 'configure', 'removeKey', 'clearCache', 'demo'])
+  for (const name of ['inspect', 'reopenPanel', 'configure', 'removeKey', 'clearCache', 'demo'])
     assert.ok(commands.includes(`watdatmean.${name}`));
+  const typeDocument = await vscode.workspace.openTextDocument({
+    language: 'typescript',
+    content:
+      'export interface Options {\n  label?: string;\n}\ntype Record<K,V> = [K,V];\nconst pair: Record<string, number> = value;',
+  });
+  for (const [token, expected] of [
+    ['label?', 'optional property'],
+    ['const pair', 'Record<string, number>'],
+  ]) {
+    const hover = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      typeDocument.uri,
+      typeDocument.positionAt(typeDocument.getText().indexOf(token)),
+    );
+    assert.ok(
+      hoverText(hover).includes(expected),
+      'Merged type explanations appear in the actual hover',
+    );
+    assert.ok(!hoverText(hover).includes('text keys'), 'Custom Record retains its own meaning');
+  }
   const folder = vscode.workspace.workspaceFolders?.[0];
   assert.ok(folder);
   const document = await vscode.workspace.openTextDocument(

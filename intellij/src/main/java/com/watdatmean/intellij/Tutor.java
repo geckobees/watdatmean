@@ -14,6 +14,7 @@ import com.intellij.openapi.editor.event.*;
 import com.intellij.openapi.fileEditor.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.vfs.newvfs.BulkFileListener;
@@ -23,6 +24,8 @@ import com.intellij.util.concurrency.AppExecutorUtil;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.JComponent;
+import javax.swing.JPanel;
+import java.awt.BorderLayout;
 import org.jetbrains.annotations.NotNull;
 
 @Service(Service.Level.PROJECT)
@@ -36,6 +39,8 @@ public final class Tutor implements Disposable {
   private volatile SourceContext.Context context;
   private volatile Preview preview;
   private PanelView panel;
+  private final JPanel panelContainer = new JPanel(new BorderLayout());
+  private long panelGeneration;
   private boolean ready;
   private boolean busy;
   private volatile boolean disposed;
@@ -70,15 +75,46 @@ public final class Tutor implements Disposable {
   }
   static Tutor get(Project project) { return project.getService(Tutor.class); }
   JComponent panel() {
-    if (panel == null) panel = new PanelView(this, incoming -> ui(() -> handle(incoming)));
-    return panel;
+    if (panel == null) {
+      long generation = ++panelGeneration;
+      panel = new PanelView(this, incoming -> ui(() -> {
+        if (generation == panelGeneration) handle(incoming);
+      }));
+      panelContainer.add(panel, BorderLayout.CENTER);
+    }
+    return panelContainer;
+  }
+  void reopenPanel() {
+    ready = false;
+    cancel(); preview = null; context = null;
+    ++panelGeneration;
+    if (panel != null) {
+      panelContainer.remove(panel);
+      Disposer.dispose(panel);
+      panel = null;
+    }
+    panel();
+    panelContainer.revalidate(); panelContainer.repaint();
+    var window = ToolWindowManager.getInstance(project).getToolWindow("WatDatMean");
+    if (window != null) window.show();
+    try {
+      if (selection != null && selection.file().isValid()) refreshSelection();
+      else {
+        selection = null;
+        var editor = FileEditorManager.getInstance(project).getSelectedTextEditor();
+        if (editor != null) inspect(editor);
+      }
+    } catch (Exception error) { error(error); }
   }
   private void ui(Runnable action) {
     ApplicationManager.getApplication().invokeLater(() -> {
       if (!disposed && !project.isDisposed()) action.run();
     });
   }
-  private void send(JsonObject message) { ui(() -> { if (ready && panel != null) panel.send(message); }); }
+  private void send(JsonObject message) {
+    var target = panel;
+    ui(() -> { if (ready && target != null && panel == target) target.send(message); });
+  }
   static JsonObject message(String type) { var m = new JsonObject(); m.addProperty("type", type); return m; }
   private static String string(JsonObject m, String name) {
     return m.has(name) && m.get(name).isJsonPrimitive() && m.getAsJsonPrimitive(name).isString() ? m.get(name).getAsString() : "";
@@ -134,6 +170,7 @@ public final class Tutor implements Disposable {
     var m = message("selection");
     m.addProperty("keepTab", keepTab);
     m.addProperty("code", selected.code()); m.add("parts", selected.snippet().get("parts"));
+    m.addProperty("start", selected.start());
     m.addProperty("language", selected.language()); m.addProperty("file", SourceContext.relative(project, selected.file()));
     m.addProperty("line", selected.document().getLineNumber(selected.start()) + 1);
     send(m); sendConfig();
@@ -187,7 +224,10 @@ public final class Tutor implements Disposable {
   private void handle(JsonObject m) {
     try {
       switch (string(m, "type")) {
-        case "ready" -> { ready = true; sendSelection(); sendConfig(); }
+        case "ready" -> {
+          ready = true; sendSelection(); sendConfig();
+          if (selection != null && !selection.current()) send(message("stale"));
+        }
         case "configure" -> configure();
         case "cancel" -> cancel();
         case "refresh" -> refreshSelection();

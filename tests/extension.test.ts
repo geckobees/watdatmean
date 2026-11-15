@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { activate } from '../src/extension';
 
@@ -9,16 +9,24 @@ const host = vi.hoisted(() => ({
   receive: undefined as ((message: unknown) => Promise<void>) | undefined,
   changed: undefined as ((event: vscode.TextDocumentChangeEvent) => void) | undefined,
   provider: undefined as vscode.TextDocumentContentProvider | undefined,
+  hover: undefined as vscode.HoverProvider | undefined,
   editor: undefined as unknown as vscode.TextEditor,
   text: '',
   version: 1,
   confirm: vi.fn(),
-  closePanel: undefined as (() => void) | undefined,
-  panelClosed: false,
+  context: vi.fn(),
+  readyOnLoad: false,
+  subscriptions: [] as vscode.Disposable[],
+  panels: [] as {
+    disposed: boolean;
+    html: string;
+    receive?: (message: unknown) => Promise<void> | undefined;
+    onDispose?: () => void;
+  }[],
 }));
 
 vi.mock('../src/context', () => ({
-  collectContext: async () => ({ context: '', evidence: [], locations: new Map(), note: '' }),
+  collectContext: host.context,
 }));
 
 vi.mock('vscode', () => {
@@ -39,6 +47,19 @@ vi.mock('vscode', () => {
         public start: vscode.Position,
         public end: vscode.Position,
       ) {}
+    },
+    MarkdownString: class {
+      value = '';
+      appendMarkdown(value: string) {
+        this.value += value;
+        return this;
+      }
+    },
+    Hover: class {
+      contents: unknown[];
+      constructor(content: unknown) {
+        this.contents = [content];
+      }
     },
     WorkspaceEdit: class {
       changes: { range: vscode.Range; text: string }[] = [];
@@ -68,9 +89,15 @@ vi.mock('vscode', () => {
           });
       },
     },
-    languages: { registerHoverProvider: disposable },
+    languages: {
+      registerHoverProvider: (_selector: unknown, provider: vscode.HoverProvider) => {
+        host.hover = provider;
+        return disposable();
+      },
+    },
     workspace: {
       isTrusted: true,
+      openTextDocument: async () => host.editor.document,
       registerTextDocumentContentProvider: (
         _scheme: string,
         provider: vscode.TextDocumentContentProvider,
@@ -119,30 +146,42 @@ vi.mock('vscode', () => {
       showWarningMessage: host.confirm,
       showInformationMessage: vi.fn(),
       showTextDocument: async () => host.editor,
-      createWebviewPanel: () => ({
-        ...disposable(),
-        reveal() {},
-        onDidDispose: (callback: () => void) => {
-          host.closePanel = () => {
-            host.panelClosed = true;
-            callback();
-          };
-          return disposable();
-        },
-        webview: {
-          cspSource: 'test:',
-          asWebviewUri: (uri: vscode.Uri) => uri,
-          postMessage: (message: Record<string, unknown>) => {
-            if (host.panelClosed) throw new Error('Webview is disposed');
-            host.messages.push(message);
-            return Promise.resolve(true);
+      createWebviewPanel: () => {
+        const state: (typeof host.panels)[number] = { disposed: false, html: '' };
+        host.panels.push(state);
+        return {
+          dispose() {
+            state.disposed = true;
+            state.onDispose?.();
           },
-          onDidReceiveMessage: (callback: typeof host.receive) => {
-            host.receive = callback;
+          reveal() {},
+          onDidDispose: (callback: () => void) => {
+            state.onDispose = callback;
             return disposable();
           },
-        },
-      }),
+          webview: {
+            get html() {
+              return state.html;
+            },
+            set html(html: string) {
+              state.html = html;
+              if (host.readyOnLoad) void state.receive?.({ type: 'ready' });
+            },
+            cspSource: 'test:',
+            asWebviewUri: (uri: vscode.Uri) => uri,
+            postMessage: (message: Record<string, unknown>) => {
+              if (state.disposed) throw new Error('Webview is disposed');
+              host.messages.push(message);
+              return Promise.resolve(true);
+            },
+            onDidReceiveMessage: (callback: typeof host.receive) => {
+              host.receive = callback;
+              state.receive = callback;
+              return disposable();
+            },
+          },
+        };
+      },
     },
   };
 });
@@ -151,6 +190,7 @@ async function start(
   code = 'const score = 0;\nconst untouched = 9;',
   selection?: [number, number],
   language = 'typescript',
+  ready = true,
 ) {
   host.text = code;
   const document = {
@@ -183,11 +223,11 @@ async function start(
   } as vscode.TextEditor;
   activate({
     extensionUri: vscode.Uri.parse('file:/extension'),
-    subscriptions: [],
+    subscriptions: host.subscriptions,
     secrets: { get: async () => undefined },
   } as unknown as vscode.ExtensionContext);
   await host.commands.get('watdatmean.inspect')!();
-  await message({ type: 'ready' });
+  if (ready) await message({ type: 'ready' });
 }
 const message = async (value: Record<string, unknown>) => host.receive!(value);
 const last = (type: string) => host.messages.filter((m) => m.type === type).at(-1)!;
@@ -205,10 +245,125 @@ async function externalEdit(start: number, end: number, text: string) {
 beforeEach(() => {
   host.commands.clear();
   host.messages.length = 0;
+  host.hover = undefined;
   host.comparisons.length = 0;
   host.version = 1;
-  host.panelClosed = false;
   host.confirm.mockReset().mockResolvedValue('Use this code');
+  host.context
+    .mockReset()
+    .mockResolvedValue({ context: '', evidence: [], locations: new Map(), note: '' });
+  host.panels.length = 0;
+  host.readyOnLoad = false;
+});
+
+afterEach(() => {
+  host.subscriptions.splice(0).forEach((subscription) => subscription.dispose());
+  vi.useRealTimers();
+});
+
+describe('learning panel startup and recovery', () => {
+  it('keeps Python language, origins, shifted ranges and preview safety when recovering', async () => {
+    await start('import math as m\nscore = m.sqrt(9)\nprint(score)', [17, 34], 'python');
+    await message({ type: 'preview', replacement: 'score = 7\n' });
+    await externalEdit(0, 0, '# shifted\n');
+    await host.commands.get('watdatmean.reopenPanel')!();
+    await message({ type: 'ready' });
+    const selection = last('selection');
+    expect(selection.language).toBe('Python');
+    expect(selection.code).toContain('score = m.sqrt(9)');
+    expect(selection.start).toBe(27);
+    expect(selection.parts.map((p: any) => p.detail).join(' ')).toContain('math');
+    for (const part of selection.parts)
+      expect(host.text.slice(part.start, part.end)).toBe(part.token);
+    await message({ type: 'apply', replacement: 'score = 7\n' });
+    expect(host.confirm).not.toHaveBeenCalled();
+    expect(host.text).toContain('m.sqrt(9)');
+  });
+  it('catches ready even when the panel loads immediately', async () => {
+    host.readyOnLoad = true;
+    await start(
+      'const glossary: Record<string, [string, string]> = {};',
+      [0, 0],
+      'typescript',
+      false,
+    );
+    expect(last('selection').parts.map((p: { token: string }) => p.token)).toContain('Record');
+    expect(host.panels).toHaveLength(1);
+  });
+
+  it('recreates a failed panel with the saved selection even when no text editor has focus', async () => {
+    const code =
+      'const glossary: Record<string, [string, string]> = { const: ["brief", "detail"] };';
+    await start(code, [0, 0], 'typescript', false);
+    const oldPanel = host.panels[0];
+    const editor = host.editor;
+    host.editor = undefined as unknown as vscode.TextEditor;
+    await host.commands.get('watdatmean.reopenPanel')!();
+    host.editor = editor;
+    expect(oldPanel.disposed).toBe(true);
+    expect(host.panels).toHaveLength(2);
+    await message({ type: 'ready' });
+    expect(last('selection').code).toBe(code);
+    const count = host.messages.length;
+    await oldPanel.receive?.({ type: 'ready' });
+    expect(host.messages).toHaveLength(count);
+  });
+
+  it('offers recovery when startup stalls and stops prompting once the replacement loads', async () => {
+    vi.useFakeTimers();
+    await start(undefined, undefined, 'typescript', false);
+    host.confirm.mockResolvedValueOnce('Reopen panel');
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(host.confirm).toHaveBeenCalledWith(
+      expect.stringContaining('ServiceWorker'),
+      'Reopen panel',
+    );
+    expect(host.panels[0].disposed).toBe(true);
+    expect(host.panels).toHaveLength(2);
+    await message({ type: 'ready' });
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(host.confirm).toHaveBeenCalledTimes(1);
+    expect(last('selection').code).toBe('const score = 0;');
+  });
+
+  it('opens a normal panel at the current editor when nothing has been inspected yet', async () => {
+    await start();
+    host.panels[0].onDispose?.();
+    await host.commands.get('watdatmean.reopenPanel')!();
+    await message({ type: 'ready' });
+    expect(last('selection').code).toBe('const score = 0;');
+  });
+
+  it('ignores an old comparison that finishes after a reopened panel starts a new one', async () => {
+    await start();
+    let finishOld!: (value: unknown) => void;
+    let finishNew!: (value: unknown) => void;
+    const context = { context: '', evidence: [], locations: new Map(), note: '' };
+    host.context.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+    );
+    const old = message({ type: 'preview', replacement: 'const score = 1;' });
+    await host.commands.get('watdatmean.reopenPanel')!();
+    await message({ type: 'ready' });
+    host.context.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishNew = resolve;
+        }),
+    );
+    const current = message({ type: 'preview', replacement: 'const score = 2;' });
+    finishOld(context);
+    await old;
+    expect(last('busy').value).toBe(true);
+    expect(host.messages.filter((m) => m.type === 'preview')).toEqual([]);
+    finishNew(context);
+    await current;
+    expect(last('preview').replacement).toBe('const score = 2;');
+    expect(last('busy').value).toBe(false);
+  });
 });
 
 describe('repeatable code experiments in the extension host', () => {
@@ -248,9 +403,61 @@ describe('repeatable code experiments in the extension host', () => {
   );
   it('closes the panel without sending messages to a disposed webview', async () => {
     await start();
-    expect(() => host.closePanel!()).not.toThrow();
+    expect(() => {
+      const panel = host.panels.at(-1)!;
+      panel.disposed = true;
+      panel.onDispose!();
+    }).not.toThrow();
     await externalEdit(0, 0, '// changed after closing\n');
     expect(host.messages.filter((m) => m.type === 'error')).toEqual([]);
+  });
+
+  it('explains an interface line in the hover and opens that exact line from its panel link', async () => {
+    const source = 'export interface Part {\n  token: string;\n  start?: number;\n}';
+    await start(source, [0, 0]);
+    const offset = source.indexOf('start?');
+    const hover = await host.hover!.provideHover(
+      host.editor.document,
+      host.editor.document.positionAt(offset),
+      {} as vscode.CancellationToken,
+    );
+    const content = (hover!.contents[0] as vscode.MarkdownString).value;
+    expect(content).toContain('`start` is an optional property');
+    expect(content).toContain('`?` means it can be left out');
+    expect(content).toContain('Instant explanation · no AI tokens');
+    expect(content).not.toContain('`Part` describes');
+    const link = content.match(/command:watdatmean\.inspect\?([^\)]+)/)!;
+    const args = JSON.parse(decodeURIComponent(link[1]));
+    await host.commands.get('watdatmean.inspect')!(...args);
+    expect(last('selection')).toMatchObject({
+      code: 'start?: number;',
+      start: offset,
+      symbol: 'start',
+    });
+    expect(last('selection').parts.map((part: { token: string }) => part.token)).toEqual([
+      'start',
+      '?',
+      ':',
+      'number',
+      ';',
+    ]);
+
+    // Trying a change from the focused panel must keep the neighboring members.
+    await message({ type: 'preview', replacement: 'start?: string;' });
+    expect(last('preview').errors).toEqual([]);
+    await message({ type: 'apply', replacement: 'start?: string;' });
+    expect(host.text).toBe(source.replace('start?: number;', 'start?: string;'));
+    expect(last('selection').code).toBe('start?: string;');
+  });
+
+  it('sends the source offset so panel pieces stay aligned for code later in a file', async () => {
+    const prefix = 'const note = "token: string";\n\n';
+    const code = 'export interface Part {\n  token: string;\n}';
+    await start(prefix + code, [prefix.length, prefix.length]);
+    const selection = last('selection');
+    expect(selection).toMatchObject({ code, start: prefix.length });
+    for (const part of selection.parts)
+      expect(code.slice(part.start - selection.start, part.end - selection.start)).toBe(part.token);
   });
 
   it('compares repeatedly and recovers from syntax errors without modifying the file', async () => {

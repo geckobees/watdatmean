@@ -8,9 +8,11 @@ For IntelliJ installation, automatic Node.js setup, language capabilities, and b
 
 ### Visual Studio Code
 
-1. Install `watdatmean-0.1.2.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer.
+1. Install `watdatmean-0.1.8.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel.
 2. Open a TypeScript, JavaScript, JSX, or Python file. Open the learning panel for individual syntax pieces and local variable origins. TypeScript/JavaScript also have short hover paragraphs with code names highlighted. Java, C#, Go, Rust, and other text languages can use selected-code AI help; the extension does not supply local pieces for every language.
+   Inside an interface or object type, hover a property or method to explain just that member. Its panel link opens the same member.
 3. Click **Wat Dat Mean? →**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
+   In **The small pieces**, select a boxed word or symbol directly in the code. Indentation, comments, and line breaks stay intact. Tab to a piece and press Enter or Space to unpack it. Complex TypeScript types, tuple entries, and object values have individual explanations, including unfinished declarations.
 4. Click **Connect provider**, select **OpenAI**, **Anthropic**, or **Groq**, enter your API key in the password prompt, and confirm a model ID available to your account.
 5. Choose **Explain this code** for one compact walkthrough with the important interactions and distinctions. Definitions and reviewed practice stay collapsed until opened. **More detail · AI** expands the walkthrough; **Another example** is a separate action. Choose **In this project** to include bounded import/declaration clues. Missing declarations and values stay unknown.
 
@@ -24,6 +26,14 @@ In IntelliJ, **Tools → WatDatMean: Open Java Demo** opens an editable Java scr
 Open a `.py` file, select the code, and press **Ctrl+Alt+E**. **The small pieces** explains local names, assignments, common built-ins, and written imports. In **Try it yourself**, edit the draft and choose **See what changes**. The checker examines the proposed whole file, including indentation around your selection. Detected errors show line numbers and keep **Use this code** disabled.
 
 Both editors use the same local Python 3 grammar and structural checks. These catch common indentation/tab problems, unfinished strings/brackets/functions, invalid assignment targets, duplicate or misordered parameters, incomplete `try` blocks, and misplaced `return`, `break`, `continue`, `yield`, or `await`. They handle valid multiline code, decorators, comprehensions, unpacking, and async functions without running the file or requiring Python installation. These checks are not a complete CPython compiler, type checker, dependency checker, or runtime test. References across files still depend on your editor's Python language service.
+
+## If the learning panel does not open
+
+Run **WatDatMean: Reopen Learning Panel** from the Command Palette. This creates a fresh panel for the same code. A panel that does not finish loading also offers this action after ten seconds.
+
+IntelliJ has the same action in **Tools** and **Find Action**. Both editors refresh the saved selection even when focus is on the panel, cancel pending work, and clear previews that are no longer valid. Reopening resets the displayed lesson and unapplied draft; it does not change your source file.
+
+If VS Code reports **Could not register service worker: InvalidStateError**, the failure occurs in VS Code before the extension's panel can load. Save your work, fully quit VS Code (**Cmd+Q** on macOS), and reopen it. This is a [reported VS Code webview issue](https://github.com/microsoft/vscode/issues/330595); reloading one window may not restart the affected browser process. Reopening the panel cannot repair a persistent error in that process.
 
 ## What works
 
@@ -120,6 +130,7 @@ npm run package
 UI tests require Playwright Chromium (`npx playwright install chromium`). Integration tests launch the installed `code` executable in an isolated test profile. Neither automated suite uses an API key or bills a provider. The installable VSIX is created at the repository root.
 
 See [the extreme-testing and teaching-quality report](TEST_REPORT.md) for the tested languages, real editor runs, malformed-input stress tests, and the separate live Groq evaluation. Live evaluation is never part of `npm test`.
+`npm run package` creates the installer; it does not update the extension already running in VS Code. Install the new VSIX and reload the window to use it. For local development, rebuild with `npm run build` and reload the Extension Development Host.
 
 ## Settings
 

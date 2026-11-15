@@ -13,7 +13,7 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 2. Node.js **22.12+** is detected automatically. If it is absent or too old, WatDatMean
    downloads a private runtime when the learning engine is first needed. The worker
    runs the same engine as VS Code over private pipes, with no server or listening port.
-3. Install `dist/intellij/watdatmean-intellij-0.1.2.zip` through
+3. Install `dist/intellij/watdatmean-intellij-0.1.8.zip` through
    **Settings → Plugins → ⚙ → Install Plugin from Disk**, then restart the IDE.
 4. Open a text source file. Select code, or place the cursor on a Java declaration or
    statement. Right-click → **WatDatMean: Explain Selection or Code at Cursor**,
@@ -30,6 +30,11 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 
 Use **Find Action** to run **WatDatMean: Remove API Key** or
 **WatDatMean: Clear Explanation Cache**. The provider configuration is also in **Tools**.
+
+If the panel stops loading or responding, use **Tools → WatDatMean: Reopen Learning Panel**
+or find the action by name. It refreshes the saved selection, cancels pending work, and
+recreates the browser with your current theme. The displayed lesson and unapplied draft
+reset; your source file stays intact.
 
 ### Compact Java hover
 
@@ -54,6 +59,8 @@ documentation and can use the existing selection/cursor action to open WatDatMea
 The learning panel now breaks Java into clickable pieces: names, types, modifiers,
 method and constructor calls, parameters, arguments, literals, operators, and common
 control flow. Nested calls identify the result passed into the surrounding call.
+Pieces appear as filled boxes in the original code layout, preserving indentation,
+comments, and line breaks. Click a box, or Tab to it and press Enter or Space.
 Descriptions use Java semantics, including integer ranges, reference equality, and
 the difference between a final reference and an immutable object.
 
@@ -205,7 +212,7 @@ npm run package:intellij -- --ide-home "/path/to/idea" --java-home "/path/to/jdk
 On Windows, quote paths containing spaces. `INTELLIJ_HOME` and `JAVA_HOME` can be
 used instead of command-line options. The command compiles Java against the IDE SDK,
 bundles the shared engine/panel, and produces
-`dist/intellij/watdatmean-intellij-0.1.2.zip`. IntelliJ SDK libraries and Node are not
+`dist/intellij/watdatmean-intellij-0.1.8.zip`. IntelliJ SDK libraries and Node are not
 inside the plugin ZIP; Node is downloaded on demand when necessary. `npm run build`
 and `npm run package` still build the VS Code extension.
 

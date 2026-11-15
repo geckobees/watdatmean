@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { wombLesson, wombOutput, wombRequest } from '../quality/depth-cases';
 import { javaTraceLesson } from '../../src/java-trace';
+import { inspectCode } from '../../src/languages';
 import { javaControlCases } from '../quality/java-control-cases';
 import { javaArrayExceptionCases } from '../quality/java-array-exception-cases';
 
@@ -29,17 +30,22 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
         data: {
           type: 'selection',
           code: 'System.out.println("hello");',
+          start: 40,
           language: 'Java',
           file: 'Demo.java',
           line: 3,
           parts: [
             {
               token: 'println',
+              start: 51,
+              end: 58,
               brief: 'The method being called.',
               detail: 'Arguments are evaluated before the method is invoked.',
             },
             {
               token: '"hello"',
+              start: 59,
+              end: 66,
               brief: 'A literal value: text.',
               detail: 'This writes text directly in the source. Here it is an argument.',
             },
@@ -137,6 +143,20 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
   await expect(page.locator('#explanation ol pre code')).toHaveCount(0);
   await expect(page.locator('.lesson-terms')).not.toHaveAttribute('open', '');
   expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(wombOutput);
+  const python = 'import math as m\ndef size():\n    score = m.sqrt(9)\n    return score';
+  const snippet = inspectCode(python, python.indexOf('    score'), python.length, 'python');
+  await page.evaluate(
+    (snippet) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'selection', ...snippet, language: 'Python', file: 'size.py', line: 3 },
+        }),
+      ),
+    snippet,
+  );
+  expect(await page.locator('#parts').textContent()).toBe(snippet.code);
+  await page.getByRole('button', { name: 'm', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('math');
   for (const id of [
     'many-passes',
     'list-remove-overloads',

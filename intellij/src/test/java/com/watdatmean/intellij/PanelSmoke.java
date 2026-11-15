@@ -74,6 +74,7 @@ final class PanelSmoke implements AutoCloseable {
       var file = com.intellij.psi.PsiFileFactory.getInstance(project).createFileFromText("Demo.java",
         com.intellij.openapi.fileTypes.FileTypeManager.getInstance().getFileTypeByExtension("java"), prefix + code + " }");
       selection.add("parts", JavaParts.inspect(file, prefix.length(), prefix.length() + code.length()));
+      selection.addProperty("start", prefix.length());
     });
     send(selection.toString());
     send("""
@@ -82,9 +83,10 @@ final class PanelSmoke implements AutoCloseable {
     check(evaluate("document.getElementById('language').textContent").getAsString().equals("JAVA"), "Java language label rendered");
     check(evaluate("document.getElementById('source').textContent").getAsString().contains("doubleIt"), "Selected code rendered");
     check(!evaluate("document.getElementById('syntax-section').hidden").getAsBoolean(), "Java small pieces are visible");
-    evaluate("(Array.from(document.querySelectorAll('#parts button')).find(b => b.textContent === 'int').click(), true)");
+    check(evaluate("document.getElementById('parts').textContent").getAsString().equals(selection.get("code").getAsString()), "Boxed pieces preserve source text and absolute offsets");
+    evaluate("(Array.from(document.querySelectorAll('#parts [role=button]')).find(b => b.textContent === 'int').click(), true)");
     check(evaluate("document.getElementById('part-detail').textContent").getAsString().contains("32-bit"), "Java piece opens its local explanation");
-    evaluate("(Array.from(document.querySelectorAll('#parts button')).find(b => b.textContent === 'value').click(), true)");
+    evaluate("(Array.from(document.querySelectorAll('#parts [role=button]')).find(b => b.textContent === 'value').click(), true)");
     check(evaluate("document.getElementById('part-detail').textContent").getAsString().contains("argument from the caller"), "Variable origin is shown inside the existing piece detail");
     check(messages.isEmpty(), "Opening a piece does not request AI or call the host");
     evaluate("(document.getElementById('walkthrough').click(), true)");

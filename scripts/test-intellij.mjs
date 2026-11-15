@@ -8,7 +8,7 @@ const option = (name, fallback) => {
   const i = process.argv.indexOf(name);
   return i < 0 ? fallback : process.argv[i + 1];
 };
-const ide = option('--runtime-home', option('--ide-home', process.env.INTELLIJ_HOME));
+const ide = path.resolve(option('--runtime-home', option('--ide-home', process.env.INTELLIJ_HOME)));
 const jdk = option('--java-home', process.env.JAVA_HOME);
 const ui = process.argv.includes('--ui');
 const hold = process.argv.includes('--hold');

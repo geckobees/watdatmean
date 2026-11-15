@@ -5,6 +5,9 @@ export default defineConfig({
     headless: true,
     channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     viewport: { width: 620, height: 1100 },
+    screenshot: 'off',
+    video: 'off',
+    trace: 'off',
   },
   reporter: 'list',
 });

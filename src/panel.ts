@@ -55,9 +55,17 @@ export function panelHtml(
               <h2>The small pieces</h2>
               <span class="pill">Instant · 0 tokens</span>
             </div>
-            <p class="muted">Select a piece to unpack it. These explanations work offline.</p>
-            <div id="parts" class="parts"></div>
-            <div id="part-detail" class="part-detail" hidden></div>
+            <p class="muted">Select a boxed piece to unpack it. These explanations work offline.</p>
+            <pre
+              class="parts-code"
+            ><code id="parts" class="parts" aria-label="Code pieces to explore"></code></pre>
+            <div
+              id="part-detail"
+              class="part-detail"
+              aria-live="polite"
+              aria-atomic="true"
+              hidden
+            ></div>
           </section>
           <nav class="tabs" aria-label="Learning views">
             <button class="tab active" data-tab="understand" aria-pressed="true">Understand</button>

@@ -22,7 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-final class PanelView extends JPanel {
+final class PanelView extends JPanel implements Disposable {
   // loadHTML serves its in-memory document through JCEF's file-scheme handler.
   // An explicit, per-panel URL lets navigation stay restricted to exactly that document.
   private final String pageUrl = "file:///watdatmean-" + UUID.randomUUID() + "/panel.html";
@@ -30,21 +30,21 @@ final class PanelView extends JPanel {
   private boolean disposed;
   PanelView(Disposable parent, Consumer<JsonObject> receive) {
     super(new BorderLayout());
+    Disposer.register(parent, this);
     if (!JBCefApp.isSupported()) {
       add(new JLabel("WatDatMean requires IntelliJ's bundled JetBrains Runtime with JCEF."));
       return;
     }
     browser = new JBCefBrowser();
-    Disposer.register(parent, () -> disposed = true);
-    Disposer.register(parent, browser);
-    var connection = ApplicationManager.getApplication().getMessageBus().connect(parent);
+    Disposer.register(this, browser);
+    var connection = ApplicationManager.getApplication().getMessageBus().connect(this);
     connection.subscribe(LafManagerListener.TOPIC, source -> refreshTheme());
     connection.subscribe(EditorColorsManager.TOPIC, scheme -> refreshTheme());
     connection.subscribe(UISettingsListener.TOPIC, settings -> refreshTheme());
     var query = JBCefJSQuery.create((JBCefBrowserBase) browser);
-    Disposer.register(parent, query);
+    Disposer.register(this, query);
     query.addHandler(raw -> {
-      try { if (raw.length() <= 100000) receive.accept(JsonParser.parseString(raw).getAsJsonObject()); }
+      try { if (!disposed && raw.length() <= 100000) receive.accept(JsonParser.parseString(raw).getAsJsonObject()); }
       catch (RuntimeException ignored) { /* Ignore invalid UI messages. */ }
       return null;
     });
@@ -81,8 +81,9 @@ final class PanelView extends JPanel {
     });
   }
   void send(JsonObject message) {
-    if (browser != null && !browser.isDisposed()) browser.getCefBrowser().executeJavaScript(
+    if (!disposed && browser != null && !browser.isDisposed()) browser.getCefBrowser().executeJavaScript(
       "window.dispatchEvent(new MessageEvent('message',{data:" + Bridge.JSON.toJson(message) + "}));",
       pageUrl, 0);
   }
+  @Override public void dispose() { disposed = true; }
 }

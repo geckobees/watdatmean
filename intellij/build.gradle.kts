@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.watdatmean"
-version = "0.1.2"
+version = "0.1.8"
 
 repositories {
     mavenCentral()
