@@ -1,7 +1,19 @@
-import type { LearningRequest, Lesson, Provider, TokenUsage } from './types';
+import type { Generation, LearningRequest, Lesson, Provider, TokenUsage } from './types';
 import { MAX_OUTPUT_TOKENS, prepareRequest } from './budget';
 import { groqResponseFormat } from './lesson-schema';
 import { rejectionMessage } from './provider-errors';
+import { readUsage } from './usage';
+import { completeConcepts } from './concepts';
+
+export class GenerationError extends Error {
+  constructor(
+    message: string,
+    readonly model: string,
+    readonly usage?: TokenUsage,
+  ) {
+    super(message);
+  }
+}
 
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-4.1-mini',
@@ -105,7 +117,7 @@ export function parseLesson(text: string, validIds: string[] = []): Lesson {
   }
   const data = record(parsed);
   const example = data.example == null ? {} : record(data.example, 'example');
-  return {
+  const lesson: Lesson = {
     title: data.title === undefined ? 'Explanation' : requiredText(data.title, 'title', 180),
     summary: requiredText(data.summary, 'summary'),
     steps: optionalList(data.steps, 'steps').map((v) => string(v, 'steps[]')),
@@ -114,8 +126,8 @@ export function parseLesson(text: string, validIds: string[] = []): Lesson {
         return { term: requiredText(v, 'concepts[].term', 150), explanation: '' };
       const c = record(v, 'concepts[]');
       return {
-        term: requiredText(c.term, 'concepts[].term', 150),
-        explanation: requiredText(c.explanation, 'concepts[].explanation'),
+        term: string(c.term, 'concepts[].term', 150),
+        explanation: string(c.explanation, 'concepts[].explanation'),
       };
     }),
     example: {
@@ -133,26 +145,8 @@ export function parseLesson(text: string, validIds: string[] = []): Lesson {
     }),
     checks: optionalList(data.checks, 'checks').map((v) => string(v, 'checks[]')),
   };
-}
-
-function tokenUsage(value: unknown, provider: Provider): TokenUsage | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
-  const usage = value as Record<string, unknown>;
-  const count = (value: unknown): value is number =>
-    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-  let input = provider === 'groq' ? usage.prompt_tokens : usage.input_tokens;
-  const output = provider === 'groq' ? usage.completion_tokens : usage.output_tokens;
-  if (!count(input) || !count(output)) return;
-  if (provider === 'anthropic') {
-    for (const field of ['cache_creation_input_tokens', 'cache_read_input_tokens']) {
-      if (count(usage[field])) input += usage[field];
-    }
-  }
-  // Completion usage already includes reasoning; do not count it twice.
-  const total = count(usage.total_tokens)
-    ? Math.max(usage.total_tokens, input + output)
-    : input + output;
-  return { input, output, total };
+  lesson.concepts = completeConcepts(lesson);
+  return lesson;
 }
 
 export async function generate(
@@ -162,7 +156,7 @@ export async function generate(
   request: LearningRequest,
   signal?: AbortSignal,
   transport: typeof fetch = fetch,
-): Promise<Lesson> {
+): Promise<Generation> {
   const config = makeRequest(provider, model, key, request);
   const timeout = AbortSignal.timeout(60000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -204,37 +198,54 @@ export async function generate(
       rejectionMessage(response.status, payload, provider === 'groq' ? defaults.groq : undefined),
     );
   const body = record(payload);
-  let output = '';
-  if (provider === 'anthropic') {
-    if (body.stop_reason === 'max_tokens')
-      throw new Error('The response was cut short. Try a smaller selection or a different model.');
-    output = responseParts(body.content)
-      .filter((p) => p.type === 'text' && typeof p.text === 'string')
-      .map((p) => p.text as string)
-      .join('\n');
-  } else if (provider === 'openai') {
-    if (body.status === 'incomplete')
-      throw new Error('The response was cut short. Try a smaller selection or a different model.');
-    output = responseParts(body.output)
-      .flatMap((p) => responseParts(p.content))
-      .filter((p) => p.type === 'output_text' && typeof p.text === 'string')
-      .map((p) => p.text as string)
-      .join('\n');
-  } else {
-    const choice = responseParts(body.choices)[0];
-    if (choice?.finish_reason === 'length')
-      throw new Error('The response was cut short. Try a smaller selection or a different model.');
-    const message = choice?.message;
-    if (message && typeof message === 'object' && !Array.isArray(message)) {
-      const content = (message as Record<string, unknown>).content;
-      if (typeof content === 'string') output = content;
+  const usage = readUsage(provider, body.usage);
+  const responseModel =
+    typeof body.model === 'string' && body.model.trim() ? body.model.slice(0, 200) : model;
+  try {
+    let output = '';
+    if (provider === 'anthropic') {
+      if (body.stop_reason === 'max_tokens')
+        throw new Error(
+          'The response was cut short. Try a smaller selection or a different model.',
+        );
+      output = responseParts(body.content)
+        .filter((p) => p.type === 'text' && typeof p.text === 'string')
+        .map((p) => p.text as string)
+        .join('\n');
+    } else if (provider === 'openai') {
+      if (body.status === 'incomplete')
+        throw new Error(
+          'The response was cut short. Try a smaller selection or a different model.',
+        );
+      output = responseParts(body.output)
+        .flatMap((p) => responseParts(p.content))
+        .filter((p) => p.type === 'output_text' && typeof p.text === 'string')
+        .map((p) => p.text as string)
+        .join('\n');
+    } else {
+      const choice = responseParts(body.choices)[0];
+      if (choice?.finish_reason === 'length')
+        throw new Error(
+          'The response was cut short. Try a smaller selection or a different model.',
+        );
+      const message = choice?.message;
+      if (message && typeof message === 'object' && !Array.isArray(message)) {
+        const content = (message as Record<string, unknown>).content;
+        if (typeof content === 'string') output = content;
+      }
     }
+    if (!output) throw new Error('The provider returned no explanation. Try again.');
+    const lesson = parseLesson(output, config.prepared.evidenceIds);
+    return { lesson, usage, model: responseModel };
+  } catch (error) {
+    throw new GenerationError(
+      error instanceof Error && !(error instanceof TypeError)
+        ? error.message
+        : 'The AI returned an invalid response. Please try again.',
+      responseModel,
+      usage,
+    );
   }
-  if (!output) throw new Error('The provider returned no explanation. Try again.');
-  const lesson = parseLesson(output, config.prepared.evidenceIds);
-  const usage = tokenUsage(body.usage, provider);
-  if (usage) lesson.usage = usage;
-  return lesson;
 }
 
 function responseParts(value: unknown): Record<string, unknown>[] {

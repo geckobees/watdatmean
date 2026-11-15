@@ -36,13 +36,7 @@ export interface LearningRequest {
   replacement?: string;
   concept?: string;
 }
-export interface TokenUsage {
-  input: number;
-  output: number;
-  total: number;
-}
 export interface Lesson {
-  usage?: TokenUsage;
   title: string;
   summary: string;
   steps: string[];
@@ -50,4 +44,17 @@ export interface Lesson {
   example: { code: string; explanation: string };
   predictions: { description: string; evidenceIds: string[] }[];
   checks: string[];
+}
+export interface TokenUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+}
+export interface Generation {
+  lesson: Lesson;
+  model: string;
+  usage?: TokenUsage;
 }

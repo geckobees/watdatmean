@@ -2,7 +2,7 @@
   "name": "watdatmean",
   "displayName": "WatDatMean — Learn in Your Code",
   "description": "Understand TypeScript, explore examples, and preview edit impact without leaving VS Code.",
-  "version": "0.1.8",
+  "version": "0.1.21",
   "publisher": "watdatmean",
   "repository": {
     "type": "git",

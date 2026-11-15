@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { panelHtml } from '../../src/panel';
 import { inspect } from '../../src/analyzer';
 import { parseLesson } from '../../src/provider';
+import { objectCreationLesson } from '../fixtures/object-creation';
 
 const snippet = inspect('class Game { private score: number = 0; }', 21);
 // Exercise installed assets as well as workspace assets, without recording the screen.
@@ -35,20 +36,31 @@ async function send(page: Page, data: unknown) {
 }
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    const host = window as unknown as { acquireVsCodeApi: () => unknown; messages: unknown[] };
+    const host = window as unknown as {
+      acquireVsCodeApi: () => unknown;
+      messages: unknown[];
+      savedState: unknown;
+    };
     host.messages = [];
     host.acquireVsCodeApi = () => ({
       postMessage: (m: unknown) => host.messages.push(m),
-      getState: () => ({}),
-      setState: () => {},
+      getState: () => JSON.parse(sessionStorage.getItem('panel-state') || '{}'),
+      setState: (state: unknown) => {
+        host.savedState = state;
+        sessionStorage.setItem('panel-state', JSON.stringify(state));
+      },
     });
   });
   await page.route('https://panel.test/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path.endsWith('.js') || path.endsWith('.css')) {
+    if (path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.ttf')) {
       await route.fulfill({
         body: readFileSync(resolve(assetRoot, `media${path}`)),
-        contentType: path.endsWith('.js') ? 'application/javascript' : 'text/css',
+        contentType: path.endsWith('.js')
+          ? 'application/javascript'
+          : path.endsWith('.ttf')
+            ? 'font/ttf'
+            : 'text/css',
       });
     } else
       await route.fulfill({
@@ -174,7 +186,16 @@ test('lays out clickable interface pieces like the source and selects repeated p
   const token = await parts.getByRole('button', { name: 'token', exact: true }).boundingBox();
   const brief = await parts.getByRole('button', { name: 'brief', exact: true }).boundingBox();
   const close = await parts.getByRole('button', { name: '}', exact: true }).boundingBox();
-  expect(token!.x - first!.x).toBeCloseTo((2 * first!.width) / 'export'.length, 0);
+  const characterWidth = await parts
+    .locator('.part')
+    .first()
+    .evaluate((element) => {
+      const character = document.createRange();
+      character.setStart(element.firstChild!, 0);
+      character.setEnd(element.firstChild!, 1);
+      return character.getBoundingClientRect().width;
+    });
+  expect(token!.x - first!.x).toBeCloseTo(2 * characterWidth, 0);
   expect(brief!.x).toBeCloseTo(token!.x, 1);
   expect(brief!.y).toBeGreaterThan(token!.y);
   expect(close!.x).toBeCloseTo(first!.x, 1);
@@ -220,6 +241,7 @@ test('preserves tabs, blank lines, comments, and multiline pieces as safe source
   await page.keyboard.press('Enter');
   await expect(multiline).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#part-detail')).toBeVisible();
+  await page.getByText('Original code', { exact: true }).click();
   const aligned = await page.evaluate(() => {
     const source = document.getElementById('source')!.firstChild!;
     const parts = document.getElementById('parts')!;
@@ -239,13 +261,16 @@ test('preserves tabs, blank lines, comments, and multiline pieces as safe source
         x: piece.x - origin.x,
         y: piece.y - origin.y,
         expectedX: original.x - sourceOrigin.x,
-        expectedY: original.y - sourceOrigin.y,
+        expectedY:
+          ((original.y - sourceOrigin.y) /
+            parseFloat(getComputedStyle(document.getElementById('source')!).lineHeight)) *
+          parseFloat(getComputedStyle(parts).lineHeight),
       };
     });
   });
   for (const position of aligned) {
     expect(position.x).toBeCloseTo(position.expectedX, 1);
-    expect(position.y).toBeCloseTo(position.expectedY, 1);
+    expect(position.y).toBeCloseTo(position.expectedY, 0);
   }
 });
 
@@ -325,7 +350,7 @@ test('sends explicit explanation, example and concept requests; safely renders h
   expect(
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
   ).toMatchObject({ task: 'concept', concept: 'Scope' });
-  await page.getByRole('button', { name: 'Another example', exact: true }).click();
+  await page.getByRole('button', { name: 'Example', exact: true }).click();
   await page.locator('#example').click();
   expect(
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
@@ -343,10 +368,13 @@ test('renders concise results, loads concepts on click, and reports actual or ca
     cached: false,
     provider: 'groq',
     model: 'test',
-    lesson: { ...lesson, usage: { input: 420, output: 100, total: 520 } },
+    lesson,
+    usage: { inputTokens: 420, outputTokens: 100, totalTokens: 520 },
   };
   await send(page, message);
-  await expect(page.locator('#explanation')).toContainText('520 tokens (420 input + 100 output)');
+  await expect(page.locator('#explanation .token-usage')).toContainText('520 tokens');
+  await expect(page.locator('#explanation .token-usage')).toContainText('420 input');
+  await expect(page.locator('#explanation .token-usage')).toContainText('100 output');
   await expect(page.locator('#explanation')).toContainText('Your full context was kept');
   await expect(page.locator('#explanation')).not.toContainText('Put it into practice');
   await expect(page.locator('#explanation')).not.toContainText('Walk through it');
@@ -378,7 +406,7 @@ test('renders concise results, loads concepts on click, and reports actual or ca
   await expect(page.locator('#explanation')).toContainText('0 new tokens');
   await expect(page.locator('#explanation')).not.toContainText('520 tokens');
   await expect(page.locator('#explanation')).not.toContainText('Above the 500-token target');
-  await send(page, { ...message, lesson });
+  await send(page, { ...message, lesson, usage: undefined });
   await expect(page.locator('#explanation')).toContainText('Token usage not reported');
 });
 
@@ -395,7 +423,8 @@ test('preserves clickable definitions in a compact response with token usage', a
     cached: false,
     provider: 'groq',
     model: 'test',
-    lesson: { ...lesson, usage: { input: 200, output: 70, total: 270 } },
+    lesson,
+    usage: { inputTokens: 200, outputTokens: 70, totalTokens: 270 },
   });
   await expect(page.locator('#explanation')).toContainText('270 tokens');
   await page.getByRole('button', { name: 'Define binding', exact: true }).click();
@@ -423,12 +452,65 @@ test('unpacks method and nested call pieces locally', async ({ page }) => {
     line: 9,
   });
   await expect(page.locator('#syntax-section')).toBeVisible();
+  const call = 'board.addCompletedTasks(3);';
+  expect(await page.locator('#parts').textContent()).toBe(call);
+  const blocks = await page.locator('#parts .part').evaluateAll((pieces) =>
+    pieces.map((piece) => {
+      const box = piece.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, height: box.height };
+    }),
+  );
+  expect(blocks).toHaveLength(7);
+  for (let index = 0; index < blocks.length; index++) {
+    expect(blocks[index].height).toBeGreaterThanOrEqual(22);
+    expect(blocks[index].top).toBeCloseTo(blocks[0].top, 1);
+    if (index) expect(blocks[index].left - blocks[index - 1].right).toBeGreaterThanOrEqual(4);
+  }
+  const copied = await page.locator('#parts').evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const text = selection.toString();
+    selection.removeAllRanges();
+    return text;
+  });
+  expect(copied).toBe(call);
   await page.getByRole('button', { name: 'board', exact: true }).click();
   await expect(page.locator('#part-detail')).toContainText('new Scoreboard instance');
   await page.getByRole('button', { name: '.', exact: true }).click();
   await expect(page.locator('#part-detail')).toContainText('dot itself does not run it');
   await page.getByRole('button', { name: '3', exact: true }).click();
   await expect(page.locator('#part-detail')).toContainText('argument 1 to board.addCompletedTasks');
+  if (captureScreenshots)
+    await page
+      .locator('.workbench')
+      .screenshot({ path: 'work/method-blocks-preview.png', animations: 'disabled' });
+  const multilineCall = 'board.addCompletedTasks(\n\t3\n);';
+  await send(page, {
+    type: 'selection',
+    ...inspect(multilineCall, 0),
+    file: 'dashboard.ts',
+    line: 9,
+  });
+  expect(await page.locator('#parts').textContent()).toBe(multilineCall);
+  const indentation = await page.locator('#parts').evaluate((element) => {
+    const first = element.querySelector('[aria-label="board"]')!;
+    const argument = element.querySelector('[aria-label="3"]')!;
+    const close = element.querySelector('[aria-label=")"]')!;
+    const character = document.createRange();
+    character.setStart(first.firstChild!, 0);
+    character.setEnd(first.firstChild!, 1);
+    return {
+      first: first.getBoundingClientRect().x,
+      argument: argument.getBoundingClientRect().x,
+      close: close.getBoundingClientRect().x,
+      indent: character.getBoundingClientRect().width * 2,
+    };
+  });
+  expect(indentation.argument - indentation.first).toBeCloseTo(indentation.indent, 0);
+  expect(indentation.close).toBeCloseTo(indentation.first, 1);
   await send(page, {
     type: 'selection',
     ...inspect('console.log(weeklySummary(3));', 0),
@@ -456,7 +538,7 @@ test('unpacks method and nested call pieces locally', async ({ page }) => {
 test('only enables applying the exact preview and disables it after edits or stale code', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit code', exact: true }).click();
   await expect(page.locator('#apply')).toBeDisabled();
   await page.locator('#replacement').fill('private score: number = 10;');
   await page.locator('#preview').click();
@@ -479,7 +561,7 @@ test('only enables applying the exact preview and disables it after edits or sta
   await expect(page.locator('#refresh')).toBeEnabled();
 });
 test('displays confirmed evidence separately and manages loading and errors', async ({ page }) => {
-  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit code', exact: true }).click();
   await send(page, {
     type: 'evidence',
     note: 'References are confirmed; behavior is predicted.',
@@ -511,7 +593,7 @@ test('displays confirmed evidence separately and manages loading and errors', as
 });
 
 test('supports repeated comparisons, syntax fixes, and starting over', async ({ page }) => {
-  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit code', exact: true }).click();
   await expect(
     page.getByText('Comparing checks syntax and shows the difference. It does not run your code.'),
   ).toBeVisible();
@@ -538,7 +620,9 @@ test('supports repeated comparisons, syntax fixes, and starting over', async ({ 
   await page.getByRole('button', { name: 'Start over', exact: true }).click();
   await expect(page.locator('#replacement')).toHaveValue(snippet.code);
   await expect(page.locator('#apply')).toBeDisabled();
-  await expect(page.locator('#preview-status')).toContainText('Try another change');
+  await expect(page.locator('#preview-status')).toHaveText(
+    'Restored the current code from your file.',
+  );
   expect(
     await page.evaluate(() =>
       (window as unknown as { messages: { type: string }[] }).messages.filter(
@@ -548,10 +632,10 @@ test('supports repeated comparisons, syntax fixes, and starting over', async ({ 
   ).toEqual([]);
 });
 
-test('continues in Try it yourself after applying a change or loading the latest code', async ({
+test('continues in Edit code after applying a change or loading the latest code', async ({
   page,
 }) => {
-  await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit code', exact: true }).click();
   let current = snippet.code;
   for (const replacement of ['private score: number = 10;', 'private score: number = 200;']) {
     await page.locator('#replacement').fill(replacement);
@@ -573,14 +657,17 @@ test('continues in Try it yourself after applying a change or loading the latest
     });
     await send(page, { type: 'applied' });
     await send(page, { type: 'busy', value: false });
-    await expect(
-      page.getByRole('button', { name: 'Try it yourself', exact: true }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: 'Edit code', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await expect(page.locator('#stale')).toBeHidden();
     await expect(page.locator('#replacement')).toBeEnabled();
     await expect(page.locator('#replacement')).toHaveValue(replacement);
     await expect(page.locator('#source')).toHaveText(replacement);
-    await expect(page.locator('#preview-status')).toContainText('Keep tinkering');
+    await expect(page.locator('#preview-status')).toContainText(
+      'Compare again after further edits',
+    );
     current = replacement;
   }
   await page.locator('#replacement').fill('private score = 999;');
@@ -610,7 +697,77 @@ test('continues in Try it yourself after applying a change or loading the latest
     await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
 });
 
-test('opens and reopens underlined definitions with clicks and keyboard without AI requests', async ({
+test('highlights each term once per answer, including local fallback definitions', async ({
+  page,
+}) => {
+  const summaryText =
+    'This line creates a new scoreboard object using the Scoreboard class. The new keyword tells JavaScript to allocate memory for it and initialize its properties. The resulting object is stored in a constant variable named board for later use.';
+  const lesson = parseLesson(
+    JSON.stringify({
+      ...objectCreationLesson,
+      summary: summaryText,
+      steps: [...objectCreationLesson.steps, 'An Object keeps its properties.'],
+    }),
+  );
+  await send(page, { type: 'lesson', task: 'explain', provider: 'groq', model: 'test', lesson });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  await expect(summary).toContainText(summaryText);
+  for (const name of ['new', 'object', 'class', 'variable']) {
+    await expect(
+      page
+        .locator('#explanation')
+        .getByRole('button', { name: new RegExp(`^Define ${name}$`, 'i') }),
+    ).toHaveCount(1);
+    const term = summary.getByRole('button', { name: `Define ${name}`, exact: true });
+    await term.hover();
+    await expect(term).toHaveAttribute(
+      'title',
+      lesson.concepts.find((concept) => concept.term === name)!.explanation,
+    );
+    await term.click();
+    await expect(
+      summary.getByRole('region', { name: `Definition of ${name}`, exact: true }),
+    ).toBeVisible();
+    await term.press('Escape');
+    await expect(term).toBeFocused();
+  }
+  const compiler = page
+    .locator('#explanation li')
+    .getByRole('button', { name: 'Define compiler', exact: true });
+  await compiler.focus();
+  await compiler.press('Enter');
+  await expect(
+    page.getByRole('region', { name: 'Definition of compiler', exact: true }),
+  ).toContainText('JavaScript');
+  await compiler.press('Escape');
+  const example = page.locator('#explanation > .lesson > .concept-copy').last();
+  await expect(example.locator('.concept-term')).toHaveCount(0);
+  await expect(example).toHaveText(lesson.example.explanation);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (message) => message.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson,
+    cached: true,
+  });
+  await summary.getByRole('button', { name: 'Define new', exact: true }).first().click();
+  await expect(
+    summary.getByRole('region', { name: 'Definition of new', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('#explanation .token-usage')).toHaveText(
+    '0 new tokens · Reused locally',
+  );
+});
+
+test('opens and reopens highlighted definitions with clicks and keyboard without AI requests', async ({
   page,
 }) => {
   await send(page, {
@@ -652,8 +809,10 @@ test('opens and reopens underlined definitions with clicks and keyboard without 
     page.locator('#explanation li').first(),
     page.locator('#explanation > .lesson > .concept-copy').last(),
   ]) {
-    await section.getByRole('button', { name: 'Define argument', exact: true }).click();
-    await expect(section.getByRole('region', { name: 'Definition of argument' })).toBeVisible();
+    await expect(section.getByRole('button', { name: 'Define argument', exact: true })).toHaveCount(
+      0,
+    );
+    await expect(section).toContainText(/argument/i);
   }
   expect(
     await page.evaluate(() =>
@@ -662,6 +821,144 @@ test('opens and reopens underlined definitions with clicks and keyboard without 
       ),
     ),
   ).toEqual([]);
+});
+
+test('shows exact response counts and separates included cache and reasoning tokens', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+    usage: {
+      inputTokens: 12345,
+      outputTokens: 678,
+      totalTokens: 13023,
+      cachedInputTokens: 10000,
+      reasoningTokens: 400,
+    },
+  });
+  const usage = page.locator('#explanation .token-usage');
+  await expect(usage).toContainText('13,023 tokens');
+  await expect(usage).toContainText('12,345 input');
+  await expect(usage).toContainText('678 output');
+  await expect(usage).toContainText('Includes 10,000 cached input · 400 reasoning output');
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+    cached: true,
+    usage: { inputTokens: 12345, outputTokens: 678, totalTokens: 13023 },
+  });
+  await expect(usage).toHaveText('0 new tokens · Reused locally');
+  await expect(usage).not.toContainText('13,023');
+});
+
+test('distinguishes unknown usage from zero and shows usage on failed responses', async ({
+  page,
+}) => {
+  const result = {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  };
+  await send(page, result);
+  const usage = page.locator('#explanation .token-usage');
+  await expect(usage).toHaveText('Token usage not reported');
+  await send(page, { ...result, usage: { outputTokens: 50 } });
+  await expect(usage).toContainText('Total unavailable');
+  await expect(usage).toContainText('Input unavailable');
+  await expect(usage).toContainText('50 output');
+  await send(page, { ...result, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } });
+  await expect(usage).toContainText('0 tokens');
+  await send(page, {
+    type: 'error',
+    message: 'The response was cut short.',
+    showUsage: true,
+    usage: { inputTokens: 1000, outputTokens: 3200, totalTokens: 4200 },
+  });
+  await expect(page.locator('#error')).toContainText('4,200 tokens');
+  await send(page, { type: 'error', message: 'Request cancelled.', showUsage: true });
+  await expect(page.locator('#error .token-usage')).toHaveText(
+    'Token usage unavailable · Check provider billing',
+  );
+});
+
+test('highlights new subtly, offers hover feedback, and fits token counts in a narrow panel', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'qwen/qwen3.8-27b',
+    usage: { inputTokens: 1248, outputTokens: 286, totalTokens: 1534, reasoningTokens: 112 },
+    lesson: {
+      title: 'Creating a New Object Instance',
+      summary:
+        'The code uses the new keyword to create a specific copy of the Scoreboard template. It assigns this fresh, empty scoreboard object to the permanent name board.',
+      steps: [],
+      concepts: [
+        {
+          term: 'new',
+          explanation:
+            'The new keyword creates an object and calls its constructor to set its starting state.',
+        },
+      ],
+      example: { code: '', explanation: '' },
+      predictions: [],
+      checks: [],
+    },
+  });
+  const term = page.getByRole('button', { name: 'Define new', exact: true });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await Promise.all(
+      document.getAnimations().map((animation) => animation.finished.catch(() => {})),
+    );
+  });
+  await term.scrollIntoViewIfNeeded();
+  await expect(term).toHaveCSS('text-decoration-line', 'none');
+  await expect(term).toHaveCSS('cursor', 'pointer');
+  const resting = await term.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    shadow: getComputedStyle(element).boxShadow,
+    top: element.getBoundingClientRect().top,
+  }));
+  expect(resting.background).not.toBe('rgba(0, 0, 0, 0)');
+  await term.hover();
+  await expect
+    .poll(() => term.evaluate((element) => getComputedStyle(element).boxShadow))
+    .not.toBe(resting.shadow);
+  expect(await term.evaluate((element) => element.getBoundingClientRect().top)).toBe(resting.top);
+  await term.click();
+  await expect(page.getByRole('region', { name: 'Definition of new' })).toBeVisible();
+  await term.press('Escape');
+  await expect(term).toBeFocused();
+  await page.mouse.move(0, 0);
+  await term.blur();
+  if (captureScreenshots)
+    await page.locator('#explanation').screenshot({ path: 'work/usage-highlight-preview.png' });
+  for (const theme of ['light', 'dark', 'high-contrast', 'high-contrast-light']) {
+    await page.evaluate((theme) => {
+      document.body.className = `vscode-${theme}`;
+    }, theme);
+    await page.setViewportSize({ width: 360, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await expect(term).toHaveCSS('text-decoration-line', 'none');
+    if (captureScreenshots)
+      await page
+        .locator('#explanation')
+        .screenshot({ path: `work/usage-highlight-${theme}-narrow.png` });
+  }
 });
 
 test('requests a deeper concept explanation only explicitly and keeps its terms clickable', async ({
@@ -746,4 +1043,436 @@ test('renders definitions as text and fits them into a narrow panel', async ({ p
   await expect(page.locator('#explanation img')).toHaveCount(0);
   await send(page, { type: 'selection', ...snippet, file: 'score.ts', line: 4 });
   await expect(page.locator('.concept-definition')).toHaveCount(0);
+});
+
+test('explores neighboring pieces with the keyboard and resets the reading area for new code', async ({
+  page,
+}) => {
+  await expect(page.locator('#source')).toBeHidden();
+  await expect(page.locator('#piece-placeholder')).toBeVisible();
+  const pieces = page.locator('#parts .part');
+  await pieces.first().focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#previous-piece')).toBeDisabled();
+  await expect(page.locator('#piece-position')).toHaveText(`Piece 1 of ${await pieces.count()}`);
+  await page.locator('#next-piece').focus();
+  await page.keyboard.press('Enter');
+  await expect(pieces.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-detail .part-token')).toHaveText(
+    (await pieces.nth(1).getAttribute('aria-label')) || '',
+  );
+  await page.locator('#previous-piece').click();
+  await expect(pieces.first()).toHaveAttribute('aria-pressed', 'true');
+  await pieces.last().click();
+  await expect(page.locator('#next-piece')).toBeDisabled();
+  await send(page, {
+    type: 'selection',
+    ...inspect('const total = 5;', 0),
+    file: 'total.ts',
+    line: 1,
+  });
+  await expect(page.locator('#piece-placeholder')).toBeVisible();
+  await expect(page.locator('#piece-navigation')).toBeHidden();
+  await expect(page.locator('#part-detail')).toBeHidden();
+  await send(page, {
+    type: 'selection',
+    code: '// A note',
+    start: 0,
+    parts: [],
+    file: 'total.ts',
+    line: 1,
+  });
+  await expect(page.locator('#source')).toBeVisible();
+  await expect(page.locator('#source')).toHaveText('// A note');
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+});
+
+test('keeps sounds opt-in and remembers them independently of guidance and context', async ({
+  page,
+}) => {
+  const sound = page.getByRole('button', { name: 'Sound off', exact: true });
+  await expect(sound).toHaveAttribute('aria-pressed', 'false');
+  await sound.click();
+  await expect(page.locator('#sound-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Explanation settings', { exact: true }).click();
+  await page.locator('#mode').selectOption('project');
+  await page.locator('#audience').selectOption('experienced');
+  expect(
+    await page.evaluate(() => (window as unknown as { savedState: unknown }).savedState),
+  ).toEqual({ sound: true, motionEnabled: true, mode: 'project', audience: 'experienced' });
+  await page.reload();
+  await send(page, { type: 'config', hasKey: false, audience: 'beginner' });
+  await expect(page.locator('#sound-toggle')).toHaveText('Sound on');
+  await expect(page.locator('#mode')).toHaveValue('project');
+  await expect(page.locator('#audience')).toHaveValue('experienced');
+  await page.locator('#sound-toggle').click();
+  await expect(page.locator('#sound-toggle')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('honors reduced motion for pieces and view changes', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('#parts .part').first().click();
+  await page.getByRole('button', { name: 'Edit code', exact: true }).click();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await expect(page.locator('#impact')).toBeVisible();
+  await expect(page.locator('#piece-navigation')).toBeVisible();
+});
+
+for (const theme of ['light', 'dark', 'high-contrast', 'high-contrast-light']) {
+  test(`keeps the ${theme} panel readable and contained at narrow widths`, async ({ page }) => {
+    await page.evaluate((theme) => {
+      document.body.className = `vscode-${theme}`;
+      if (theme === 'high-contrast-light') {
+        document.body.style.setProperty('--vscode-editor-background', '#fff');
+        document.body.style.setProperty('--vscode-editor-foreground', '#000');
+        document.body.style.setProperty('--vscode-textLink-foreground', '#0000b0');
+      }
+    }, theme);
+    await send(page, {
+      type: 'selection',
+      ...inspect('const board = new Scoreboard();', 0),
+      file: 'dashboard.ts',
+      line: 1,
+    });
+    await page.getByRole('button', { name: 'new', exact: true }).click();
+    // Let motion settle before measuring or capturing the final reading layout.
+    await page.evaluate(() =>
+      Promise.allSettled(
+        document
+          .getAnimations()
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished),
+      ),
+    );
+    const contrast = await page.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext('2d')!;
+      const luminance = (color: string) => {
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const rgb = Array.from(context.getImageData(0, 0, 1, 1).data)
+          .slice(0, 3)
+          .map((value) => {
+            const channel = value / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      return ['.part.selected', '.part-token', '.primary'].map((selector) => {
+        const style = getComputedStyle(document.querySelector(selector)!);
+        const foreground = luminance(style.color);
+        const background = luminance(style.backgroundColor);
+        return (
+          (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)
+        );
+      });
+    });
+    for (const ratio of contrast) expect(ratio).toBeGreaterThanOrEqual(4.5);
+    if (captureScreenshots)
+      await page.screenshot({
+        path: `work/design-${theme}-wide.png`,
+        fullPage: true,
+        animations: 'disabled',
+      });
+    for (const width of [360, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      const navigation = await page.locator('#piece-navigation').boundingBox();
+      const reading = await page.locator('.piece-reading').boundingBox();
+      expect(navigation!.y + navigation!.height).toBeLessThanOrEqual(reading!.y + reading!.height);
+      await page.locator('#next-piece').click();
+      await page.evaluate(() =>
+        Promise.allSettled(
+          document
+            .getAnimations()
+            .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+            .map((a) => a.finished),
+        ),
+      );
+      await expect(page.locator('#part-detail')).toBeVisible();
+    }
+    if (captureScreenshots)
+      await page.screenshot({
+        path: `work/design-${theme}-narrow.png`,
+        fullPage: true,
+        animations: 'disabled',
+      });
+  });
+}
+
+test('summarizes guidance and the effective context without expanding the settings', async ({
+  page,
+}) => {
+  await expect(page.locator('.explanation-settings')).not.toHaveAttribute('open');
+  await expect(page.locator('#settings-summary')).toHaveText(
+    'Learning the basics · Just this code',
+  );
+  await page.getByLabel('Explanation settings', { exact: true }).click();
+  await page.locator('#audience').selectOption('experienced');
+  await page.getByLabel('Explanation settings', { exact: true }).click();
+  await expect(page.locator('#settings-summary')).toHaveText(
+    'Getting up to speed · Just this code',
+  );
+  await page.getByRole('button', { name: 'Edit code', exact: true }).click();
+  await expect(page.locator('#settings-summary')).toHaveText(
+    'Getting up to speed · In this project',
+  );
+  await page.getByRole('button', { name: 'Explanation', exact: true }).click();
+  await expect(page.locator('#settings-summary')).toHaveText(
+    'Getting up to speed · Just this code',
+  );
+});
+
+test('pauses interface motion, remembers it, and yields to the system preference', async ({
+  page,
+}) => {
+  await page.getByRole('button', { name: 'Motion on' }).click();
+  await expect(page.locator('#motion-toggle')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#parts .part').first().click();
+  await page.getByRole('button', { name: 'Example', exact: true }).click();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+  await page.reload();
+  await expect(page.locator('#motion-toggle')).toHaveText('Motion off');
+  await page.locator('#motion-toggle').click();
+  await expect(page.locator('#motion-toggle')).toHaveText('Motion on');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(page.locator('#motion-toggle')).toHaveText('Motion reduced');
+  await expect(page.locator('#motion-toggle')).toBeDisabled();
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
+});
+
+type TouchSample = {
+  peak: number;
+  duration: number;
+  first: number;
+  last: number;
+  finite: boolean;
+  dominantTone: number;
+};
+
+test('gives controls distinct short sounds, activates once by keyboard, and respects mute', async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const host = window as unknown as { audioContexts: number; audioEvents: TouchSample[] };
+    host.audioContexts = 0;
+    host.audioEvents = [];
+    const NativeAudioContext = window.AudioContext;
+    window.AudioContext = class extends NativeAudioContext {
+      constructor() {
+        super();
+        host.audioContexts++;
+      }
+      createBufferSource() {
+        const source = super.createBufferSource();
+        const start = source.start.bind(source);
+        source.start = () => {
+          const buffer = source.buffer!;
+          const samples = buffer.getChannelData(0);
+          // Measure the actual PCM spectrum, so variety cannot be just a volume change.
+          let dominantTone = 0;
+          let strongest = 0;
+          const length = Math.min(samples.length, 1024);
+          for (let frequency = 100; frequency <= 1000; frequency += 25) {
+            let real = 0;
+            let imaginary = 0;
+            for (let i = 0; i < length; i++) {
+              const windowed =
+                samples[i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (length - 1)));
+              const angle = (2 * Math.PI * frequency * i) / buffer.sampleRate;
+              real += windowed * Math.cos(angle);
+              imaginary += windowed * Math.sin(angle);
+            }
+            const power = real * real + imaginary * imaginary;
+            if (power > strongest) {
+              strongest = power;
+              dominantTone = frequency;
+            }
+          }
+          host.audioEvents.push({
+            peak: samples.reduce((peak, value) => Math.max(peak, Math.abs(value)), 0),
+            duration: buffer.duration,
+            first: samples[0],
+            last: samples[samples.length - 1],
+            finite: samples.every(Number.isFinite),
+            dominantTone,
+          });
+          start();
+        };
+        return source;
+      }
+    };
+  });
+  const events = () =>
+    page.evaluate(() => (window as unknown as { audioEvents: TouchSample[] }).audioEvents.length);
+  await page.locator('#parts .part').first().click();
+  expect(
+    await page.evaluate(() => (window as unknown as { audioContexts: number }).audioContexts),
+  ).toBe(0);
+  await page.locator('#sound-toggle').click();
+  await expect.poll(events).toBe(1);
+  await page.locator('#parts .part').first().click();
+  await expect.poll(events).toBe(2);
+  await page.locator('#next-piece').focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(events).toBe(3);
+  for (const [index, name] of ['Example', 'Edit code', 'Explanation'].entries()) {
+    await page.getByRole('button', { name, exact: true }).click();
+    await expect.poll(events).toBe(4 + index);
+  }
+  await page.getByLabel('Explanation settings', { exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(events).toBe(7);
+  await page.locator('#mode').selectOption('project');
+  await expect.poll(events).toBe(8);
+  await page.getByLabel('Explanation settings', { exact: true }).click();
+  await expect.poll(events).toBe(9);
+  await page.locator('#explain').click();
+  await expect.poll(events).toBe(10);
+  const samples = await page.evaluate(
+    () => (window as unknown as { audioEvents: TouchSample[] }).audioEvents,
+  );
+  for (const sample of samples) {
+    expect(sample.duration).toBeGreaterThanOrEqual(0.04);
+    expect(sample.duration).toBeLessThanOrEqual(0.17);
+    expect(sample.peak).toBeGreaterThan(0.09);
+    expect(sample.peak).toBeLessThanOrEqual(0.181);
+    expect(Math.abs(sample.first)).toBe(0);
+    expect(Math.abs(sample.last)).toBe(0);
+    expect(sample.finite).toBe(true);
+  }
+  expect(new Set(samples.map((sample) => sample.duration.toFixed(3))).size).toBeGreaterThanOrEqual(
+    7,
+  );
+  const tones = samples.map((sample) => sample.dominantTone);
+  expect(Math.max(...tones) / Math.min(...tones)).toBeGreaterThan(2);
+  await page.locator('#apply').evaluate((button: HTMLButtonElement) => button.click());
+  expect(await events()).toBe(10);
+  await page.locator('#sound-toggle').click();
+  await page.locator('#parts .part').first().click();
+  await page.getByRole('button', { name: 'Explanation', exact: true }).click();
+  expect(await events()).toBe(10);
+});
+
+test('follows live IDE colors while preserving the green, orange, and yellow accents', async ({
+  page,
+}) => {
+  const settle = () =>
+    page.evaluate(() =>
+      Promise.allSettled(
+        document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
+          .map((animation) => animation.finished),
+      ),
+    );
+  await page.locator('#parts .part').first().click();
+  const palettes = [
+    {
+      name: 'light',
+      background: '#ffffff',
+      paper: '#f3f3f3',
+      foreground: '#333333',
+      muted: '#616161',
+      focus: '#005fb8',
+      link: '#005fb8',
+    },
+    {
+      name: 'dark',
+      background: '#1f1f1f',
+      paper: '#252526',
+      foreground: '#cccccc',
+      muted: '#a5a5a5',
+      focus: '#0078d4',
+      link: '#4daafc',
+    },
+    {
+      name: 'custom-dark',
+      background: '#232a2e',
+      paper: '#2d353b',
+      foreground: '#d3c6aa',
+      muted: '#a0aa96',
+      focus: '#a7c080',
+      link: '#a7c080',
+    },
+  ];
+  const backgrounds = [];
+  for (const palette of palettes) {
+    await page.evaluate((palette) => {
+      document.body.className = palette.name === 'light' ? 'vscode-light' : 'vscode-dark';
+      for (const [token, color] of Object.entries({
+        'editor-background': palette.background,
+        'editorWidget-background': palette.paper,
+        'editor-foreground': palette.foreground,
+        descriptionForeground: palette.muted,
+        focusBorder: palette.focus,
+        'textLink-foreground': palette.link,
+      }))
+        document.body.style.setProperty(`--vscode-${token}`, color);
+    }, palette);
+    await page.getByRole('button', { name: 'Explanation', exact: true }).click();
+    await settle();
+    const actual = await page.evaluate(() => {
+      const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
+      const context = document.createElement('canvas').getContext('2d')!;
+      const luminance = (color: string) => {
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const rgb = Array.from(context.getImageData(0, 0, 1, 1).data)
+          .slice(0, 3)
+          .map((value) => {
+            const channel = value / 255;
+            return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const selectors = ['.source-heading', '.brand-mark', '.tab.active', '.part.selected'];
+      return {
+        background: style('body').backgroundColor,
+        main: selectors.map((selector) => style(selector).backgroundColor),
+        yellow: style('.primary').backgroundColor,
+        contrast: selectors.map((selector) => {
+          const s = style(selector),
+            fg = luminance(s.color),
+            bg = luminance(s.backgroundColor);
+          return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
+        }),
+      };
+    });
+    const rgb = palette.background
+      .slice(1)
+      .match(/../g)!
+      .map((hex) => parseInt(hex, 16));
+    expect(actual.background).toBe(`rgb(${rgb.join(', ')})`);
+    expect(new Set(actual.main).size).toBe(1);
+    backgrounds.push(actual.main[0]);
+    for (const ratio of actual.contrast) expect(ratio).toBeGreaterThanOrEqual(4.5);
+    expect(actual.yellow).toBe('rgb(247, 217, 105)');
+    if (captureScreenshots)
+      await page.screenshot({
+        path: `work/ide-${palette.name}.png`,
+        fullPage: true,
+        animations: 'disabled',
+      });
+    await page.getByRole('button', { name: 'Example', exact: true }).click();
+    await settle();
+    expect(
+      await page.locator('.tab.active').evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).toBe('rgb(255, 176, 138)');
+    await page.getByRole('button', { name: 'Edit code', exact: true }).click();
+    await settle();
+    expect(
+      await page.locator('.tab.active').evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).toBe('rgb(190, 228, 189)');
+  }
+  expect(new Set(backgrounds).size).toBe(palettes.length);
 });

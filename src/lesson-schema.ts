@@ -53,8 +53,10 @@ const strictGroqModels = new Set([
 // Request only the sections needed for this action, retaining strict validation
 // without forcing a full lesson into the small completion budget.
 export function lessonSchemaForTask(task: Task) {
-  const properties: Record<string, unknown> = { summary: lessonSchema.properties.summary };
-  if (task === 'explain') properties.concepts = lessonSchema.properties.concepts;
+  const properties: Record<string, unknown> = {
+    summary: lessonSchema.properties.summary,
+    concepts: lessonSchema.properties.concepts,
+  };
   if (task === 'example') properties.example = lessonSchema.properties.example;
   if (task === 'impact') {
     properties.predictions = lessonSchema.properties.predictions;

@@ -15,6 +15,7 @@ const host = vi.hoisted(() => ({
   version: 1,
   confirm: vi.fn(),
   context: vi.fn(),
+  key: undefined as string | undefined,
   readyOnLoad: false,
   subscriptions: [] as vscode.Disposable[],
   panels: [] as {
@@ -219,7 +220,7 @@ async function start(
   activate({
     extensionUri: vscode.Uri.parse('file:/extension'),
     subscriptions: host.subscriptions,
-    secrets: { get: async () => undefined },
+    secrets: { get: async () => host.key },
   } as unknown as vscode.ExtensionContext);
   await host.commands.get('watdatmean.inspect')!();
   if (ready) await message({ type: 'ready' });
@@ -243,6 +244,7 @@ beforeEach(() => {
   host.hover = undefined;
   host.comparisons.length = 0;
   host.version = 1;
+  host.key = undefined;
   host.confirm.mockReset().mockResolvedValue('Use this code');
   host.context
     .mockReset()
@@ -254,6 +256,66 @@ beforeEach(() => {
 afterEach(() => {
   host.subscriptions.splice(0).forEach((subscription) => subscription.dispose());
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe('AI token reporting', () => {
+  const lesson = {
+    title: 'Score',
+    summary: 'Starts at zero.',
+    steps: [],
+    concepts: [],
+    example: { code: '', explanation: '' },
+    predictions: [],
+    checks: [],
+  };
+  function respond(extra: Record<string, unknown> = {}) {
+    const transport = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          model: 'actual-model',
+          output: [{ content: [{ type: 'output_text', text: JSON.stringify(lesson) }] }],
+          usage: { input_tokens: 1200, output_tokens: 300, total_tokens: 1500 },
+          ...extra,
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', transport);
+    return transport;
+  }
+  it('forwards reported usage once and makes no new request for a cached answer', async () => {
+    host.key = 'test-key';
+    const transport = respond();
+    await start();
+    await message({ type: 'request', task: 'explain' });
+    expect(last('lesson')).toMatchObject({
+      cached: false,
+      model: 'actual-model',
+      usage: { inputTokens: 1200, outputTokens: 300, totalTokens: 1500 },
+    });
+    await message({ type: 'request', task: 'explain' });
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(last('lesson')).toMatchObject({ cached: true, model: 'actual-model', usage: undefined });
+  });
+  it('shows consumed tokens even when a response is truncated', async () => {
+    host.key = 'test-key';
+    respond({ status: 'incomplete' });
+    await start();
+    await message({ type: 'request', task: 'explain' });
+    expect(last('error')).toMatchObject({
+      showUsage: true,
+      usage: { totalTokens: 1500 },
+      message: expect.stringContaining('cut short'),
+    });
+    expect(host.messages.some((entry) => entry.type === 'lesson')).toBe(false);
+  });
+  it('marks usage unknown on a connection failure rather than claiming zero tokens', async () => {
+    host.key = 'test-key';
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network failure')));
+    await start();
+    await message({ type: 'request', task: 'explain' });
+    expect(last('error')).toMatchObject({ showUsage: true, usage: undefined });
+  });
 });
 
 describe('learning panel startup and recovery', () => {

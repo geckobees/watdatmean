@@ -5,8 +5,8 @@ import { randomBytes } from 'node:crypto';
 import { inspect, syntaxErrors } from './analyzer';
 import { Cache, fingerprint } from './cache';
 import { collectContext, type ContextResult } from './context';
-import { defaults, generate } from './provider';
-import type { Audience, LearningRequest, Lesson, Mode, Provider, Snippet, Task } from './types';
+import { defaults, generate, GenerationError } from './provider';
+import type { Audience, Generation, LearningRequest, Mode, Provider, Snippet, Task } from './types';
 
 interface Selection {
   document: vscode.TextDocument;
@@ -74,7 +74,7 @@ class Tutor implements vscode.Disposable {
   private panelReady = false;
   private panelLoadTimer?: ReturnType<typeof setTimeout>;
   private selection?: Selection;
-  private cache = new Cache<Lesson>();
+  private cache = new Cache<Generation>();
   private abort?: AbortController;
   private busy = false;
   private revision = 0;
@@ -480,23 +480,42 @@ class Tutor implements vscode.Disposable {
       }
       if (abort.signal.aborted) return;
       const model = config.model || defaults[config.provider];
-      const cacheKey = fingerprint({ version: 2, provider: config.provider, model, request });
+      const cacheKey = fingerprint({ version: 3, provider: config.provider, model, request });
       const cached = this.cache.get(cacheKey);
-      const lesson = cached ?? (await generate(config.provider, model, key, request, abort.signal));
-      if (abort.signal.aborted || selection !== this.selection) return;
-      if (revision !== this.revision)
-        throw new Error(
-          'Code changed during the request. Refresh and request the explanation again.',
-        );
-      this.cache.set(cacheKey, lesson);
+      let result: Generation;
+      try {
+        result = cached ?? (await generate(config.provider, model, key, request, abort.signal));
+        if (this.abort !== abort) return;
+        if (abort.signal.aborted || selection !== this.selection || revision !== this.revision)
+          throw new GenerationError(
+            abort.signal.aborted
+              ? 'Request cancelled.'
+              : 'Code changed during the request. Refresh and request the explanation again.',
+            result.model,
+            cached ? undefined : result.usage,
+          );
+      } catch (error) {
+        if (this.abort !== abort) return;
+        this.send({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'The AI request failed. Please retry.',
+          showUsage: true,
+          usage: error instanceof GenerationError ? error.usage : undefined,
+          provider: config.provider,
+          model: error instanceof GenerationError ? error.model : model,
+        });
+        return;
+      }
+      this.cache.set(cacheKey, result);
       this.send({
         type: 'lesson',
-        lesson,
+        lesson: result.lesson,
         task,
         concept: request.concept,
         cached: !!cached,
         provider: config.provider,
-        model,
+        model: result.model,
+        usage: cached ? undefined : result.usage,
       });
     } catch (error) {
       if (!abort.signal.aborted) throw error;
