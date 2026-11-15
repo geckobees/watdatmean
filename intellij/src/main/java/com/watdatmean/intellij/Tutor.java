@@ -277,6 +277,7 @@ public final class Tutor implements Disposable {
       m.addProperty("model", state.model.isBlank() ? Settings.defaultModel(state.provider) : state.model);
       m.addProperty("audience", state.audience); m.addProperty("hasKey", Keys.get(state.provider) != null);
       m.addProperty("webResearch", researchEnabled);
+      m.addProperty("soundEnabled", state.buttonSounds);
       m.addProperty("webResearchModel", switch (state.provider) { case "groq" -> "openai/gpt-oss-120b"; case "anthropic" -> "claude-haiku-4-5"; default -> "gpt-4.1-mini"; });
       send(m);
     });
@@ -298,6 +299,10 @@ public final class Tutor implements Disposable {
   private void handle(JsonObject m) {
     try {
       switch (string(m, "type")) {
+        case "soundToggle" -> {
+          if (m.has("enabled") && m.get("enabled").isJsonPrimitive() && m.getAsJsonPrimitive("enabled").isBoolean())
+            Settings.get().getState().buttonSounds = m.get("enabled").getAsBoolean();
+        }
         case "highlight" -> highlight(m);
         case "ready" -> {
           ready = true; sendSelection(); sendConfig();

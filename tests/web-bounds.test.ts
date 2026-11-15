@@ -30,6 +30,67 @@ const hit = (
 const oracle =
   'https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collectors.html';
 describe('bounded web retrieval and summaries', () => {
+  it.each([
+    'In Java 8 Collectors.toList(), which returns a mutable list, does not guarantee its concrete type.',
+    'The list returned by Collectors.toList() is only a view.',
+    'Collectors.toList() returns an unmodifiable list.',
+    'Collectors.toList() guarantees a mutable list.',
+  ])('withholds an observed Java contract contradiction without a retry: %s', async (text) => {
+    const body = summaryPayload('groq') as any;
+    const summary = JSON.parse(body.choices[0].message.content);
+    body.choices[0].message.content = JSON.stringify({ ...summary, text });
+    const transport = vi.fn(async () => Response.json(body));
+    const result = await new WebResearchService(transport, retrieve).search(
+      'groq',
+      'key',
+      'Java streams',
+      'beginner',
+      signal(),
+    );
+    expect(result).toMatchObject({
+      summaryUnavailable: 'contract',
+      blocks: [],
+      usage: { total: 600 },
+    });
+    expect(result.sources).toHaveLength(1);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    'Collectors.toList() does not guarantee a mutable list.',
+    'Collectors.toList() may return a mutable list.',
+    'Collectors.toList() usually returns a mutable list.',
+    'Collectors.toList() gives no guarantees. Stream.toList() returns an unmodifiable list.',
+    'Collectors.toList() gathers items; Collectors.toCollection(ArrayList::new) returns a mutable list.',
+    'Collectors.toList() is not a view.',
+  ])('keeps accurate distinctions and uncertainty: %s', (text) => {
+    const body = summaryPayload('groq') as any;
+    body.choices[0].message.content = JSON.stringify({
+      ...JSON.parse(body.choices[0].message.content),
+      text,
+    });
+    expect(parseSummary('groq', 'Java streams', body, retrieved.sources).blocks[0].text).toContain(
+      text,
+    );
+  });
+  it.each([
+    '**A stream processes items.**',
+    'A stream processes items. [1]',
+    'A stream processes items. [1, 1]',
+  ])('accepts finished prose with harmless formatting: %s', (text) => {
+    const body = summaryPayload('groq') as any;
+    const summary = JSON.parse(body.choices[0].message.content);
+    summary.text = text;
+    summary.application = '**Use it to total orders.** [1]';
+    body.choices[0].message.content = JSON.stringify(summary);
+    expect(parseSummary('groq', 'Java', body, retrieved.sources).blocks[0].text).toContain(text);
+  });
+  it('accepts a single JSON fence without accepting arbitrary surrounding prose', () => {
+    const body = summaryPayload('anthropic') as any;
+    body.content[0].text = '```json\n' + body.content[0].text + '\n```';
+    expect(parseSummary('anthropic', 'Java', body, retrieved.sources).sources).toHaveLength(1);
+    body.content[0].text = 'Not the requested answer: ' + body.content[0].text;
+    expect(() => parseSummary('anthropic', 'Java', body, retrieved.sources)).toThrow('not valid');
+  });
   it('does not display a cut-off sentence just because the provider reports a completed JSON response', () => {
     const body = summaryPayload('groq') as any;
     const data = JSON.parse(body.choices[0].message.content);
@@ -318,7 +379,7 @@ describe('bounded web retrieval and summaries', () => {
       expect(parsed.blocks[0].sourceUrls).toEqual([retrieved.sources[0].url]);
     },
   );
-  it('rejects invented IDs, tool calls, truncated responses and malformed JSON without retries', async () => {
+  it('keeps only retrieved links after invalid summaries, accounts for usage and never retries', async () => {
     for (const message of [
       { content: 'not json' },
       { content: JSON.stringify({ text: 'Claims', sources: [55] }) },
@@ -327,17 +388,92 @@ describe('bounded web retrieval and summaries', () => {
         tool_calls: [{ id: 'browser' }],
       },
     ]) {
-      const ai = vi.fn(async () =>
-        Response.json({ choices: [{ finish_reason: 'stop', message }] }),
+      const body = { ...summaryPayload('groq'), choices: [{ finish_reason: 'stop', message }] };
+      expect(() => parseSummary('groq', 'Java', body, retrieved.sources)).toThrow(
+        'No automatic retry',
       );
-      await expect(
-        new WebResearchService(ai, retrieve).search('groq', 'key', 'Java', 'beginner', signal()),
-      ).rejects.toThrow('No automatic retry');
+      const ai = vi.fn(async () => Response.json(body));
+      const service = new WebResearchService(ai, retrieve);
+      const result = await service.search('groq', 'key', 'Java', 'beginner', signal(), options);
+      expect(result.summaryUnavailable).toBeTruthy();
+      expect(result.blocks).toEqual([]);
+      expect(result.sources).toEqual(
+        retrieved.sources.map(({ url, title, kind }) => ({ url, title, kind })),
+      );
+      expect(result.options).toEqual(options);
+      expect(result.usage?.total).toBe(600);
+      expect(result.budget?.aiRequests).toBe(1);
+      expect(
+        (await service.search('groq', 'key', 'Java', 'beginner', signal(), options)).cached,
+      ).toBe(true);
       expect(ai).toHaveBeenCalledTimes(1);
     }
     const body = summaryPayload('groq') as any;
     body.choices[0].finish_reason = 'length';
     expect(() => parseSummary('groq', 'Java', body, retrieved.sources)).toThrow('within its limit');
+  });
+  it.each(['groq', 'openai', 'anthropic'] as const)(
+    'preserves sources after an incomplete %s completion',
+    async (provider) => {
+      const body = summaryPayload(provider) as any;
+      if (provider === 'groq') body.choices[0].finish_reason = 'length';
+      else if (provider === 'openai') body.status = 'incomplete';
+      else body.stop_reason = 'max_tokens';
+      const ai = vi.fn(async () => Response.json(body));
+      const result = await new WebResearchService(ai, retrieve).search(
+        provider,
+        'key',
+        'Java',
+        'beginner',
+        signal(),
+      );
+      expect(result).toMatchObject({
+        summaryUnavailable: 'incomplete',
+        blocks: [],
+        usage: { total: 600 },
+      });
+      expect(result.sources).toHaveLength(1);
+      expect(ai).toHaveBeenCalledTimes(1);
+    },
+  );
+  it.each([[0], [2], ['1'], [], [1.5]])(
+    'does not repair invalid references: %j',
+    async (...ids) => {
+      const body = summaryPayload('groq') as any;
+      body.choices[0].message.content = JSON.stringify({
+        ...JSON.parse(body.choices[0].message.content),
+        sources: ids,
+      });
+      const result = await new WebResearchService(async () => Response.json(body), retrieve).search(
+        'groq',
+        'key',
+        'Java',
+        'beginner',
+        signal(),
+      );
+      expect(result).toMatchObject({ summaryUnavailable: 'references', blocks: [] });
+    },
+  );
+  it('lets a later explicit lookup recover a summary after a short sources-only cache', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    try {
+      const ai = vi.fn(async () => Response.json(summaryPayload()));
+      ai.mockResolvedValueOnce(Response.json({ ...summaryPayload(), choices: [] }));
+      const service = new WebResearchService(ai, retrieve);
+      expect(
+        (await service.search('groq', 'key', 'Java', 'beginner', signal())).summaryUnavailable,
+      ).toBe('incomplete');
+      now.mockReturnValue(1000 + 4 * 60_000);
+      expect((await service.search('groq', 'key', 'Java', 'beginner', signal())).cached).toBe(true);
+      expect(ai).toHaveBeenCalledTimes(1);
+      now.mockReturnValue(1000 + 5 * 60_000);
+      const recovered = await service.search('groq', 'key', 'Java', 'beginner', signal());
+      expect(recovered.summaryUnavailable).toBeUndefined();
+      expect(recovered.blocks).toHaveLength(1);
+      expect(ai).toHaveBeenCalledTimes(2);
+    } finally {
+      now.mockRestore();
+    }
   });
   it('prevents overlapping paid requests and reuses the finished result', async () => {
     let finish!: () => void;

@@ -26,6 +26,7 @@ export interface WebResearch {
   usage?: TokenUsage;
   searches: number;
   cached: boolean;
+  summaryUnavailable?: 'incomplete' | 'format' | 'references' | 'contract';
   budget?: {
     inputBytes: number;
     maxInputBytes: number;
@@ -240,6 +241,57 @@ export function researchRequest(
   return { url: endpoints[provider], headers, body: JSON.stringify(body), inputBytes };
 }
 
+class SummaryResponseError extends Error {
+  constructor(
+    readonly reason: NonNullable<WebResearch['summaryUnavailable']>,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+// Check sentence endings without mistaking Markdown closers or valid citation IDs
+// for a cut-off answer. This is only a truncation guard, not a factual quality check.
+function finishedProse(value: string, sourceCount: number): boolean {
+  let end = value.trim();
+  for (;;) {
+    const previous = end;
+    end = end.replace(/[\s)"'’”`*_~]+$/u, '');
+    const citation = /\[([0-9]+(?:\s*,\s*[0-9]+)*)\]$/.exec(end);
+    if (citation) {
+      if (citation[1].split(',').some((id) => Number(id) < 1 || Number(id) > sourceCount))
+        return false;
+      end = end.slice(0, citation.index);
+    }
+    if (end === previous) return /[.!?:;。！？：…]$/u.test(end);
+  }
+}
+
+// A narrow guard for an observed contradiction of the reviewed Java contract in
+// researchRequest. Do not rewrite the answer or claim to fact-check arbitrary prose.
+function contradictsCollectorContract(prose: string, sources: RetrievedSource[]): boolean {
+  if (
+    !sources.some((source) =>
+      /^https:\/\/docs\.oracle\.com\/.+\/java\/util\/stream\//.test(source.url),
+    )
+  )
+    return false;
+  const plain = prose.replace(/[`*_]/g, '');
+  return plain.split(/[.!?](?=\s|$)/u).some((sentence) => {
+    const api = /\bCollectors\.toList\s*\(\s*\)/.exec(sentence);
+    if (!api) return false;
+    const tail = sentence.slice(api.index + api[0].length);
+    // Stop at uncertainty, negation or another named API: those are not promises
+    // about Collectors.toList. Match only explicit return/property assertions.
+    const assertion = tail.split(
+      /\b(?:not|no|never|may|might|can|could|usually|typically|often|sometimes)\b|\b\w+\.\w+\s*\(/i,
+    )[0];
+    return /\b(?:returns?|creates?|produces?|guarantees?|is|are)\s+(?:(?:a|an|the|always|only|just|new|fresh)\s+)*(?:mutable|unmodifiable|immutable|read[ -]only|view)\b/i.test(
+      assertion,
+    );
+  });
+}
+
 /** New summaries cite only IDs of locally retrieved pages, never model-written URLs. */
 export function parseSummary(
   provider: Provider,
@@ -273,14 +325,19 @@ export function parseSummary(
       .join('');
   }
   if (!complete)
-    throw new Error(
+    throw new SummaryResponseError(
+      'incomplete',
       'Web summary did not finish within its limit. No automatic retry was made; your code explanation is unchanged.',
     );
   let summary: Record<string, any>;
   try {
-    summary = record(JSON.parse(output));
+    // Some providers wrap an otherwise complete JSON object in one Markdown fence.
+    // Do not fish JSON out of arbitrary prose or attempt to repair truncated JSON.
+    const fenced = /^```(?:json)?\s*\n([\s\S]*?)\n```$/i.exec(output.trim());
+    summary = record(JSON.parse(fenced ? fenced[1] : output));
   } catch {
-    throw new Error(
+    throw new SummaryResponseError(
+      'format',
       'Web summary was not valid. No automatic retry was made; your code explanation is unchanged.',
     );
   }
@@ -288,22 +345,40 @@ export function parseSummary(
     typeof summary.text !== 'string' ||
     !summary.text.trim() ||
     summary.text.length > 12000 ||
-    !/[.!?:;。！？：…][\s)"'’”`]*$/u.test(summary.text) ||
     typeof summary.code !== 'string' ||
     !summary.code.trim() ||
     summary.code.length > 3000 ||
     typeof summary.application !== 'string' ||
     !summary.application.trim() ||
-    summary.application.length > 3000 ||
-    !/[.!?:;。！？：…][\s)"'’”`]*$/u.test(summary.application) ||
+    summary.application.length > 3000
+  )
+    throw new SummaryResponseError(
+      'format',
+      'Web summary returned incomplete content. No automatic retry was made.',
+    );
+  if (
     !Array.isArray(summary.sources) ||
     !summary.sources.length ||
     summary.sources.some(
       (id: unknown) => !Number.isInteger(id) || Number(id) < 1 || Number(id) > sources.length,
     )
   )
-    throw new Error(
-      'Web summary returned incomplete content or invalid source references. No automatic retry was made; your explanation is unchanged.',
+    throw new SummaryResponseError(
+      'references',
+      'Web summary returned invalid source references. No automatic retry was made; your explanation is unchanged.',
+    );
+  if (
+    !finishedProse(summary.text, sources.length) ||
+    !finishedProse(summary.application, sources.length)
+  )
+    throw new SummaryResponseError(
+      'incomplete',
+      'Web summary returned incomplete content. No automatic retry was made; your explanation is unchanged.',
+    );
+  if (contradictsCollectorContract(summary.text + '\n' + summary.application, sources))
+    throw new SummaryResponseError(
+      'contract',
+      'Web summary contradicted a reviewed Java API contract. No automatic retry was made.',
     );
   return {
     topic,
@@ -475,7 +550,13 @@ export class WebResearchService {
     if (signal.aborted) throw new Error('Web research cancelled.');
     const id = fingerprint({ provider, model: researchModels[provider], topic, audience, options });
     const cached = this.cache.get(id);
-    if (cached && Date.now() - cached.checkedAt < 24 * 60 * 60 * 1000)
+    // Reuse sources-only results briefly to prevent repeated spending on the same
+    // failure, but allow a later explicit lookup to recover its summary.
+    if (
+      cached &&
+      Date.now() - cached.checkedAt <
+        (cached.summaryUnavailable ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000)
+    )
       return { ...cached, cached: true };
     if (this.running)
       throw new Error(
@@ -519,7 +600,26 @@ export class WebResearchService {
       }
       const payload = JSON.parse(await readBounded(response, 64000));
       if (combined.aborted) throw new Error('Web research cancelled.');
-      const result = parseSummary(provider, topic, payload, retrieval.sources);
+      let result: WebResearch;
+      try {
+        result = parseSummary(provider, topic, payload, retrieval.sources);
+      } catch (error) {
+        if (!(error instanceof SummaryResponseError)) throw error;
+        // Search already succeeded. Preserve only retrieved, version/type-checked
+        // sources; never show a partial answer or guess its missing references.
+        result = {
+          topic,
+          provider,
+          model: researchModels[provider],
+          checkedAt: Date.now(),
+          blocks: [],
+          sources: retrieval.sources.map(({ url, title, kind }) => ({ url, title, kind })),
+          summaryUnavailable: error.reason,
+          usage: tokenUsage(record(payload).usage, provider),
+          searches: 1,
+          cached: false,
+        };
+      }
       result.budget = {
         inputBytes: config.inputBytes,
         maxInputBytes: researchLimits.inputBytes,

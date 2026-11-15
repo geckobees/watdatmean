@@ -15,6 +15,9 @@ final class CodeColorsSmoke {
     // Production deliberately falls back when its 150 ms highlighting budget is
     // exceeded. Initialize lazy Java PSI/highlighters before asserting exact colors.
     var warmProject=ProjectManager.getInstance().getDefaultProject();
+    String script = "const answer = 42;";
+    var plainScript = new LightVirtualFile("script.ts", com.intellij.openapi.fileTypes.PlainTextFileType.INSTANCE, script);
+    check(CodeColors.highlight(warmProject, plainScript, script, 0, script.length()).getAsJsonArray("runs").isEmpty(), "Missing language plugins cannot overwrite local syntax colors with uniform text");
     String warmCode="class Warm { int field; void run(int input) { int local = input; field = local; run(local); } }";
     var warmFile=new LightVirtualFile("Warm.java",FileTypeManager.getInstance().getFileTypeByExtension("java"),warmCode);
     for(int i=0;i<2;i++)CodeColors.highlight(warmProject,warmFile,warmCode,0,warmCode.length());

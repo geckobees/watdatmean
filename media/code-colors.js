@@ -10,10 +10,84 @@ window.watdatmeanColors = (host) => {
   const retries = new Map();
   const blocks = new Map();
   let original = '',
+    language = '',
     serial = 0,
     timer,
     composing = false;
   const empty = () => ({ runs: [], styles: [] });
+  // A small offline lexical fallback keeps familiar code readable while a language
+  // plugin loads or is unavailable. Native syntax/semantic ranges always take over.
+  // It does not infer variable types, library origins, or runtime behavior.
+  function fallback(code, name) {
+    if (code.length > 50000) return empty();
+    const lang = String(name).toLowerCase();
+    const python = lang === 'python';
+    const java = lang === 'java';
+    const script = [
+      'typescript',
+      'javascript',
+      'typescript jsx',
+      'javascript jsx',
+      'typescriptreact',
+      'javascriptreact',
+      'tsx',
+      'jsx',
+    ].includes(lang);
+    if (!python && !java && !script) return empty();
+    const css = getComputedStyle(document.documentElement);
+    const background = css.getPropertyValue('--code-background').trim();
+    const rgb = /^#([\da-f]{6})$/i.exec(background);
+    const channels = rgb
+      ? [0, 2, 4].map((i) => parseInt(rgb[1].slice(i, i + 2), 16))
+      : background
+          .match(/[\d.]+/g)
+          ?.slice(0, 3)
+          .map(Number);
+    const light =
+      channels?.length === 3 &&
+      channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722 > 150;
+    const defaults = light
+      ? ['#0000aa', '#a31515', '#098658', '#387638']
+      : ['#569cd6', '#ce9178', '#b5cea8', '#6a9955'];
+    const result = {
+      runs: [],
+      styles: ['keyword', 'string', 'number', 'comment'].map((kind, i) => {
+        const color = css.getPropertyValue(`--wdm-code-${kind}`).trim();
+        return { color: /^#[\da-f]{6}$/i.test(color) ? color : defaults[i], font: 0 };
+      }),
+    };
+    const common =
+      'if else for while return break continue class try finally throw new this static void public private protected import switch case default true false null';
+    const words = new Set(
+      (java
+        ? common +
+          ' extends implements interface abstract final synchronized volatile transient native strictfp throws catch package instanceof super boolean byte char double float int long short assert enum record var yield sealed permits'
+        : python
+          ? 'and as assert async await break class continue def del elif else except False finally for from global if import in is lambda None nonlocal not or pass raise return True try while with yield'
+          : common +
+            ' const let var function async await export from extends implements interface type typeof instanceof delete in of do catch super constructor get set as is keyof readonly declare namespace module abstract override undefined'
+      ).split(' '),
+    );
+    const tokens = python
+      ? /#[^\r\n]*|"""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\[\s\S]|[^"\\\r\n])*"?|'(?:\\[\s\S]|[^'\\\r\n])*'?|\b(?:0[xob][\da-f_]+|\d[\w.]*)\b|\b[A-Za-z_$][\w$]*\b/gi
+      : /\/\*[\s\S]*?(?:\*\/|$)|\/\/[^\r\n]*|"""[\s\S]*?(?:"""|$)|"(?:\\[\s\S]|[^"\\\r\n])*"?|'(?:\\[\s\S]|[^'\\\r\n])*'?|`(?:\\[\s\S]|[^`\\])*`?|\b(?:0[xob][\da-f_]+|\d[\w.]*)\b|\b[A-Za-z_$][\w$]*\b/gi;
+    for (const match of code.matchAll(tokens)) {
+      const token = match[0];
+      const kind =
+        token.startsWith('//') || token.startsWith('/*') || (python && token.startsWith('#'))
+          ? 3
+          : /^["'`]/.test(token)
+            ? 1
+            : /^\d/.test(token)
+              ? 2
+              : words.has(token)
+                ? 0
+                : -1;
+      if (kind >= 0) result.runs.push([match.index, match.index + token.length, kind]);
+      if (result.runs.length >= 12000) break;
+    }
+    return result;
+  }
   function validate(message) {
     if (
       !Array.isArray(message.runs) ||
@@ -137,7 +211,7 @@ window.watdatmeanColors = (host) => {
       draft();
       return;
     }
-    palette('draft', empty());
+    palette('draft', fallback(input.value, language));
     draft();
     if (!composing) {
       if (immediate) request('draft', input.value);
@@ -159,10 +233,17 @@ window.watdatmeanColors = (host) => {
     if (message?.type === 'syntaxThemeChanged') {
       clearTimeout(timer);
       pending.draft = ++serial;
+      // Drop old-theme colors immediately so light/dark switches stay legible.
+      palette('source', fallback(original, language));
+      paintSource();
       request('source', original);
       if (input.value !== original) updateDraft(true);
       prune();
-      for (const [target, block] of blocks) request(target, block.code, block.language);
+      for (const [target, block] of blocks) {
+        palette(target, fallback(block.code, block.language));
+        paint(block.element, block.code, 0, target);
+        request(target, block.code, block.language);
+      }
     } else if (message?.type === 'highlight' && blocks.has(message.target)) {
       const block = blocks.get(message.target);
       if (
@@ -172,7 +253,9 @@ window.watdatmeanColors = (host) => {
       )
         return;
       const colors = validate(message);
-      if (colors === message) retryEmpty(message, colors, block.language);
+      if (colors !== message) return;
+      retryEmpty(message, colors, block.language);
+      if (!colors.runs.length && styles[message.target]?.runs.length) return;
       palette(message.target, colors);
       paint(block.element, block.code, 0, message.target);
     } else if (message?.type === 'highlight' && ['source', 'draft'].includes(message.target)) {
@@ -183,22 +266,27 @@ window.watdatmeanColors = (host) => {
       )
         return;
       const colors = validate(message);
-      if (colors === message) retryEmpty(message, colors);
+      if (colors !== message) return;
+      retryEmpty(message, colors);
+      if (!colors.runs.length && styles[target]?.runs.length) return;
       palette(target, colors);
       if (target === 'source') {
-        paint($('source'), original, 0, 'source');
-        document.querySelectorAll('#parts [data-code-start]').forEach((element) => {
-          const start = Number(element.dataset.codeStart),
-            end = Number(element.dataset.codeEnd);
-          paint(element, original.slice(start, end), start, 'source');
-        });
-        if (input.value === original) {
-          palette('draft', colors);
-          draft();
-        }
+        paintSource();
       } else draft();
     }
   });
+  function paintSource() {
+    paint($('source'), original, 0, 'source');
+    document.querySelectorAll('#parts [data-code-start]').forEach((element) => {
+      const start = Number(element.dataset.codeStart),
+        end = Number(element.dataset.codeEnd);
+      paint(element, original.slice(start, end), start, 'source');
+    });
+    if (input.value === original) {
+      palette('draft', styles.source);
+      draft();
+    }
+  }
   return {
     // Independent snapshots: no file lookup, live-document semantics, or AI request.
     block(code, language, firstLine = 1, className = '') {
@@ -265,17 +353,21 @@ window.watdatmeanColors = (host) => {
             cancelAnimationFrame(animation);
           },
         });
+        palette(target, fallback(code, language));
+        paint(element, code, 0, target);
         request(target, code, language);
         refresh();
       });
       return frame;
     },
-    selection(code) {
+    selection(code, name) {
       original = code;
+      language = name;
       clearTimeout(timer);
       pending.draft = ++serial;
-      palette('source', empty());
-      palette('draft', empty());
+      palette('source', fallback(code, language));
+      paint($('source'), code, 0, 'source');
+      palette('draft', styles.source);
       draft();
       request('source', code);
     },

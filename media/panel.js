@@ -23,6 +23,55 @@
   const conceptTargets = new Map();
   let definitionId = 0;
   const saved = host.getState() || {};
+  let soundEnabled = saved.soundEnabled !== false;
+  let soundEdited = false;
+  const clickAudio = $('button-click');
+  clickAudio.volume = 0.25;
+  function updateSound() {
+    $('sound-toggle').textContent = soundEnabled ? 'Sound on' : 'Sound off';
+    $('sound-toggle').setAttribute('aria-pressed', String(soundEnabled));
+    $('sound-toggle').title = soundEnabled ? 'Mute button sounds' : 'Enable button sounds';
+    if (!soundEnabled) clickAudio.pause();
+  }
+  function playClick() {
+    if (!soundEnabled) return;
+    // One short local sound, even on rapid clicks. Audio failure never blocks an action.
+    try {
+      clickAudio.pause();
+      clickAudio.currentTime = 0;
+      const playback = clickAudio.play();
+      if (playback) playback.catch(() => {});
+    } catch {
+      /* Audio is optional in restricted or muted webviews. */
+    }
+  }
+  updateSound();
+  $('sound-toggle').onclick = () => {
+    soundEdited = true;
+    soundEnabled = !soundEnabled;
+    host.setState({ ...host.getState(), soundEnabled });
+    post('soundToggle', { enabled: soundEnabled });
+    updateSound();
+  };
+  document.addEventListener(
+    'click',
+    (event) => {
+      const button =
+        event.target instanceof Element &&
+        event.target.closest('button.tab, button.primary, button.secondary');
+      if (
+        event.isTrusted &&
+        button &&
+        !button.disabled &&
+        button.getAttribute('aria-disabled') !== 'true'
+      )
+        playClick();
+    },
+    true,
+  );
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clickAudio.pause();
+  });
   $('mode').value = saved.mode || 'standalone';
   let chosenMode = $('mode').value;
   const node = (tag, text, className) => {
@@ -882,6 +931,23 @@
           .slice(0, 12)
       : [];
     root.append(node('summary', `From the web · ${sources.length} sources`));
+    if (result.summaryUnavailable) {
+      root.open = true;
+      const reason =
+        {
+          incomplete: 'The AI summary was incomplete',
+          format: 'The AI summary could not be read',
+          references: 'The AI summary did not cite these sources reliably',
+          contract: 'The AI summary contradicted a checked Java API rule',
+        }[result.summaryUnavailable] || 'The AI summary was unavailable';
+      const notice = node(
+        'p',
+        `${reason}, so it is not shown. You can still open or save the sources below. No additional AI request was made.`,
+        'web-summary-notice',
+      );
+      notice.setAttribute('role', 'status');
+      root.append(notice);
+    }
     const usage = result.usage;
     root.append(
       node(
@@ -910,7 +976,9 @@
     root.append(
       node(
         'p',
-        'General learning material for this topic. Examples are illustrative and have not been run.',
+        result.summaryUnavailable
+          ? 'Search results for this topic; their contents and version compatibility are not fully verified. Your code explanation is unchanged.'
+          : 'General learning material for this topic. Examples are illustrative and have not been run.',
         'muted',
       ),
     );
@@ -1029,7 +1097,12 @@
     $(id).onchange = () => {
       if (id === 'mode') chosenMode = $('mode').value;
       saved.audience = $('audience').value;
-      host.setState({ mode: chosenMode, audience: $('audience').value });
+      host.setState({
+        ...host.getState(),
+        mode: chosenMode,
+        audience: $('audience').value,
+        soundEnabled,
+      });
       $('explanation').replaceChildren();
       $('example-result').replaceChildren();
       $('impact-result').replaceChildren();
@@ -1298,7 +1371,7 @@
       originalCode = message.code;
       sourceLanguage = message.language || 'TypeScript';
       $('replacement').value = message.code;
-      colors.selection(message.code);
+      colors.selection(message.code, sourceLanguage);
       lines.selection(message);
       $('location').textContent = `${message.file}:${message.line}`;
       $('preview-status').textContent = '';
@@ -1310,6 +1383,10 @@
       selectTab(message.keepTab ? tab : 'understand');
       updateButtons();
     } else if (message.type === 'config') {
+      if (!soundEdited && typeof message.soundEnabled === 'boolean') {
+        soundEnabled = message.soundEnabled;
+        updateSound();
+      }
       if (typeof message.webResearch === 'boolean') {
         $('web-research').checked = message.webResearch;
         $('web-options').hidden = !message.webResearch;

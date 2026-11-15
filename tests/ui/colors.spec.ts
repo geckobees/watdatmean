@@ -241,6 +241,13 @@ for (const editor of ['VS Code', 'IntelliJ'])
       );
       await dispatch(page, { ...original, runs: [], styles: [] });
       await expect(page.locator('#source span').first()).toHaveCSS('color', 'rgb(197, 134, 192)');
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => (window as any).messages.filter((m: any) => m.target === 'source').length,
+          ),
+        )
+        .toBe(2);
       const requests = await page.evaluate(() =>
         (window as any).messages.filter((m: any) => m.target === 'source'),
       );
@@ -349,6 +356,157 @@ for (const editor of ['VS Code', 'IntelliJ'])
         await page.evaluate(() => (window as any).messages.some((m: any) => m.type === 'request')),
       ).toBe(false);
     });
+    test('keeps displayed colors when a native refresh temporarily returns no tokens', async ({
+      page,
+    }) => {
+      await page.evaluate(() => {
+        (window as any).hold = true;
+      });
+      const last = await page.evaluate(() =>
+        (window as any).messages.findLast((m: any) => m.target === 'source'),
+      );
+      await dispatch(page, { ...last, runs: [], styles: [] });
+      await expect(page.locator('#source .wdm-source-0').first()).toHaveCSS(
+        'color',
+        'rgb(197, 134, 192)',
+      );
+      await expect(page.locator('#parts .wdm-source-0').first()).toHaveCSS(
+        'color',
+        'rgb(197, 134, 192)',
+      );
+      await expect(page.locator('#draft-colors .wdm-draft-0').first()).toHaveCSS(
+        'color',
+        'rgb(197, 134, 192)',
+      );
+    });
+    test('provides bounded local colors while plugins are unavailable, then uses native colors', async ({
+      page,
+    }) => {
+      await page.evaluate(() => {
+        (window as any).hold = true;
+      });
+      for (const [language, code, keyword, comment] of [
+        [
+          'TypeScript',
+          'const name: string = "return 8"; // const 99\nconst n = 2;',
+          'const',
+          '// const 99',
+        ],
+        [
+          'JavaScript',
+          'const text = `return 8`; /* const 99 */\nlet n = 2;',
+          'const',
+          '/* const 99 */',
+        ],
+        [
+          'Python',
+          'def run():\n    text = "return 8" # class 99\n    return 2',
+          'def',
+          '# class 99',
+        ],
+        [
+          'Java',
+          'class Sample { String text = "return 8"; /* class 99 */ int n = 2; }',
+          'class',
+          '/* class 99 */',
+        ],
+      ]) {
+        await dispatch(page, {
+          type: 'selection',
+          code,
+          language,
+          start: 0,
+          line: 10,
+          file: 'sample',
+          parts: [
+            { start: 0, end: keyword.length, token: keyword, brief: 'A keyword', detail: 'Local' },
+          ],
+        });
+        await expect(page.locator('#source .wdm-source-0').first()).toHaveText(keyword);
+        await expect(page.locator('#source .wdm-source-1').first()).toContainText('return 8');
+        await expect(page.locator('#source .wdm-source-3')).toHaveText(comment);
+        expect(await page.locator('#source').textContent()).toBe(code);
+        expect(await page.locator('#parts').textContent()).toBe(code);
+        expect(await page.locator('#draft-colors').textContent()).toBe(code + '\n');
+      }
+      const request = await page.evaluate(() =>
+        (window as any).messages.findLast((m: any) => m.target === 'source'),
+      );
+      await dispatch(page, {
+        ...request,
+        styles: [{ color: '#aa88ee', font: 0 }],
+        runs: [[0, 5, 0]],
+      });
+      await expect(page.locator('#source .wdm-source-0')).toHaveCSS('color', 'rgb(170, 136, 238)');
+      // Snapshot examples have the same fallback and exact text when a plugin cannot reply.
+      await page.getByRole('button', { name: 'Another example', exact: true }).click();
+      await dispatch(page, {
+        type: 'lesson',
+        task: 'example',
+        lesson: {
+          ...sampleLesson,
+          example: { code: 'int next = 4;\nreturn next;', explanation: 'A Java example.' },
+        },
+        cached: true,
+        provider: 'local',
+        model: 'test',
+      });
+      await expect(page.locator('#example-result code span').first()).toHaveText('int');
+      // Editing must never reuse offsets from the previous draft.
+      await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+      await page.locator('#replacement').fill('String s = "<img src=x>";');
+      await expect(page.locator('#draft-colors .wdm-draft-1')).toHaveText('"<img src=x>"');
+      await expect(page.locator('img')).toHaveCount(0);
+      await dispatch(page, {
+        type: 'selection',
+        code: 'return mystery 123',
+        language: 'unknown',
+        start: 0,
+        line: 1,
+        file: 'unknown',
+        parts: [],
+      });
+      await expect(page.locator('#source span')).toHaveCount(0);
+      const huge = 'const n = 1;\n'.repeat(4200);
+      await dispatch(page, {
+        type: 'selection',
+        code: huge,
+        language: 'TypeScript',
+        start: 0,
+        line: 1,
+        file: 'large.ts',
+        parts: [],
+      });
+      await expect(page.locator('#source span')).toHaveCount(0);
+      expect(await page.locator('#source').textContent()).toBe(huge);
+      expect(
+        await page.evaluate(() => (window as any).messages.some((m: any) => m.type === 'request')),
+      ).toBe(false);
+    });
+    test('fallback palette follows light code surfaces and respects native palette hints', async ({
+      page,
+    }) => {
+      await page.evaluate(() => {
+        (window as any).hold = true;
+        document.documentElement.style.setProperty('--code-background', '#ffffff');
+        document.documentElement.style.setProperty('--code-foreground', '#202020');
+        document.documentElement.style.setProperty('--wdm-code-keyword', '#334499');
+      });
+      await dispatch(page, { type: 'syntaxThemeChanged' });
+      await expect(page.locator('#source .wdm-source-0').first()).toHaveCSS(
+        'color',
+        'rgb(51, 68, 153)',
+      );
+      await expect(page.locator('#source .wdm-source-1').first()).toHaveCSS(
+        'color',
+        'rgb(163, 21, 21)',
+      );
+      await expect(page.locator('#source-frame')).toHaveCSS(
+        'background-color',
+        'rgb(255, 255, 255)',
+      );
+      await expect(page.locator('#parts-frame')).toHaveCSS('color', 'rgb(32, 32, 32)');
+    });
     test('ignores late highlight replies and keeps undo and reset working', async ({ page }) => {
       await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
       await page.evaluate(() => {
@@ -440,13 +598,13 @@ for (const editor of ['VS Code', 'IntelliJ'])
         styles: [{ color: 'red;}body{display:none', font: 0 }],
       });
       expect(await page.locator('#source').textContent()).toBe(code);
-      await expect(page.locator('#source span')).toHaveCount(0);
+      await expect(page.locator('#source span').first()).toHaveCSS('color', 'rgb(197, 134, 192)');
       await dispatch(page, {
         ...last,
         runs: [[0, code.length + 1, 0]],
         styles: [{ color: '#112233', font: 0 }],
       });
-      await expect(page.locator('#source span')).toHaveCount(0);
+      await expect(page.locator('#source span').first()).toHaveCSS('color', 'rgb(197, 134, 192)');
       await expect(page.locator('img')).toHaveCount(0);
     });
   });

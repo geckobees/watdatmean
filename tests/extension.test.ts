@@ -31,6 +31,7 @@ const host = vi.hoisted(() => ({
   history: undefined as unknown,
   bookmarks: undefined as unknown,
   webEnabled: false,
+  buttonSounds: true,
   openExternal: vi.fn(),
   key: undefined as string | undefined,
   subscriptions: [] as vscode.Disposable[],
@@ -270,6 +271,12 @@ async function start(
     extensionUri: vscode.Uri.parse('file:/extension'),
     subscriptions: host.subscriptions,
     secrets: { get: async () => host.key },
+    globalState: {
+      get: () => host.buttonSounds,
+      update: async (_key: string, value: boolean) => {
+        host.buttonSounds = value;
+      },
+    },
     workspaceState: {
       get: (key: string) =>
         key === RESEARCH_ENABLED_KEY
@@ -321,11 +328,22 @@ beforeEach(() => {
   host.readyOnLoad = false;
   host.history = undefined;
   host.webEnabled = false;
+  host.buttonSounds = true;
   host.openExternal.mockReset().mockResolvedValue(true);
   host.key = undefined;
 });
 
 describe('project history adapter', () => {
+  it('persists the button sound preference across reopened panels without AI requests', async () => {
+    await start('const score = 2;', [0, 16]);
+    await message({ type: 'soundToggle', enabled: false });
+    expect(host.buttonSounds).toBe(false);
+    await message({ type: 'soundToggle', enabled: 'true' });
+    expect(host.buttonSounds).toBe(false);
+    await host.commands.get('watdatmean.reopenPanel')!();
+    await message({ type: 'ready' });
+    await vi.waitFor(() => expect(last('config').soundEnabled).toBe(false));
+  });
   it.each(['cancel', 'edit'])(
     'does not save an explanation that finishes after %s',
     async (action) => {
@@ -426,27 +444,33 @@ describe('VS Code optional web adapter', () => {
     expect(last('bookmarks').entries).toHaveLength(0);
     expect(search).toHaveBeenCalledTimes(1);
   });
-  it('stays off by default, saves a supplement with its lesson, and only opens known public sources', async () => {
-    host.key = 'test-key';
-    await start('const score = 2;', [0, 16]);
-    const search = vi.spyOn(WebResearchService.prototype, 'search').mockResolvedValue(webFixture);
-    await message({ type: 'research', topic: 'TypeScript variables' });
-    expect(search).not.toHaveBeenCalled();
-    await message({ type: 'request', task: 'explain' });
-    await message({ type: 'researchToggle', enabled: true });
-    await message({ type: 'research', topic: 'TypeScript variables', audience: 'beginner' });
-    expect(last('research').result).toEqual(webFixture);
-    await vi.waitFor(() =>
-      expect(last('history').entries[0].results.explain.research).toEqual(webFixture),
-    );
-    expect(last('lesson').lesson.local).toBe(true);
-    await message({ type: 'openWebSource', url: 'command:run' });
-    await message({ type: 'openWebSource', url: 'https://invented.example.com/' });
-    expect(host.openExternal).not.toHaveBeenCalled();
-    await message({ type: 'openWebSource', url: webFixture.sources[0].url });
-    expect(host.openExternal).toHaveBeenCalledTimes(1);
-    expect(host.webEnabled).toBe(true);
-  });
+  it.each([false, true])(
+    'saves a supplement and opens only retrieved sources, including sources-only recovery: %s',
+    async (sourcesOnly) => {
+      host.key = 'test-key';
+      await start('const score = 2;', [0, 16]);
+      const fixture: WebResearch = sourcesOnly
+        ? { ...webFixture, blocks: [], summaryUnavailable: 'incomplete' }
+        : webFixture;
+      const search = vi.spyOn(WebResearchService.prototype, 'search').mockResolvedValue(fixture);
+      await message({ type: 'research', topic: 'TypeScript variables' });
+      expect(search).not.toHaveBeenCalled();
+      await message({ type: 'request', task: 'explain' });
+      await message({ type: 'researchToggle', enabled: true });
+      await message({ type: 'research', topic: 'TypeScript variables', audience: 'beginner' });
+      expect(last('research').result).toEqual(fixture);
+      await vi.waitFor(() =>
+        expect(last('history').entries[0].results.explain.research).toEqual(fixture),
+      );
+      expect(last('lesson').lesson.local).toBe(true);
+      await message({ type: 'openWebSource', url: 'command:run' });
+      await message({ type: 'openWebSource', url: 'https://invented.example.com/' });
+      expect(host.openExternal).not.toHaveBeenCalled();
+      await message({ type: 'openWebSource', url: webFixture.sources[0].url });
+      expect(host.openExternal).toHaveBeenCalledTimes(1);
+      expect(host.webEnabled).toBe(true);
+    },
+  );
   it('keeps a completed lesson when research fails', async () => {
     host.key = 'test-key';
     await start('const score = 2;', [0, 16]);

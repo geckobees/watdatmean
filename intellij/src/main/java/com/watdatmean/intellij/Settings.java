@@ -12,6 +12,7 @@ public final class Settings implements PersistentStateComponent<Settings.Values>
     public String model = "";
     public String nodePath = "node";
     public boolean autoDownloadNode = true;
+    public boolean buttonSounds = true;
     public String audience = "beginner";
   }
   private volatile Values values = new Values();

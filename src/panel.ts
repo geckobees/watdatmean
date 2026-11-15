@@ -1,5 +1,5 @@
 export function panelHtml(
-  assets: { cspSource: string; css: string; script: string },
+  assets: { cspSource: string; css: string; script: string; sound?: string },
   nonce: string,
 ): string {
   return /* HTML */ `
@@ -10,7 +10,7 @@ export function panelHtml(
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <meta
           http-equiv="Content-Security-Policy"
-          content="default-src 'none'; style-src ${assets.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}';"
+          content="default-src 'none'; style-src ${assets.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}'; media-src ${assets.sound?.startsWith('data:') ? 'data:' : assets.cspSource};"
         />
         <link rel="stylesheet" href="${assets.css}" />
         <style id="code-palette" nonce="${nonce}"></style>
@@ -21,14 +21,20 @@ export function panelHtml(
           <div class="brand">
             <span class="logo">w?</span>
             <div>
-              <strong>
-                watdatmean
-                <span class="accent">.</span>
-              </strong>
+              <strong>WatDatMean</strong>
               <small>A little clarity goes a long way.</small>
             </div>
           </div>
           <div class="header-actions">
+            <button
+              id="sound-toggle"
+              class="quiet"
+              aria-label="Button sounds"
+              aria-pressed="true"
+              title="Mute button sounds"
+            >
+              Sound on
+            </button>
             <button
               id="history-toggle"
               class="quiet"
@@ -117,7 +123,7 @@ export function panelHtml(
             YOUR CODE, UNDERSTOOD
             <span class="badge" id="language">TYPESCRIPT</span>
           </div>
-          <h1>Make it make sense.</h1>
+          <h1>WatDatMean</h1>
           <p class="intro">
             Start with the small pieces. See how they fit. Make your next change with context.
           </p>
@@ -164,9 +170,45 @@ export function panelHtml(
             ></div>
           </section>
           <nav class="tabs" aria-label="Learning views">
-            <button class="tab active" data-tab="understand" aria-pressed="true">Understand</button>
-            <button class="tab" data-tab="examples" aria-pressed="false">Another example</button>
-            <button class="tab" data-tab="impact" aria-pressed="false">Try it yourself</button>
+            <button
+              class="tab active"
+              data-tab="understand"
+              aria-pressed="true"
+              aria-label="Understand"
+              aria-controls="understand"
+            >
+              <span class="stage-lamp" aria-hidden="true"><span>1</span></span>
+              <span class="stage-copy">
+                <small aria-hidden="true">PART 1</small>
+                <span>Understand</span>
+              </span>
+            </button>
+            <button
+              class="tab"
+              data-tab="examples"
+              aria-pressed="false"
+              aria-label="Another example"
+              aria-controls="examples"
+            >
+              <span class="stage-lamp" aria-hidden="true"><span>2</span></span>
+              <span class="stage-copy">
+                <small aria-hidden="true">PART 2</small>
+                <span>Another example</span>
+              </span>
+            </button>
+            <button
+              class="tab"
+              data-tab="impact"
+              aria-pressed="false"
+              aria-label="Try it yourself"
+              aria-controls="impact"
+            >
+              <span class="stage-lamp" aria-hidden="true"><span>3</span></span>
+              <span class="stage-copy">
+                <small aria-hidden="true">PART 3</small>
+                <span>Try it yourself</span>
+              </span>
+            </button>
           </nav>
           <div class="preferences">
             <label>
@@ -334,6 +376,11 @@ export function panelHtml(
             </p>
           </footer>
         </main>
+        <audio
+          id="button-click"
+          preload="none"
+          src="${assets.sound || assets.script.replace(/panel\.js$/, 'button-click.wav')}"
+        ></audio>
         <script
           nonce="${nonce}"
           src="${assets.script.replace(/panel\.js$/, 'code-colors.js')}"

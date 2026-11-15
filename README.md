@@ -4,11 +4,15 @@
 
 For IntelliJ installation, automatic Node.js setup, language capabilities, and builds, see [the IntelliJ guide](intellij/README.md). This release targets IntelliJ **2022.3–2025.2.x**; the same Java 17 plugin has been tested on Community 2022.3 and 2025.2.4.
 
+The learning panel has three numbered, softly glowing controls: **1 / Understand** (green), **2 / Another example** (yellow), and **3 / Try it yourself** (red). Code keeps the editor's native colors. Stage buttons and main actions play a quiet, original switch click; use **Sound on / Sound off** in the header to mute it. Each editor remembers that choice across restarts. The styling and sound work locally with no AI tokens or audio downloads.
+
+The panel uses Steam-inspired navy surfaces, square cards and stronger headings. Code backgrounds, fonts and line gutters still follow the editor theme. Basic local Java, TypeScript, JavaScript and Python colors appear while native highlighting loads; native syntax and semantic colors take over when available. A temporary empty response does not erase working colors. Large selections and unsupported languages still use readable plain text.
+
 ## Try it
 
 ### Visual Studio Code
 
-1. Install `watdatmean-0.1.27.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel.
+1. Install `watdatmean-0.1.30.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel.
 2. Open a TypeScript, JavaScript, JSX, or Python file. Open the learning panel for individual syntax pieces and local variable origins. TypeScript/JavaScript also have short hover paragraphs with code names highlighted. Java, C#, Go, Rust, and other text languages can use selected-code AI help; the extension does not supply local pieces for every language.
    Inside an interface or object type, hover a property or method to explain just that member. Its panel link opens the same member.
 3. Click **Wat Dat Mean? →**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
@@ -34,6 +38,8 @@ The shared VS Code/IntelliJ engine enforces **3,500 UTF-8 bytes of input content
 **AI summaries still use provider tokens**, shown separately in the panel. Public search itself uses no AI tokens or provider search tools. Up to 40 matching lookups are cached in memory for 24 hours; cache hits, filters and bookmarks cost no tokens. Turning the switch off cancels pending work. **Clear Explanation Cache** clears the web cache too. If retrieval fails or needs browser verification, no AI request is sent. Provider failures, rate limits and incomplete summaries leave the code explanation intact, without an automatic retry.
 
 Source URLs come from search results, never model-written links. This records where links came from; it does not prove every claim or resource is correct. Exact known Java/Python editions are prioritized and known conflicting editions excluded. Other compatibility remains unverified. Successful supplements remain with their explanation in **History**, including their retrieval date; reviewing them is free of new AI requests.
+
+If the provider returns an incomplete or invalid summary, **From the web** opens with the retrieved links and a short notice instead. You can still filter, open and bookmark those sources; the rejected answer is not shown. Actual token usage remains visible, and no extra AI call is made. These sources-only results are cached for five minutes, then a later explicit search can try for a new summary. They can also be reviewed with their lesson in History.
 
 ### Version targets, resource filters and bookmarks
 

@@ -46,6 +46,9 @@ final class CodeColors {
   }
   static JsonObject highlight(Project project, VirtualFile file, String source, int start, int end) {
     if (source.length() > 500000 || end - start > 50000 || start < 0 || end < start || end > source.length()) return plain();
+    // Community editions may lack a language plugin. A uniform plain-text range
+    // is not syntax information and must not replace the panel's lexical fallback.
+    if (file.getFileType() == com.intellij.openapi.fileTypes.PlainTextFileType.INSTANCE) return plain();
     try { return ReadAction.compute(() -> {
       var document = FileDocumentManager.getInstance().getCachedDocument(file);
       var editors = document == null ? new com.intellij.openapi.editor.Editor[0] : EditorFactory.getInstance().getEditors(document, project);

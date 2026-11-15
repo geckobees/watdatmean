@@ -279,6 +279,39 @@ describe('optional web research', () => {
     expect(sent).not.toContain('PRIVATE_');
     expect(sent).toContain('Java streams');
   });
+  it.each(['incomplete', 'contract'])(
+    'passes %s recovery through the native bridge with its version, filter and usage',
+    async (reason) => {
+      const payload = summaryPayload('groq') as any;
+      if (reason === 'incomplete') payload.choices[0].finish_reason = 'length';
+      else
+        payload.choices[0].message.content = JSON.stringify({
+          ...JSON.parse(payload.choices[0].message.content),
+          text: 'Collectors.toList() returns a mutable list.',
+        });
+      const transport = vi.fn(async () => Response.json(payload));
+      const bridge = new BridgeCore(transport, retrieve);
+      const options = { version: 'Java 8', filter: 'docs' };
+      const params = {
+        provider: 'groq',
+        key: 'key',
+        enabled: true,
+        topic: 'Java streams',
+        audience: 'beginner',
+        options,
+      };
+      const result = await bridge.dispatch(1, 'research', params);
+      expect(result).toMatchObject({
+        summaryUnavailable: reason,
+        blocks: [],
+        options,
+        usage: { total: 600 },
+      });
+      expect((result as any).sources[0].url).toBe(webSource.url);
+      expect(await bridge.dispatch(2, 'research', params)).toMatchObject({ cached: true });
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
   it('cancels a native bridge search without caching a late response', async () => {
     let finish!: (r: Response) => void;
     const transport = vi.fn(

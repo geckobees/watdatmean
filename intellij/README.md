@@ -1,5 +1,9 @@
 # WatDatMean for IntelliJ IDEA
 
+The shared learning panel uses green, yellow and red numbered stage controls with a subtle glow. **Sound on / Sound off** in the header controls the quiet, bundled switch click and is remembered across IDE restarts. Code colors still follow your editor scheme; navigation and sound use no AI tokens. These controls support IntelliJ 2022.3's bundled JCEF runtime.
+
+The Steam-inspired panel chrome stays navy blue, while code retains the editor's light/dark background, font and token colors. If a language plugin is missing or loading, a bounded local Java/TypeScript/JavaScript/Python fallback colors basic keywords, literals and comments. It never infers semantic types; native highlighting takes precedence when available.
+
 This plugin brings the existing WatDatMean learning flow to IntelliJ IDEA. It shares
 the TypeScript/JavaScript/JSX and Python analyzers, provider adapters, validated lesson format, cache, and panel
 with the VS Code extension. It does not require VS Code to be installed or running.
@@ -13,7 +17,7 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 2. Node.js **22.12+** is detected automatically. If it is absent or too old, WatDatMean
    downloads a private runtime when the learning engine is first needed. The worker
    runs the same engine as VS Code over private pipes, with no server or listening port.
-3. Install `dist/intellij/watdatmean-intellij-0.1.27.zip` through
+3. Install `dist/intellij/watdatmean-intellij-0.1.30.zip` through
    **Settings → Plugins → ⚙ → Install Plugin from Disk**, then restart the IDE.
 4. Open a text source file. Select code, or place the cursor on a Java declaration or
    statement. Right-click → **WatDatMean: Explain Selection or Code at Cursor**,
@@ -196,6 +200,8 @@ Open a `.py` file and use **WatDatMean: Explain Selection or Code at Cursor**. I
 
 ## Optional web resources
 
+Incomplete or invalid AI summaries no longer hide retrieved sources. The panel shows a short notice and opens the source list, retaining version targets, filters, bookmarks, History and actual token usage. It makes no extra AI call. Sources-only results are reused for five minutes; a later explicit lookup can recover the summary.
+
 In **01 / Understand**, enable **Add web resources**, review the **Public search topic**, and choose **Explain this code** or **More detail**. The normal explanation arrives first and a collapsible web supplement follows. **Find web resources · AI** also works independently. The switch starts off, remembers your choice per project, and stops pending web work when turned off. No web search happens just from selecting code or reopening the panel.
 
 The lookup sends only the topic, target version, resource choice and guidance level, not selected code or project snippets. It asks for a compact explanation, an original illustrative example, a real application, and relevant docs, code repositories, videos or author/publisher-hosted books/PDFs. The initial topic is suggested locally; edit it to add a library or version. Links come from public search results and open in your browser on click. The plugin does not download PDFs or execute web examples. Search failures leave your code explanation and draft intact.
@@ -299,7 +305,7 @@ npm run package:intellij -- --ide-home "/path/to/idea" --java-home "/path/to/jdk
 On Windows, quote paths containing spaces. `INTELLIJ_HOME` and `JAVA_HOME` can be
 used instead of command-line options. The command compiles Java against the IDE SDK,
 bundles the shared engine/panel, and produces
-`dist/intellij/watdatmean-intellij-0.1.27.zip`. IntelliJ SDK libraries and Node are not
+`dist/intellij/watdatmean-intellij-0.1.30.zip`. IntelliJ SDK libraries and Node are not
 inside the plugin ZIP; Node is downloaded on demand when necessary. `npm run build`
 and `npm run package` still build the VS Code extension.
 

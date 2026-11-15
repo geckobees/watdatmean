@@ -43,6 +43,68 @@ async function messages(page: Page) {
 }
 for (const editor of ['VS Code', 'IntelliJ'])
   test.describe(`${editor} optional web research`, () => {
+    for (const reason of ['incomplete', 'format', 'references', 'contract'])
+      test(`sources remain usable after a summary ${reason} failure`, async ({ page }) => {
+        await page.locator('[data-tab=impact]').click();
+        await page.locator('#replacement').fill('myCurrentDraft();');
+        await page.locator('[data-tab=understand]').click();
+        await page.locator('#web-research').check();
+        const result = {
+          ...research,
+          blocks: [],
+          summaryUnavailable: reason,
+          options: { version: 'Java 17', filter: 'docs' },
+        };
+        await send(page, { type: 'research', result });
+        await expect(page.locator('.web-summary-notice')).toBeVisible();
+        await expect(page.locator('.web-summary-notice')).toContainText('No additional AI request');
+        await expect(page.locator('#web-result')).toContainText('300 tokens');
+        await expect(page.locator('#web-result')).toContainText('Target: Java 17');
+        await expect(page.locator('#web-result .web-text')).toHaveCount(0);
+        await page.locator('#web-filter').selectOption('docs');
+        await expect(page.locator('.web-source-list .web-source')).toHaveCount(1);
+        await page.locator('.web-source-list .web-source').click();
+        expect(await messages(page)).toContainEqual({
+          type: 'openWebSource',
+          url: research.sources[0].url,
+        });
+        await page.locator('.bookmark-save').click();
+        expect(await messages(page)).toContainEqual({
+          type: 'bookmarkAdd',
+          url: research.sources[0].url,
+        });
+        await send(page, { type: 'research', result: { ...result, cached: true } });
+        await expect(page.locator('#web-result')).toContainText('0 new tokens');
+        await send(page, {
+          type: 'history',
+          enabled: true,
+          entries: [
+            {
+              id: 'recovered',
+              file: 'Demo.java',
+              line: 1,
+              language: 'Java',
+              code: 'int n = 1;',
+              mode: 'standalone',
+              audience: 'beginner',
+              updatedAt: 1,
+              results: { explain: { lesson, provider: 'groq', model: 'test', research: result } },
+            },
+          ],
+        });
+        await page.locator('#history-toggle').click();
+        await page.locator('.history-entry').click();
+        await expect(page.locator('#history-detail .web-summary-notice')).toBeVisible();
+        await expect(page.locator('#history-detail .web-supplement')).toContainText('0 new tokens');
+        await page.locator('#history-close').click();
+        await page.locator('[data-tab=impact]').click();
+        await expect(page.locator('#replacement')).toHaveValue('myCurrentDraft();');
+        expect(
+          (await messages(page)).filter((m: any) =>
+            ['research', 'request', 'apply'].includes(m.type),
+          ),
+        ).toEqual([]);
+      });
     test('shows the bounded lookup separately and keeps cache/history free to review', async ({
       page,
     }) => {

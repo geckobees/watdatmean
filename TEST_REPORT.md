@@ -1,5 +1,45 @@
 # WatDatMean teaching fixes and testing — November 15, 2026
 
+## 0.1.30: resilient web summaries on both editors
+
+Reproduced four failures before the fix: finished prose ending with Markdown emphasis, a source marker, a grouped source marker, and a complete JSON object inside one code fence. The shared validator now accepts these forms without repairing truncated JSON or guessing source references. Genuinely incomplete, malformed or incorrectly cited summaries are withheld; retrieved sources remain available with a notice, their version/filter context, real usage, bookmarks and History. Sources-only responses are cached for five minutes; complete responses retain the existing 24-hour cache. No prompt, model, input/output allowance or automatic retry was added.
+
+Validation:
+
+- TypeScript checking, JavaScript syntax checking and all 171 targeted unit/adapter tests passed. Coverage includes all three provider envelopes, invalid IDs, incomplete completion status, malformed JSON, short-cache recovery, native bridge serialization, VS Code history/link guards, cancellation and existing byte/token limits. Additional Java contract regressions distinguish explicit false mutability/view claims from accurate comparisons, uncertainty and negation.
+- All 44 web-panel browser tests passed against VS Code HTML and the embedded IntelliJ HTML. All four summary-failure categories keep sources visible and usable, filters/bookmarks/History work, existing drafts survive, and cached review sends no requests.
+- Native IntelliJ 2022.3 / Java 17 compilation and the full isolated bridge/JCEF suite passed, including the new recovery notice, actual usage, links/bookmarks and existing learning/color/navigation features. The native suite replays previously captured public web results; those replay checks are not new API calls.
+- One live VS Code Java 17 documentation lookup succeeded before the fix (825 input + 317 output = 1,142 tokens) and one after it (825 + 371 = 1,196 tokens). The repaired lookup returned a complete summary and three Oracle documentation links, retained the Java 17/docs target, reused its cached result and passed bookmark persistence/deduplication/removal checks. These separate model samples are not a claim of token reduction; the input remained identical and the caps stayed at 3,500 input-content bytes and 900 completion tokens, with one AI call each.
+- The native IntelliJ 2022.3 live Java 8 lookup initially found no usable search results and sent no AI request. A separate public retrieval probe recovered matching docs through DuckDuckGo, and the explicit native recheck succeeded with three Oracle Java 8 sources (797 input + 358 output = 1,155 tokens). Target/filter, cache, native bookmark persistence and actual JCEF rendering all passed.
+- Manual review of that native answer caught false claims that `Collectors.toList()` guarantees mutability and produces a view. Added a narrow local guard for those observed contradictions of the reviewed Java API contract. Offline replay of the actual returned content now withholds the incorrect summary, preserves all three sources and its usage, and sends no retry; the recorded VS Code answer remains accepted. This guard does not certify arbitrary AI explanations as factually correct. Live provider calls used the existing configured Groq credential without writing it to files or reports.
+
+Release installers: `watdatmean-0.1.30.vsix` and `dist/intellij/watdatmean-intellij-0.1.30.zip`. No desktop/camera capture was used.
+
+## 0.1.29: sharper Steam-inspired panel and resilient code colors
+
+The main heading is now WatDatMean. Both panels use navy/blue surfaces, 2 px card corners, stronger Arial headings, and the existing colored stage controls. Code backgrounds, fonts, gutters and native syntax/semantic palettes are kept separate from the panel chrome, including light editor schemes.
+
+Reproduced the shared color-loss path in both panels before fixing it: an empty native highlighting response erased already displayed colors. Valid colors now survive empty or malformed responses; the single local retry remains bounded. Basic Java, TypeScript, JavaScript and Python lexical colors cover keywords, literals and comments while native plugins load, then yield to native ranges. IntelliJ supplies editor-scheme fallback colors and no longer treats its plain-text highlighter as real syntax information. Unknown languages and the existing size limits remain plain text.
+
+Validation:
+
+- All 180 shared browser tests passed on the final build: native and fallback colors, strings/comments, malformed and stale responses, source/parts/draft/snapshots, theme changes, keyboard controls, narrow panels, audio, history and resources. The alignment test now measures text across colored spans instead of assuming one uncolored text node.
+- Native IntelliJ 2022.3 / Java 17 compilation and the full bridge/JCEF suite passed, including the missing-language-plugin guard, native semantic colors, light/dark code schemes, preserved drafts, source navigation and existing learning features.
+- The isolated real VS Code host passed native color, activation, hover, panel and project-evidence checks. TypeScript compilation and JavaScript syntax checks passed.
+- Visually inspected local panel previews at 740 px and 360 px. No desktop/camera capture or provider API calls were used. Both installers are version 0.1.29.
+
+## 0.1.28: illuminated stage controls and local button audio
+
+Both panels now share numbered metallic/glossy stage buttons (green, yellow, red), a subtle blue/teal card treatment, and matching primary actions. Native code colors, individual pieces and numbered gutters are preserved. The original 95 ms PCM switch click is bundled locally (4,234 bytes); it is not the Uppbeat recording. Sound on/off persists in VS Code's global state and IntelliJ's existing application settings. User clicks and keyboard activation can play it; background events, disabled controls, code pieces and line gutters remain silent. Audio rejection never blocks an action.
+
+Validation for this change:
+
+- TypeScript checking, JavaScript syntax checks and 44 extension-host unit tests passed, including saved mute state and invalid-message handling.
+- All 174 shared browser tests passed. The 32 stage-control and color tests also passed after the final native code-background adjustment. Coverage includes real WAV decoding under each panel's CSP, local/embedded asset loading, keyboard activation, mute persistence, silent background events, rejected playback, 320–860 px widths, high contrast and reduced motion.
+- Native IntelliJ 2022.3 / Java 17 compilation and the full bridge/JCEF suite passed. The packaged JCEF panel decoded the embedded WAV, rendered the stage controls and dispatched the mute action. Existing themes, code colors, source navigation, history, resource filters/bookmarks and 297 Java examples passed as well. Resource results were replayed from fixtures; no provider API calls were made.
+- The isolated real VS Code host passed activation, commands, hover, panel and project-evidence checks. Local browser previews were visually inspected at 740 px and 360 px; no desktop/camera capture was used.
+- Built `watdatmean-0.1.28.vsix` and `dist/intellij/watdatmean-intellij-0.1.28.zip`.
+
 ## 0.1.27: native colors, numbered examples/history, individual boxes
 
 The screenshot's whole-line boxes came from the TypeScript analyzer representing nested bodies as one `{ … }` piece. Bodies and object type literals now expose their leaf pieces while preserving exact source offsets, indentation, comments and keyboard controls. Shared styling adds subtle rectangular fills and a stronger selected border using editor theme colors.

@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>com.watdatmean.intellij</id>
   <name>WatDatMean — Learn in Your Code</name>
-  <version>0.1.27</version>
+  <version>0.1.30</version>
   <vendor url="https://github.com/geckobees/watdatmean">WatDatMean</vendor>
   <description><![CDATA[
     Understand selected code, explore examples, and preview edits in IntelliJ IDEA.

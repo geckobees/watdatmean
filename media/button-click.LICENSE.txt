@@ -1,0 +1,8 @@
+button-click.wav is an original synthesized soft switch click created for WatDatMean.
+It contains no third-party recordings, samples, or Uppbeat audio.
+Source: scripts/generate-button-click.mjs (deterministic PCM WAV generator).
+Licensed under the repository's MIT license; see LICENSE.
+
+To substitute a properly licensed sound, replace button-click.wav with a WAV file
+and update this notice before building both extensions. IntelliJ embeds the WAV
+in the shared panel so playback requires no file paths or network access.

@@ -384,6 +384,7 @@ class Tutor implements vscode.Disposable {
       type: 'config',
       ...config,
       webResearch: this.researchEnabled,
+      soundEnabled: this.extension.globalState?.get('buttonSounds', true) ?? true,
       webResearchModel: researchModels[config.provider],
       model: config.model || defaults[config.provider],
       hasKey: !!(await this.extension.secrets.get(`key.${config.provider}`)),
@@ -678,6 +679,10 @@ class Tutor implements vscode.Disposable {
   private async handle(message: unknown) {
     if (!message || typeof message !== 'object') return;
     const m = message as Record<string, unknown>;
+    if (m.type === 'soundToggle' && typeof m.enabled === 'boolean') {
+      await this.extension.globalState.update('buttonSounds', m.enabled);
+      return;
+    }
     if (m.type === 'bookmarkList') {
       this.sendBookmarks();
       return;

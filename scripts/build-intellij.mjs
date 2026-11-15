@@ -24,8 +24,10 @@ const nonce = '__WDM_NONCE__';
 const css = await readFile('media/panel.css', 'utf8');
 const script = await readFile('media/panel.js', 'utf8');
 const colors = await readFile('media/code-colors.js', 'utf8');
+const sound =
+  'data:audio/wav;base64,' + (await readFile('media/button-click.wav')).toString('base64');
 const html = panelHtml(
-  { cspSource: `'nonce-${nonce}'`, css: 'panel.css', script: 'panel.js' },
+  { cspSource: `'nonce-${nonce}'`, css: 'panel.css', script: 'panel.js', sound },
   nonce,
 )
   .replace(

@@ -231,19 +231,29 @@ test('preserves tabs, blank lines, comments, and individual nested pieces as saf
   await expect(nested).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#part-detail')).toBeVisible();
   const aligned = await page.evaluate(() => {
-    const source = document.getElementById('source')!.firstChild!;
+    const source = document.getElementById('source')!;
+    const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    const point = (offset: number): [Text, number] => {
+      for (const node of nodes) {
+        if (offset <= node.length) return [node, offset];
+        offset -= node.length;
+      }
+      throw Error('Source offset outside rendered text');
+    };
+    const rect = (offset: number, length: number) => {
+      const range = document.createRange();
+      range.setStart(...point(offset));
+      range.setEnd(...point(offset + length));
+      return range.getBoundingClientRect();
+    };
     const parts = document.getElementById('parts')!;
     const origin = parts.querySelector('.part')!.getBoundingClientRect();
-    const start = document.createRange();
-    start.setStart(source, 0);
-    start.setEnd(source, 1);
-    const sourceOrigin = start.getBoundingClientRect();
+    const sourceOrigin = rect(0, 1);
     return ['token', 'detail', 'label'].map((name) => {
       const index = source.textContent!.indexOf(name + ':');
-      const range = document.createRange();
-      range.setStart(source, index);
-      range.setEnd(source, index + name.length);
-      const original = range.getBoundingClientRect();
+      const original = rect(index, name.length);
       const piece = parts.querySelector(`[aria-label="${name}"]`)!.getBoundingClientRect();
       return {
         x: piece.x - origin.x,

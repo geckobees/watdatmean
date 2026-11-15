@@ -65,7 +65,15 @@ final class PanelSmoke implements AutoCloseable {
       frame.setVisible(true);
     });
     expectMessage("ready");
-    awaitStyle("document.body", "backgroundColor", rgb(UIUtil.getPanelBackground()));
+    check(evaluate("Array.from(document.querySelectorAll('.stage-lamp')).map(e=>e.textContent).join(',')").getAsString().equals("1,2,3"), "Numbered stage controls render on 2022.3");
+    check(evaluate("getComputedStyle(document.querySelector('[data-tab=impact]')).getPropertyValue('--stage').trim()").getAsString().equals("#f47b77"), "Part three uses the red stage palette");
+    evaluate("(document.getElementById('button-click').load(), true)");
+    awaitBoolean("document.getElementById('button-click').readyState >= 2");
+    check(evaluate("document.getElementById('button-click').duration < 0.15 && document.getElementById('button-click').volume === 0.25").getAsBoolean(), "Bundled original WAV decodes in JCEF at low volume");
+    evaluate("(document.getElementById('sound-toggle').click(), true)");
+    check(!expectMessage("soundToggle").get("enabled").getAsBoolean(), "Mute reaches the native host");
+    check(evaluate("document.getElementById('sound-toggle').textContent").getAsString().equals("Sound off"), "Mute control reflects its state");
+    awaitStyle("document.body", "backgroundColor", "rgb(27, 40, 56)");
     var selection = JsonParser.parseString("""
       {"type":"selection","code":"int doubleIt(int value) { return value * 2; }",
        "language":"Java","file":"Demo.java","line":2,"selectionId":7}
@@ -194,6 +202,17 @@ final class PanelSmoke implements AutoCloseable {
     evaluate("(document.querySelector('.bookmark-save').click(), true)");
     check(expectMessage("bookmarkAdd").get("url").getAsString().equals("https://docs.oracle.com/javase/"), "Save bookmark uses only the known source URL");
     send("""
+      {"type":"research","result":{"topic":"Java loops","provider":"groq","model":"openai/gpt-oss-120b","checkedAt":1790000000000,"searches":1,"cached":false,"usage":{"input":200,"output":100,"total":300},"options":{"version":"Java 17","filter":"docs"},"summaryUnavailable":"incomplete","blocks":[],"sources":[{"title":"Java docs","url":"https://docs.oracle.com/javase/","kind":"Documentation"}]}}
+      """);
+    check(evaluate("document.querySelector('#web-result details').open").getAsBoolean(), "Recovered sources open without another click");
+    check(evaluate("document.querySelector('.web-summary-notice').textContent").getAsString().contains("No additional AI request"), "Native recovery explains the missing summary");
+    check(evaluate("document.querySelectorAll('#web-result .web-text').length").getAsInt() == 0, "No incomplete summary is displayed");
+    check(evaluate("document.getElementById('web-result').textContent").getAsString().contains("300 tokens"), "Native recovery retains actual token usage");
+    evaluate("(document.querySelector('.web-source-list a').click(), true)");
+    check(expectMessage("openWebSource").get("url").getAsString().equals("https://docs.oracle.com/javase/"), "Recovered native source remains usable");
+    evaluate("(document.querySelector('.bookmark-save').click(), true)");
+    check(expectMessage("bookmarkAdd").get("url").getAsString().equals("https://docs.oracle.com/javase/"), "Recovered native source remains bookmarkable");
+    send("""
       {"type":"bookmarks","version":1,"entries":[{"url":"https://docs.oracle.com/javase/","title":"Java docs","kind":"Documentation","topic":"Java loops","version":"Java 17","savedAt":1,"checkedAt":1}]}
       """);
     evaluate("(document.getElementById('bookmarks-toggle').click(), true)"); expectMessage("bookmarkList");
@@ -230,8 +249,8 @@ final class PanelSmoke implements AutoCloseable {
           scheme.setColor(EditorColors.LINE_NUMBER_ON_CARET_ROW_COLOR, new java.awt.Color(dark ? 0xCCDDEE : 0x112233));
           scheme.setColor(EditorColors.GUTTER_BACKGROUND, new java.awt.Color(dark ? 0x223344 : 0xDDEEFF));
           colors.setGlobalScheme(scheme);
-          expected[0] = rgb(UIUtil.getPanelBackground());
-          expected[1] = rgb(UIUtil.getLabelForeground());
+          expected[0] = "rgb(27, 40, 56)";
+          expected[1] = "rgb(220, 231, 241)";
           expected[2] = rgb(scheme.getDefaultBackground());
           String code="int n = 1;";
           var file=new com.intellij.testFramework.LightVirtualFile("Demo.java",com.intellij.openapi.fileTypes.FileTypeManager.getInstance().getFileTypeByExtension("java"),code);
@@ -242,11 +261,11 @@ final class PanelSmoke implements AutoCloseable {
           expected[6]=rgb(scheme.getColor(EditorColors.GUTTER_BACKGROUND));
         });
         awaitStyle("document.body", "backgroundColor", expected[0]);
-        check(evaluate("getComputedStyle(document.body).color").getAsString().equals(expected[1]), "Panel foreground follows the IDE theme");
+        check(evaluate("getComputedStyle(document.body).color").getAsString().equals(expected[1]), "Steam-style chrome keeps its readable foreground");
         awaitStyle("document.getElementById('source').closest('pre')", "backgroundColor", expected[2]);
         awaitStyle("document.getElementById('source')", "fontSize", dark ? "17px" : "15px");
         check(evaluate("getComputedStyle(document.getElementById('source')).fontFamily.toLowerCase().includes('monospaced')").getAsBoolean(), "Code follows the editor font");
-        check(evaluate("getComputedStyle(document.documentElement).colorScheme").getAsString().equals(dark ? "dark" : "light"), "Native controls follow light/dark mode");
+        check(evaluate("getComputedStyle(document.documentElement).colorScheme").getAsString().equals("dark"), "Panel chrome remains dark while code follows the native scheme");
         check(evaluate("document === window.wdmThemeDocument && !!window.wdmThemeSentinel").getAsBoolean(), "Theme changes do not reload the document");
         check(evaluate("document.getElementById('replacement').value").getAsString().equals("int changed = 42;"), "Draft survives theme changes");
         awaitStyle("document.querySelector('#source [class^=wdm-source-]')","color",expected[3]);

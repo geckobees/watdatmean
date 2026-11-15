@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.30
+
+- Fix shared web-summary validation rejecting complete answers with Markdown formatting, source markers or a single JSON code fence.
+- Keep retrieved sources available when an AI summary is incomplete, malformed or has invalid references. Show a clear notice, preserve actual usage, version targets, filters, bookmarks and History, and never display the rejected answer or invent replacement citations.
+- Withhold explicit false `Collectors.toList()` mutability/view guarantees caught during live testing, using a narrow local check. Keep the retrieved Java documentation accessible without another AI request; this is not a general factual verifier.
+- Keep the same 3,500-byte input and 900-output-token limits with no automatic AI retry. Cache sources-only results for five minutes to avoid repeat spending, then allow a later explicit lookup to recover the summary. Preserve IntelliJ 2022.3 / Java 17 support.
+
+## 0.1.29
+
+- Replace the main slogan with WatDatMean and give both panels sharper Steam-inspired navy/blue surfaces, square card edges and stronger Arial headings. Preserve the colored stage controls and local switch sound.
+- Keep valid syntax colors when a native highlighter temporarily returns no tokens. Ignore malformed responses without erasing the last valid palette, retain bounded retry behavior, and use basic local Java/JavaScript/TypeScript/Python colors while native syntax and semantic information loads.
+- Keep code backgrounds, fonts, gutters and native token colors separate from the dark panel chrome. IntelliJ's fallback colors use its editor scheme. Update light/dark code surfaces without resetting drafts or lessons; no additional AI tokens.
+
+## 0.1.28
+
+- Refresh the shared learning panel with blue/teal card accents and numbered glossy stage controls: green for Understand, yellow for Another example, and red for Try it yourself. Match each stage's primary action and use a soft glow with clear focus/selection states.
+- Bundle an original 95 ms soft switch click for stage buttons and main actions. Sound on/off is saved by each editor. Playback is local, quiet, and limited to user activation; unavailable audio never blocks a lesson or edit.
+- Preserve native code colors, individual pieces, line gutters, history, resources and bookmarks. Support narrow panels, keyboard navigation, reduced motion and high contrast, with IntelliJ 2022.3 / Java 17 compatibility and no additional AI usage.
+
 ## 0.1.27
 
 - Keep native syntax colors on displayed snapshots after source edits; recover from temporary theme/grammar failures with one local retry. Keep live semantic highlighting limited to matching documents.
