@@ -37,7 +37,7 @@ final class HoverSmoke {
     try {
       var finished = new java.util.concurrent.CompletableFuture<Void>();
       DumbService.getInstance(project).smartInvokeLater(() -> {
-        try { checkHover(project); EditSmoke.run(project); finished.complete(null); }
+        try { checkHover(project); JavaPartsSmoke.run(project); JavaOriginsSmoke.run(project); ExtremeSmoke.run(project); EditSmoke.run(project); finished.complete(null); }
         catch (Throwable error) { finished.completeExceptionally(error); }
       });
       finished.get(60, java.util.concurrent.TimeUnit.SECONDS);
@@ -161,7 +161,7 @@ final class HoverSmoke {
     finally { setTheme(laf, originalLaf); colors.setGlobalScheme(original); }
   }
   // Theme-switching APIs changed after 2022.3. Reflection stays in tests, never in the shipped plugin.
-  private static Object theme(LafManager laf, Boolean dark) {
+  static Object theme(LafManager laf, Boolean dark) {
     try {
       return LafManager.class.getMethod(dark == null ? "getCurrentUIThemeLookAndFeel" : dark ? "getDefaultDarkLaf" : "getDefaultLightLaf").invoke(laf);
     } catch (NoSuchMethodException olderIde) {
@@ -169,7 +169,7 @@ final class HoverSmoke {
         .filter(candidate -> dark ? candidate.getName().equals("Darcula") : candidate.getName().contains("Light")).findFirst().orElseThrow();
     } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
   }
-  private static void setTheme(LafManager laf, Object theme) {
+  static void setTheme(LafManager laf, Object theme) {
     try {
       var setter = java.util.Arrays.stream(LafManager.class.getMethods()).filter(method -> method.getName().equals("setCurrentLookAndFeel")
         && method.getParameterCount() == 2 && method.getParameterTypes()[0].isInstance(theme)).findFirst().orElseThrow();

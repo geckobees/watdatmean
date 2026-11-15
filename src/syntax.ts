@@ -103,6 +103,23 @@ export function statementParts(
     return value.length > 90 ? value.slice(0, 87) + '…' : value;
   };
   const explain = (brief: string, detail = brief): Explanation => [brief, detail];
+  function imported(node: ts.Identifier | ts.PrivateIdentifier): string {
+    const declaration = ts.isIdentifier(node) ? binding(node) : undefined;
+    if (
+      !declaration ||
+      !(
+        ts.isImportSpecifier(declaration) ||
+        ts.isImportClause(declaration) ||
+        ts.isNamespaceImport(declaration)
+      )
+    )
+      return '';
+    let parent: ts.Node = declaration;
+    while (parent.parent && !ts.isImportDeclaration(parent)) parent = parent.parent;
+    return ts.isImportDeclaration(parent)
+      ? ` ${text(node)} is imported from ${text(parent.moduleSpecifier)}. This is the written module path; the resolved file or installed package has not been verified.`
+      : '';
+  }
   function argument(node: ts.Node): string | undefined {
     const parent = node.parent;
     if (!parent || !isCall(parent)) return;
@@ -139,7 +156,7 @@ export function statementParts(
         ts.isNewExpression(parent)
           ? `The constructor used to create an instance.${result(parent)}`
           : `The function being called.${result(parent)}`,
-        `The parentheses supply the inputs and run ${text(node)}.${result(parent)}`,
+        `The parentheses supply the inputs and run ${text(node)}.${result(parent)}${imported(node)}`,
       );
     if (ts.isParameter(parent) && parent.name === node)
       return explain(
@@ -180,6 +197,16 @@ export function statementParts(
       description = `Reads ${text(node)}, a parameter supplied to this function.`;
     } else if (declaration && ts.isBindingElement(declaration)) {
       description = `Reads ${text(node)}, a variable unpacked by destructuring.`;
+    } else if (
+      declaration &&
+      (ts.isImportSpecifier(declaration) ||
+        ts.isImportClause(declaration) ||
+        ts.isNamespaceImport(declaration))
+    ) {
+      let parent: ts.Node = declaration;
+      while (parent.parent && !ts.isImportDeclaration(parent)) parent = parent.parent;
+      if (ts.isImportDeclaration(parent))
+        description = `${text(node)} is imported from ${text(parent.moduleSpecifier)}. This is the written module path; the resolved file or installed package has not been verified.`;
     } else if (ts.isIdentifier(node) && node.text === 'console' && !declaration) {
       description = 'The console object, commonly used to display messages and values.';
     }

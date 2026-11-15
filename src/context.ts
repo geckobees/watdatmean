@@ -25,8 +25,12 @@ async function bounded<T>(work: Thenable<T>, fallback: T): Promise<T> {
 function allowed(uri: vscode.Uri) {
   return (
     !!vscode.workspace.getWorkspaceFolder(uri) &&
-    /\.ts$/i.test(uri.path) &&
-    !/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//i.test(uri.path)
+    /\.(?:tsx?|jsx?|mjs|cjs|py|java|kt|kts|cs|c|h|cpp|hpp|go|rs|rb|php|swift|sql)$/i.test(
+      uri.path,
+    ) &&
+    !/(?:^|\/)(?:node_modules|\.git|dist|build|vendor|\.venv|venv|__pycache__|target)\//i.test(
+      uri.path,
+    )
   );
 }
 
@@ -90,7 +94,9 @@ export async function collectContext(
         file,
         line: line + 1,
         kind,
-        test: /(?:\.(?:test|spec)\.ts$|(?:^|[\\/])(?:tests?|__tests__)[\\/])/.test(file),
+        test: /(?:\.(?:test|spec)\.[^/]+$|(?:^|[\\/])(?:tests?|__tests__)[\\/]|(?:^|[\\/])test_[^/]+\.py$|Test\.[^/]+$)/i.test(
+          file,
+        ),
         code: doc.getText(range).slice(0, 650),
       });
       locations.set(id, location);
@@ -109,6 +115,6 @@ export async function collectContext(
     locations,
     note: evidence.length
       ? `Showing ${evidence.length} language-service reference/definition locations (maximum 12). Relationships are confirmed; behavioral effects are predictions. Dynamic calls and indirect dependencies may be missing. Tests are identified by filename and have not been run.`
-      : 'No workspace references were returned. The TypeScript language service may still be indexing, or this symbol has no known references. This does not mean an edit has no impact.',
+      : 'No workspace references were returned. Language support may be unavailable or still indexing, or this symbol has no known references. This does not mean an edit has no impact.',
   };
 }

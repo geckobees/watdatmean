@@ -1,0 +1,71 @@
+{
+  "passed": true,
+  "mutations": 1200,
+  "fuzzMs": 164,
+  "measurements": [
+    {
+      "id": "ts-deep",
+      "characters": 12012,
+      "ms": 6,
+      "parts": 0,
+      "checked": false,
+      "syntaxErrors": 1
+    },
+    {
+      "id": "python-deep",
+      "characters": 8005,
+      "ms": 125,
+      "parts": 80,
+      "checked": true,
+      "syntaxErrors": 1
+    },
+    {
+      "id": "ts-long-string",
+      "characters": 480013,
+      "ms": 11,
+      "parts": 5,
+      "checked": true,
+      "syntaxErrors": 0
+    },
+    {
+      "id": "python-long-string",
+      "characters": 480006,
+      "ms": 16,
+      "parts": 3,
+      "checked": true,
+      "syntaxErrors": 0
+    },
+    {
+      "id": "python-many-bindings",
+      "characters": 157780,
+      "ms": 178,
+      "parts": 3,
+      "checked": true,
+      "syntaxErrors": 0
+    },
+    {
+      "id": "ts-many-statements",
+      "characters": 260000,
+      "ms": 155,
+      "parts": 5,
+      "checked": true,
+      "syntaxErrors": 0
+    },
+    {
+      "id": "ts-unfinished",
+      "characters": 75000,
+      "ms": 79,
+      "parts": 5,
+      "checked": true,
+      "syntaxErrors": 8
+    },
+    {
+      "id": "python-unfinished",
+      "characters": 27000,
+      "ms": 117,
+      "parts": 7,
+      "checked": true,
+      "syntaxErrors": 8
+    }
+  ]
+}

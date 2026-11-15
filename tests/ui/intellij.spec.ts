@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { wombLesson, wombOutput, wombRequest } from '../quality/depth-cases';
+import { javaTraceLesson } from '../../src/java-trace';
+import { javaControlCases } from '../quality/java-control-cases';
+import { javaArrayExceptionCases } from '../quality/java-array-exception-cases';
 
 test('the packaged IntelliJ panel uses its host bridge and language, with no VS Code API', async ({
   page,
@@ -28,12 +32,30 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
           language: 'Java',
           file: 'Demo.java',
           line: 3,
-          parts: [],
+          parts: [
+            {
+              token: 'println',
+              brief: 'The method being called.',
+              detail: 'Arguments are evaluated before the method is invoked.',
+            },
+            {
+              token: '"hello"',
+              brief: 'A literal value: text.',
+              detail: 'This writes text directly in the source. Here it is an argument.',
+            },
+          ],
         },
       }),
     ),
   );
   await expect(page.locator('#language')).toHaveText('JAVA');
+  await expect(page.locator('#syntax-section')).toBeVisible();
+  await page.getByRole('button', { name: 'println', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('Arguments are evaluated');
+  await page.getByRole('button', { name: '"hello"', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#part-detail')).toContainText('Here it is an argument');
+  expect(await page.evaluate(() => (window as any).messages)).toEqual([{ type: 'ready' }]);
   await page.locator('#explain').click();
   expect(await page.evaluate(() => (window as any).messages.at(-1))).toMatchObject({
     type: 'request',
@@ -50,6 +72,7 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
           cached: false,
           lesson: {
             usage: { input: 200, output: 70, total: 270 },
+            notice: 'The AI answer did not match the code. This explanation uses local code facts.',
             title: 'Return a value',
             summary: 'The return statement sends a value back to the caller.',
             steps: [],
@@ -68,6 +91,7 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
     ),
   );
   await expect(page.locator('#explanation')).toContainText('270 tokens (200 input + 70 output)');
+  await expect(page.locator('#explanation')).toContainText('uses local code facts');
   await page.getByRole('button', { name: 'Define return', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Definition of return' })).toContainText(
     'Ends the method',
@@ -91,4 +115,66 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
   );
   await expect(page.locator('#apply')).toBeDisabled();
   await expect(page.locator('#preview-status')).toContainText('no syntax checker');
+  await page.getByRole('button', { name: 'Understand', exact: true }).click();
+  await page.evaluate(
+    (lesson) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'lesson',
+            task: 'explain',
+            provider: 'fixture',
+            model: 'test',
+            lesson,
+          },
+        }),
+      ),
+    wombLesson,
+  );
+  await expect(page.locator('#explanation ol > li')).toHaveCount(11);
+  await expect(page.locator('#explanation')).not.toContainText('How the parts work together');
+  await expect(page.locator('#explanation')).not.toContainText('Details that matter');
+  await expect(page.locator('#explanation ol pre code')).toHaveCount(0);
+  await expect(page.locator('.lesson-terms')).not.toHaveAttribute('open', '');
+  expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(wombOutput);
+  for (const id of [
+    'many-passes',
+    'list-remove-overloads',
+    'overload-then-override',
+    'array-alias-clone',
+    'array-bounds',
+    'finally-saved-return',
+    'finally-return-replaces',
+  ]) {
+    const fixture = [...javaControlCases, ...javaArrayExceptionCases].find((c) => c.id === id)!;
+    await page.evaluate(
+      (lesson) =>
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            data: { type: 'lesson', task: 'explain', provider: 'fixture', model: 'test', lesson },
+          }),
+        ),
+      javaTraceLesson({ ...wombRequest, code: fixture.code }),
+    );
+    await expect(page.locator('#explanation')).toContainText('0 tokens');
+    await expect(page.locator('#explanation .lesson > pre code')).toHaveCount(1);
+    expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(
+      fixture.expected,
+    );
+    await expect(page.locator('.lesson-terms')).not.toHaveAttribute('open', '');
+    if (id === 'many-passes') await expect(page.locator('#explanation ol > li')).toHaveCount(2);
+  }
+  await page.evaluate(
+    (lesson) =>
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'lesson', task: 'explain', provider: 'fixture', model: 'test', lesson },
+        }),
+      ),
+    javaTraceLesson(wombRequest),
+  );
+  await expect(page.locator('#explanation ol > li')).toHaveCount(4);
+  await expect(page.locator('#explanation')).toContainText('x.s → A.s="A"');
+  await expect(page.locator('#explanation')).toContainText('0 tokens');
+  expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(wombOutput);
 });

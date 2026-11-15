@@ -25,7 +25,13 @@ final class SourceContext {
     int end() { return snippet.get("end").getAsInt(); }
     String code() { return snippet.get("code").getAsString(); }
     int symbolOffset() { return snippet.get("symbolOffset").getAsInt(); }
-    boolean typescript() { return file.getName().endsWith(".ts"); }
+    String sharedLanguage() {
+      return switch (Objects.toString(file.getExtension(), "").toLowerCase(Locale.ROOT)) {
+        case "ts" -> "typescript"; case "tsx" -> "typescriptreact";
+        case "js", "mjs", "cjs" -> "javascript"; case "jsx" -> "javascriptreact";
+        case "py" -> "python"; default -> "";
+      };
+    }
     boolean current() { return file.isValid() && document.getModificationStamp() == stamp; }
   }
   record Location(VirtualFile file, int offset) {}
@@ -43,7 +49,7 @@ final class SourceContext {
     var snippet = new JsonObject();
     snippet.addProperty("start", start); snippet.addProperty("end", end);
     snippet.addProperty("symbolOffset", start); snippet.addProperty("code", source.substring(start, end));
-    snippet.add("parts", new JsonArray());
+    snippet.add("parts", JavaParts.inspect(PsiDocumentManager.getInstance(project).getPsiFile(document), start, end));
     return new Selection(document, previous.file(), document.getModificationStamp(), source, previous.language(), snippet);
   }
 
@@ -89,8 +95,8 @@ final class SourceContext {
     snippet.addProperty("start", start); snippet.addProperty("end", end);
     snippet.addProperty("symbolOffset", symbolOffset);
     snippet.addProperty("code", source.substring(start, end));
-    snippet.add("parts", new JsonArray());
-    // The shared TS parser receives the original cursor/selection, not a Java PSI guess.
+    snippet.add("parts", JavaParts.inspect(psi, start, end));
+    // Shared parsers receive the original cursor/selection, not a Java PSI guess.
     snippet.addProperty("cursorStart", selected.hasSelection() ? selected.getSelectionStart() : caret);
     snippet.addProperty("cursorEnd", selected.hasSelection() ? selected.getSelectionEnd() : caret);
     return new Selection(document, file, document.getModificationStamp(), source, language, snippet);
@@ -100,6 +106,27 @@ final class SourceContext {
     String base = project.getBasePath();
     if (base != null && file.getPath().startsWith(base + "/")) return file.getPath().substring(base.length() + 1);
     return file.getName();
+  }
+
+  static String learningContext(Project project, Selection selection) {
+    if (selection.snippet().has("learningContext")) return selection.snippet().get("learningContext").getAsString();
+    return ReadAction.compute(() -> {
+      var clues = new StringBuilder();
+      var file = PsiDocumentManager.getInstance(project).getPsiFile(selection.document());
+      if (file instanceof PsiJavaFile javaFile && javaFile.getImportList() != null) {
+        int count = 0;
+        for (var statement : javaFile.getImportList().getAllImportStatements()) {
+          if (++count > 12) break;
+          clues.append("Written import (package not independently verified): ").append(statement.getText()).append('\n');
+        }
+      }
+      for (var part : selection.snippet().getAsJsonArray("parts")) {
+        var detail = part.getAsJsonObject().get("detail").getAsString();
+        if (detail.contains("Declared on line")) clues.append(part.getAsJsonObject().get("token").getAsString()).append(": ").append(detail).append('\n');
+        if (clues.length() >= 2500) break;
+      }
+      return clues.substring(0, Math.min(2500, clues.length()));
+    });
   }
 
   static Context collect(Project project, Selection selection) {

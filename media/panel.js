@@ -167,6 +167,7 @@
   $('configure').onclick = () => post('configure');
   $('refresh').onclick = () => post('refresh');
   $('explain').onclick = () => request('explain');
+  $('walkthrough').onclick = () => request('walkthrough');
   $('example').onclick = () => request('example');
   $('analyze').onclick = () => request('impact');
   $('preview').onclick = () => {
@@ -208,14 +209,14 @@
     button.onclick = () => post('openEvidence', { id });
     return button;
   }
-  function renderLesson(lesson, meta, nested = false) {
+  function renderLesson(lesson, meta, nested = false, task = 'explain') {
     const root = node('article', undefined, 'lesson');
     root.append(node('div', meta, 'result-meta'), node('h2', lesson.title));
     const summary = node('div', undefined, 'concept-copy');
     appendConceptText(summary, lesson.summary, lesson.concepts, nested);
     root.append(summary);
+    if (lesson.notice) root.append(node('p', lesson.notice, 'muted'));
     if (lesson.steps.length) {
-      root.append(node('h3', 'Walk through it'));
       const list = node('ol');
       lesson.steps.forEach((step) => {
         const item = node('li');
@@ -224,27 +225,48 @@
       });
       root.append(list);
     }
+    if (lesson.note) {
+      const note = node('p', undefined, 'lesson-note');
+      appendConceptText(note, lesson.note, lesson.concepts, nested);
+      root.append(note);
+    }
+    if (lesson.output?.text || lesson.output?.explanation) {
+      if (lesson.output.text) {
+        root.append(node('h3', 'Expected output'));
+        const pre = node('pre');
+        pre.append(node('code', lesson.output.text));
+        root.append(pre);
+      }
+      if (lesson.output.explanation) root.append(node('p', lesson.output.explanation));
+    }
     if (lesson.concepts.length) {
-      root.append(node('h3', 'Go a little deeper'));
+      const terms = node('details', undefined, 'lesson-terms');
+      terms.append(node('summary', 'Terms'));
       lesson.concepts.forEach((concept) => {
         const detail = node('details');
         detail.append(node('summary', concept.term));
         if (concept.explanation) detail.append(node('p', concept.explanation));
         if (!nested) addConceptExpansion(detail, concept);
-        root.append(detail);
+        terms.append(detail);
       });
+      root.append(terms);
     }
-    if (lesson.example.code || lesson.example.explanation) {
-      root.append(node('h3', 'Put it into practice'));
+    // Keep practice available without expanding every explanation into another lesson.
+    const practice = node('details', undefined, 'lesson-practice');
+    practice.open = task === 'example';
+    practice.append(node('summary', 'Practice'));
+    const hasPractice = lesson.example.code || lesson.example.explanation;
+    if (hasPractice) {
       if (lesson.example.code) {
         const pre = node('pre');
         pre.append(node('code', lesson.example.code));
-        root.append(pre);
+        practice.append(pre);
       }
       const exampleExplanation = node('div', undefined, 'concept-copy');
       appendConceptText(exampleExplanation, lesson.example.explanation, lesson.concepts, nested);
-      root.append(exampleExplanation);
+      practice.append(exampleExplanation);
     }
+    if (hasPractice || (lesson.checks.length && task !== 'impact')) root.append(practice);
     lesson.predictions.forEach((prediction) => {
       const box = node('div', undefined, 'prediction');
       box.append(
@@ -255,10 +277,10 @@
       root.append(box);
     });
     if (lesson.checks.length) {
-      root.append(node('h3', 'Things to check'));
       const list = node('ul');
       lesson.checks.forEach((check) => list.append(node('li', check)));
-      root.append(list);
+      if (task === 'impact') root.append(node('h3', 'Things to check'), list);
+      else practice.append(list);
     }
     return root;
   }
@@ -333,14 +355,11 @@
         target.replaceChildren(
           renderLesson(
             message.lesson,
-            `${message.cached ? 'REUSED FROM CACHE · NO NEW REQUEST' : 'AI EXPLANATION'} · ${message.provider} / ${message.model} · ${usageLabel}`,
+            `${message.cached ? 'REUSED FROM CACHE · NO NEW REQUEST' : message.lesson.local ? 'LOCAL LEARNING HELP' : 'AI EXPLANATION'}${message.lesson.local ? '' : ` · ${message.provider} / ${message.model}`} · ${usageLabel}`,
             message.task === 'concept',
+            message.task,
           ),
         );
-        if (!message.cached && usage?.total >= 500)
-          target.append(
-            node('p', 'Above the 500-token target. Your full context was kept.', 'muted'),
-          );
       }
       updateButtons();
     } else if (message.type === 'evidence') {

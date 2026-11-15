@@ -1,0 +1,810 @@
+{
+  "compiledFor": "Java 17",
+  "runtimeVersion": "17.0.5",
+  "expected": "null0A1 B6A11 B106A11 A11B106aa\n",
+  "results": [
+    {
+      "id": "original",
+      "sourceSha256": "b20d37b0ed2eae97b12b64469af7f22ce5b06251ed9f4f2b064e05dd3d105956",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "additional-allocation",
+      "sourceSha256": "3eb344c6c876bf788a2021d88e07d3e4e48ea829e418e2ff3b28d11fcc17151a",
+      "output": "null0A1 B6A11 null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 477,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "reordered-classes",
+      "sourceSha256": "54c99a247c398781c75fc3cdb88ab591e44a9983ed9de744a88320039f489c76",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "inherited-method",
+      "sourceSha256": "c414183024d55513d03a9790f80f91966b6d744e949c548d3a8f08541c2b89bf",
+      "output": "A1 A11 A11 A11B106aa\n",
+      "localOutput": "A1 A11 A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 280,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "renamed",
+      "sourceSha256": "cd144b67396ed81419230a416340ab41f73bb0dac7b589bc8cd9d6e747bed693",
+      "output": "null0Parent1 Child6Parent11 Child106Parent11 Parent11Child106aa\n",
+      "localOutput": "null0Parent1 Child6Parent11 Child106Parent11 Parent11Child106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "different-values",
+      "sourceSha256": "7cee6517e5b84a06cc35e0fd4901eb3269f9530b4b10169ad06a0109c3f68d4d",
+      "output": "null0A4 B20A2 B50A2 A2B50aa\n",
+      "localOutput": "null0A4 B20A2 B50A2 A2B50aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "declarations-below-constructor",
+      "sourceSha256": "17807c7b94f9b7d61489085dfbeb9b6cb4249a002128396d54c414f1040ab507",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "implicit-super",
+      "sourceSha256": "14877338f7364876dd44dc2b94f0c252bc9d1cab5cb6014dbb42cdb903ff0bac",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "no-annotation",
+      "sourceSha256": "850cceef20c54a4afbd2719e07c4b73f95317da5a1b6d1312380ac03926ff7bc",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "child-reference",
+      "sourceSha256": "92dcf772b6cb6d322e3815c6f793369a4146ae8859561c6fd01a06dee3b3fdf9",
+      "output": "null0A1 B6A11 B106A11 B106B106ba\n",
+      "localOutput": "null0A1 B6A11 B106A11 B106B106ba\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "numeric-prefix",
+      "sourceSha256": "d032b0088f1cd0170772b5e98d57c433d87d669abe45869bc0e957311451db49",
+      "output": "null0A1 B6A11 B106A11 117AB106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 117AB106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "int-overflow",
+      "sourceSha256": "a3cbce9725806d01a68126555b6b46169a35b1a1bf065c8555832104b6c67fe3",
+      "output": "null0A2147483647 B-2A-2147483639 B98A-2147483639 A-2147483639B98aa\n",
+      "localOutput": "null0A2147483647 B-2A-2147483639 B98A-2147483639 A-2147483639B98aa\n",
+      "expectedMatches": true,
+      "visibleWords": 324,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "no-child-field",
+      "sourceSha256": "8116045c9a35690e6fed4ec0a91add3330afd156c1766a3aecf2d791851898f4",
+      "output": "A0A1 A6A11 A106A11 A11A106aa\n",
+      "localOutput": "A0A1 A6A11 A106A11 A11A106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 314,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "default-string",
+      "sourceSha256": "723026e958c8fb33b0d1db5b19cbfa6a12d538c593b098b743871dbad57f3fe6",
+      "output": "null0A1 null6A11 null106A11 A11null106aa\n",
+      "localOutput": "null0A1 null6A11 null106A11 A11null106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 315,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "super-call",
+      "sourceSha256": "ec548177c5b9d19343100cb9b15e0f9c6c8de6c1314e829cb3dd13e317854d0a",
+      "output": "null0A1 A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 306,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "null-static-result",
+      "sourceSha256": "175357983f461c9e4b29f0b3179dcb448c4fb5cbd0714a5384dc7dbcfb0c0037",
+      "output": "null0A1 B6A11 B106A11 A11B106nullnull\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106nullnull\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "class-static-call",
+      "sourceSha256": "a2f89bb33faf049abfe948dbb5bbea3effe6cee623f2f80bec499cc6da95f338",
+      "output": "null0A1 B6A11 B106A11 A11B106ba\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106ba\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "parent-cast",
+      "sourceSha256": "7b35475e9e35a4b8e5372f847c211459d029eaad3fc55dfbd05df3b2590fe880",
+      "output": "null0A1 B6A11 B106A11 A11B11aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B11aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "comments-and-escapes",
+      "sourceSha256": "a5e789f5875cf3e442610ea1f54758d12ee07df88c9ee49c34baaf2bf111f411",
+      "output": "null0A1 B\"\t6A11 B\"\t106A11 A11B\"\t106aa\n",
+      "localOutput": "null0A1 B\"\t6A11 B\"\t106A11 A11B\"\t106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "qualified-assignment",
+      "sourceSha256": "b0cb0504eb108b79bfd3d0a5fd69b319f3b5e29c724c635479f5b4ee6e8b1737",
+      "output": "null0A1 B6A13 B106A13 A13B106aa\n",
+      "localOutput": "null0A1 B6A13 B106A13 A13B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 324,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "constant-initializer",
+      "sourceSha256": "fc7f24084b1c425809eec58b43977a6770bf88af32e2e40461329e4700713e3f",
+      "output": "null0A1 B-60A11 B40A11 A11B40aa\n",
+      "localOutput": "null0A1 B-60A11 B40A11 A11B40aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "empty-constructor",
+      "sourceSha256": "b50fef9a5154138e5bc1a91d80c2fff8bc61a758b946b51ab0169a4baa70a385",
+      "output": "null0A1 B6A11 A11B6aa\n",
+      "localOutput": "null0A1 B6A11 A11B6aa\n",
+      "expectedMatches": true,
+      "visibleWords": 280,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "string-assignment",
+      "sourceSha256": "c345a213ca6cbf4560059911653b6a8d05e3278cd7caacb896ec5bc4816ed031",
+      "output": "null0A1 B26A11 B2106A11 A11B2106aa\n",
+      "localOutput": "null0A1 B26A11 B2106A11 A11B2106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 324,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "base-object",
+      "sourceSha256": "6e3c30465fc3d55db8f439297c45ee818349404a145903220f59f1360b2f8790",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "all-public-methods",
+      "sourceSha256": "a2616914c8245072b99142b85a00db92b91b98bd73868b103144909113c4278b",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "expectedMatches": true,
+      "visibleWords": 316,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "literal-crlf-preserved",
+      "sourceSha256": "6ec9c6c98d55a0ed89e20c1add6618e5393f0a2d17e285998aacb29e39a68f4f",
+      "output": "a\r\nb!\n",
+      "localOutput": "a\r\nb!\n",
+      "expected": "a\r\nb!\n",
+      "expectedMatches": true,
+      "visibleWords": 25,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "overflow-division",
+      "sourceSha256": "b33cb48b6994dda150b49a1ff708a154afacf3030ce65a9ea703644e3987e8cd",
+      "output": "-2147483648:0\n",
+      "localOutput": "-2147483648:0\n",
+      "expected": "-2147483648:0\n",
+      "expectedMatches": true,
+      "visibleWords": 69,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "local-receipt",
+      "sourceSha256": "cacdb44111d6ff916a5474db0f7ca2f9366d8379fd8cab95435248b58c4d5286",
+      "output": "Total: 21\n",
+      "localOutput": "Total: 21\n",
+      "expected": "Total: 21\n",
+      "expectedMatches": true,
+      "visibleWords": 63,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "static-helper",
+      "sourceSha256": "dd3a40f8de0e0c8340b32d7d463cc409238a7856c9e2f3bf0d765f4bd39102a0",
+      "output": "24\n",
+      "localOutput": "24\n",
+      "expected": "24\n",
+      "expectedMatches": true,
+      "visibleWords": 66,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "parameter-shadowing",
+      "sourceSha256": "45fb49a94bc79cde022813ce60521cd904a73c7cbc00a96821a6468ac9addb0f",
+      "output": "12\n",
+      "localOutput": "12\n",
+      "expected": "12\n",
+      "expectedMatches": true,
+      "visibleWords": 99,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "two-independent-objects",
+      "sourceSha256": "ad5d956527dbe871d6657ec65260982124a5a53466c182cec9e5f4c48bbf4500",
+      "output": "5:9\n",
+      "localOutput": "5:9\n",
+      "expected": "5:9\n",
+      "expectedMatches": true,
+      "visibleWords": 135,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "reference-alias",
+      "sourceSha256": "55926449ac0440b8bcd0c2f8b8269ec577c645fd9fbad50c86b204ca3c8d9b62",
+      "output": "7:7\n",
+      "localOutput": "7:7\n",
+      "expected": "7:7\n",
+      "expectedMatches": true,
+      "visibleWords": 99,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "top-level-inheritance",
+      "sourceSha256": "6483280b7327368a8a0683c1b4a4a1949fb79b39c2d10e1ffffefec7e550b8e1",
+      "output": "woof:animal:dog\n",
+      "localOutput": "woof:animal:dog\n",
+      "expected": "woof:animal:dog\n",
+      "expectedMatches": true,
+      "visibleWords": 166,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "three-level-construction",
+      "sourceSha256": "6393bb48fe6d31de5559e2f92ed4a83b156da7fe7e830a23a3c620a14df21934",
+      "output": "root 0 root 0 root 5 \n",
+      "localOutput": "root 0 root 0 root 5 \n",
+      "expected": "root 0 root 0 root 5 \n",
+      "expectedMatches": true,
+      "visibleWords": 278,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "super-arguments",
+      "sourceSha256": "1b13e6f76782a468844e2d6d60f2f83c4e83bcd4cd1384433ebfb7ad9abaf3ee",
+      "output": "5:10\n",
+      "localOutput": "5:10\n",
+      "expected": "5:10\n",
+      "expectedMatches": true,
+      "visibleWords": 147,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "instance-return-and-mutation",
+      "sourceSha256": "0f4d958172b642e5ae3051922202b3bbeba88665d0bb723d8e5e6df9d25aa7e6",
+      "output": "15:15\n",
+      "localOutput": "15:15\n",
+      "expected": "15:15\n",
+      "expectedMatches": true,
+      "visibleWords": 114,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "local-shadows-field",
+      "sourceSha256": "bd681a53901810328dab9ee15a1ca59585c21209d4a61352f5a8bb4a7698569d",
+      "output": "10:3\n",
+      "localOutput": "10:3\n",
+      "expected": "10:3\n",
+      "expectedMatches": true,
+      "visibleWords": 95,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "mutating-argument-order",
+      "sourceSha256": "9ce4daf297596ff878b87dce7edb0f854796b67eda12711b2682b79cb104421b",
+      "output": "1,2,:12\n",
+      "localOutput": "1,2,:12\n",
+      "expected": "1,2,:12\n",
+      "expectedMatches": true,
+      "visibleWords": 163,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "compound-before-side-effect",
+      "sourceSha256": "f1747a28db90335762c4ce81abf23e63cc7462526f5048b4619c5b1832297ea2",
+      "output": "7\n",
+      "localOutput": "7\n",
+      "expected": "7\n",
+      "expectedMatches": true,
+      "visibleWords": 93,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "string-method",
+      "sourceSha256": "035df8cfd4d7caab6a86431e1c1eb57bf8dbb3dcba662920137ec41b632b31fe",
+      "output": "Hello Ada\n",
+      "localOutput": "Hello Ada\n",
+      "expected": "Hello Ada\n",
+      "expectedMatches": true,
+      "visibleWords": 78,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "integer-division",
+      "sourceSha256": "612abf62e16a0a5bf1d8a71d5fffbd191c4582b63310bfa5ed9aecd6fca2f471",
+      "output": "-2:-1\n",
+      "localOutput": "-2:-1\n",
+      "expected": "-2:-1\n",
+      "expectedMatches": true,
+      "visibleWords": 67,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "mixed-numeric-string",
+      "sourceSha256": "5f28fe43e05c4df175068ba4e26ceba3e714ac60a3a539108419a925e68f9736",
+      "output": "5 items 23\n",
+      "localOutput": "5 items 23\n",
+      "expected": "5 items 23\n",
+      "expectedMatches": true,
+      "visibleWords": 39,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "object-type-reassignment",
+      "sourceSha256": "2ea8523a59636a388c1837388294ff762372aa4916d5624ea4c4226e24fe474f",
+      "output": "basechild\n",
+      "localOutput": "basechild\n",
+      "expected": "basechild\n",
+      "expectedMatches": true,
+      "visibleWords": 121,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "static-hidden-null",
+      "sourceSha256": "9bfb4cd73b8c1e50e8c63ba14372ceba94d6e02a25af9d7727d0f8a955de3c0f",
+      "output": "parent:child:parent\n",
+      "localOutput": "parent:child:parent\n",
+      "expected": "parent:child:parent\n",
+      "expectedMatches": true,
+      "visibleWords": 98,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "parent-allocation",
+      "sourceSha256": "959341b62f435869296aa9c30fbfdb7fa38924d8d6ecf44ee046ec5cb03ee42c",
+      "output": "2\n",
+      "localOutput": "2\n",
+      "expected": "2\n",
+      "expectedMatches": true,
+      "visibleWords": 60,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "nested-single-helper",
+      "sourceSha256": "5c7486a06786639ff4e19cf8021b2dbbf53b24bb3d1e4f7dcb7c2b70d8ae6dbb",
+      "output": "ID:8\n",
+      "localOutput": "ID:8\n",
+      "expected": "ID:8\n",
+      "expectedMatches": true,
+      "visibleWords": 107,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "initializer-versus-parameter",
+      "sourceSha256": "6d69702aa83437369e5f68bf4f5af3e08d96d77ee505b0090cfe4739d01b65af",
+      "output": "4\n",
+      "localOutput": "4\n",
+      "expected": "4\n",
+      "expectedMatches": true,
+      "visibleWords": 84,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "no-output",
+      "sourceSha256": "c0b015821108e287174af19339a6f18d843335a1bafc26b854723170e9ca2dc7",
+      "output": "",
+      "localOutput": "",
+      "expected": "",
+      "expectedMatches": true,
+      "visibleWords": 31,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "null-string",
+      "sourceSha256": "ce33ecba72e3ef3b413e5726b0ed902e271789569f43cdd1ed453b8a547421ee",
+      "output": "null!\n",
+      "localOutput": "null!\n",
+      "expected": "null!\n",
+      "expectedMatches": true,
+      "visibleWords": 62,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "unused-return-helper",
+      "sourceSha256": "80df56c73c2868f41305343dde6708e752e8379fef5c49e72dea56da22acf3aa",
+      "output": "done\n",
+      "localOutput": "done\n",
+      "expected": "done\n",
+      "expectedMatches": true,
+      "visibleWords": 26,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "cr-line-comment",
+      "sourceSha256": "5c44cb1e41c4c2ae474c1b13e57dff1d9afef7354ba108d58cf79c82c4f05a6f",
+      "output": "ok\n",
+      "localOutput": "ok\n",
+      "expected": "ok\n",
+      "expectedMatches": true,
+      "visibleWords": 21,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "bare-return",
+      "sourceSha256": "d865f6013c7d560a25c3f307841e08791d91ca5c7cc60f0008cf9547d34a0717",
+      "output": "done\n",
+      "localOutput": "done\n",
+      "expected": "done\n",
+      "expectedMatches": true,
+      "visibleWords": 21,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "static-through-new",
+      "sourceSha256": "81c80aeff9a5aa02ab820de14ddd633667593e5af41bea236be564b3d4dde4ef",
+      "output": "init ok\n",
+      "localOutput": "init ok\n",
+      "expected": "init ok\n",
+      "expectedMatches": true,
+      "visibleWords": 44,
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    }
+  ],
+  "comparison": [
+    {
+      "variant": "before",
+      "before": {
+        "input": 1050,
+        "output": 1476,
+        "total": 2526
+      },
+      "beforeOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "after": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterOutput": "null0A1 B6A11 B106A11 A11B106aa\n"
+    },
+    {
+      "variant": "after",
+      "before": {
+        "input": 1050,
+        "output": 1663,
+        "total": 2713
+      },
+      "beforeOutput": "null0A1 B6A11 B106A11 B11B106aa\n",
+      "after": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterOutput": "null0A1 B6A11 B106A11 A11B106aa\n"
+    }
+  ],
+  "passed": true
+}

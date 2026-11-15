@@ -79,8 +79,29 @@ const glossary: Record<string, [string, string]> = {
   ],
 };
 
-export function parse(code: string) {
-  return ts.createSourceFile('source.ts', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+export function parse(code: string, language = 'typescript') {
+  const kind =
+    language === 'javascript'
+      ? ts.ScriptKind.JS
+      : language === 'javascriptreact'
+        ? ts.ScriptKind.JSX
+        : language === 'typescriptreact'
+          ? ts.ScriptKind.TSX
+          : ts.ScriptKind.TS;
+  return ts.createSourceFile(
+    'source.' +
+      (kind === ts.ScriptKind.TSX
+        ? 'tsx'
+        : kind === ts.ScriptKind.JSX
+          ? 'jsx'
+          : kind === ts.ScriptKind.JS
+            ? 'js'
+            : 'ts'),
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    kind,
+  );
 }
 
 function contains(node: ts.Node, offset: number, source: ts.SourceFile) {
@@ -191,8 +212,13 @@ export function syntaxParts(node: ts.Node, source: ts.SourceFile): Part[] {
   return parts;
 }
 
-export function inspect(code: string, offset: number, selectionEnd = offset): Snippet {
-  const source = parse(code);
+export function inspect(
+  code: string,
+  offset: number,
+  selectionEnd = offset,
+  language = 'typescript',
+): Snippet {
+  const source = parse(code, language);
   let target: ts.Node | undefined;
   let identifier: ts.Identifier | undefined;
   function visit(node: ts.Node) {
@@ -241,7 +267,7 @@ export function inspect(code: string, offset: number, selectionEnd = offset): Sn
   };
 }
 
-export function syntaxErrors(code: string): string[] {
-  const source = parse(code) as ts.SourceFile & { parseDiagnostics: ts.Diagnostic[] };
+export function syntaxErrors(code: string, language = 'typescript'): string[] {
+  const source = parse(code, language) as ts.SourceFile & { parseDiagnostics: ts.Diagnostic[] };
   return source.parseDiagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
 }

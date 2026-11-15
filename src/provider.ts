@@ -1,7 +1,19 @@
 import type { LearningRequest, Lesson, Provider, TokenUsage } from './types';
-import { MAX_OUTPUT_TOKENS, prepareRequest } from './budget';
+import { outputLimit, prepareRequest } from './budget';
 import { groqResponseFormat } from './lesson-schema';
 import { rejectionMessage } from './provider-errors';
+import {
+  contextualConcept,
+  definition,
+  definitionTerms,
+  fragmentLesson,
+  localLesson,
+  reviewLesson,
+} from './teaching';
+import { languageId } from './languages';
+import { reasoningEffort } from './reasoning';
+import { literalLesson } from './literal-lesson';
+import { javaTraceLesson } from './java-trace';
 
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-4.1-mini',
@@ -19,7 +31,15 @@ export function makeRequest(
   key: string,
   request: LearningRequest,
 ) {
-  const prepared = prepareRequest(request);
+  const responseFormat =
+    provider === 'groq'
+      ? groqResponseFormat(
+          model,
+          request.task,
+          definitionTerms(languageId(request.language ?? 'TypeScript')),
+        )
+      : undefined;
+  const prepared = prepareRequest(request, responseFormat?.type === 'json_schema');
   const { input, system: instructions } = prepared;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   let body: unknown;
@@ -28,7 +48,7 @@ export function makeRequest(
     headers['anthropic-version'] = '2023-06-01';
     body = {
       model,
-      max_tokens: MAX_OUTPUT_TOKENS,
+      max_tokens: outputLimit(request.task),
       system: instructions,
       messages: [{ role: 'user', content: input }],
     };
@@ -37,23 +57,30 @@ export function makeRequest(
     body = {
       model,
       store: false,
-      max_output_tokens: MAX_OUTPUT_TOKENS,
+      max_output_tokens: outputLimit(request.task),
       instructions,
       input,
       text: { format: { type: 'json_object' } },
     };
   } else {
     headers.Authorization = `Bearer ${key}`;
+    const qwenCompletionRoom = model === 'qwen/qwen3.8-27b' && request.task !== 'example';
     body = {
       model,
-      max_completion_tokens: MAX_OUTPUT_TOKENS,
+      // Keep the same ceiling even when reasoning is off. Savings come from effort selection,
+      // not truncating a lesson or reducing the space available to a difficult explanation.
+      max_completion_tokens: outputLimit(request.task) + (qwenCompletionRoom ? 2048 : 0),
       messages: [
         { role: 'system', content: instructions },
         { role: 'user', content: input },
       ],
-      response_format: groqResponseFormat(model, request.task),
+      response_format: responseFormat,
       ...(model === 'qwen/qwen3.8-27b'
-        ? { reasoning_effort: 'none' }
+        ? {
+            reasoning_effort: reasoningEffort(request),
+            reasoning_format: 'hidden',
+            temperature: 0.6,
+          }
         : ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'].includes(model)
           ? { reasoning_effort: 'low' }
           : {}),
@@ -85,13 +112,17 @@ function requiredText(value: unknown, path: string, max = 8000): string {
   return result;
 }
 
-function optionalList(value: unknown, path: string): unknown[] {
+function optionalList(value: unknown, path: string, max = 8): unknown[] {
   if (value === undefined || value === null) return [];
   if (!Array.isArray(value)) invalidField(path, 'an array');
-  return value.slice(0, 8);
+  return value.slice(0, max);
 }
 
-export function parseLesson(text: string, validIds: string[] = []): Lesson {
+export function parseLesson(
+  text: string,
+  validIds: string[] = [],
+  language = 'TypeScript',
+): Lesson {
   let parsed: unknown;
   try {
     parsed = JSON.parse(
@@ -105,17 +136,78 @@ export function parseLesson(text: string, validIds: string[] = []): Lesson {
   }
   const data = record(parsed);
   const example = data.example == null ? {} : record(data.example, 'example');
+  const rawSteps = optionalList(data.steps, 'steps', 40);
+  if (Array.isArray(data.steps) && data.steps.length > 40)
+    invalidField('steps', 'at most 40 steps');
+  const printed: (string | null)[] = [];
+  let structuredSteps = false;
+  const steps = rawSteps.map((value) => {
+    if (typeof value === 'string') {
+      printed.push(null);
+      return string(value, 'steps[]');
+    }
+    structuredSteps = true;
+    const step = record(value, 'steps[]');
+    if (typeof step.printed === 'string' && step.printed.length > 8000)
+      invalidField('steps[].printed', 'at most 8000 characters');
+    printed.push(step.printed === null ? null : string(step.printed, 'steps[].printed'));
+    return requiredText(step.explanation, 'steps[].explanation');
+  });
+  let output: Lesson['output'];
+  if (data.output != null) {
+    const item = record(data.output, 'output');
+    if (item.complete !== undefined || structuredSteps) {
+      if (typeof item.complete !== 'boolean') invalidField('output.complete', 'true or false');
+      if (rawSteps.some((step) => typeof step === 'string'))
+        invalidField('steps', 'structured steps for complete output');
+      // The same fragments that accompany the execution steps form the output. Never ask
+      // the model to independently re-invent a final output that can disagree with its trace.
+      const joined = printed.join('');
+      if (joined.length > 8000) invalidField('output', 'at most 8000 output characters');
+      const explanation = string(item.explanation ?? '', 'output.explanation');
+      output = {
+        text: item.complete ? joined : '',
+        // In this format the explanation is only an unknown-output reason. Models sometimes
+        // put a second, conflicting output guess here despite the contract; never display it.
+        explanation: item.complete ? '' : explanation,
+      };
+      if (!item.complete && !output.explanation)
+        output.explanation = 'The complete output is unknown from this code.';
+    } else
+      output = {
+        text: string(item.text ?? '', 'output.text'),
+        explanation: string(item.explanation ?? '', 'output.explanation'),
+      };
+  }
   return {
     title: data.title === undefined ? 'Explanation' : requiredText(data.title, 'title', 180),
     summary: requiredText(data.summary, 'summary'),
-    steps: optionalList(data.steps, 'steps').map((v) => string(v, 'steps[]')),
+    ...(data.note == null ? {} : { note: string(data.note, 'note', 1200) }),
+    steps,
+    ...(structuredSteps ? { stepOutput: printed } : {}),
+    ...(data.connections == null
+      ? {}
+      : {
+          connections: optionalList(data.connections, 'connections').map((v) =>
+            string(v, 'connections[]'),
+          ),
+        }),
+    ...(data.pitfalls == null
+      ? {}
+      : { pitfalls: optionalList(data.pitfalls, 'pitfalls').map((v) => string(v, 'pitfalls[]')) }),
+    ...(output ? { output } : {}),
     concepts: optionalList(data.concepts, 'concepts').map((v) => {
-      if (typeof v === 'string')
-        return { term: requiredText(v, 'concepts[].term', 150), explanation: '' };
+      if (typeof v === 'string') {
+        const term = requiredText(v, 'concepts[].term', 150);
+        return { term, explanation: definition(term, languageId(language)) ?? '' };
+      }
       const c = record(v, 'concepts[]');
+      const term = requiredText(c.term, 'concepts[].term', 150);
+      const local = definition(term, languageId(language));
+      const supplied = string(c.explanation, 'concepts[].explanation');
       return {
-        term: requiredText(c.term, 'concepts[].term', 150),
-        explanation: requiredText(c.explanation, 'concepts[].explanation'),
+        term,
+        explanation: local ?? requiredText(supplied, 'concepts[].explanation'),
       };
     }),
     example: {
@@ -163,7 +255,47 @@ export async function generate(
   signal?: AbortSignal,
   transport: typeof fetch = fetch,
 ): Promise<Lesson> {
+  if (signal?.aborted) throw new Error('Request cancelled.');
+  const fragment = fragmentLesson(request);
+  if (fragment) return { ...fragment, usage: { input: 0, output: 0, total: 0 } };
+  const java = javaTraceLesson(request);
+  if (java) return java;
+  const contextual = contextualConcept(request);
+  if (contextual)
+    return {
+      ...contextual,
+      notice: contextual.notice + ' No AI request was needed.',
+      usage: { input: 0, output: 0, total: 0 },
+    };
   const config = makeRequest(provider, model, key, request);
+  const notes = config.prepared.notes;
+  if (notes?.trace.length && !notes.unknownCall && request.task === 'explain') {
+    const grounded = reviewLesson(
+      request,
+      localLesson(request, notes, 'Calculated from the selected code. No AI request was needed.'),
+      notes,
+    );
+    return { ...grounded, local: true, usage: { input: 0, output: 0, total: 0 } };
+  }
+  if (notes?.incomplete && (request.task === 'explain' || request.task === 'walkthrough')) {
+    return {
+      ...localLesson(request, notes, 'Local syntax check: no AI request was needed.'),
+      local: true,
+      usage: { input: 0, output: 0, total: 0 },
+    };
+  }
+  if (notes && request.task === 'example' && notes.practice) {
+    return {
+      ...localLesson(request, notes, 'A reviewed practice example. No AI request was needed.'),
+      title: 'Try a separate example',
+      summary: notes.practice.explanation,
+      example: { code: notes.practice.code, explanation: notes.practice.explanation },
+      local: true,
+      usage: { input: 0, output: 0, total: 0 },
+    };
+  }
+  const literal = literalLesson(request);
+  if (literal) return literal;
   const timeout = AbortSignal.timeout(60000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   if (signal?.aborted) throw new Error('Request cancelled.');
@@ -205,16 +337,15 @@ export async function generate(
     );
   const body = record(payload);
   let output = '';
+  let cutShort = false;
   if (provider === 'anthropic') {
-    if (body.stop_reason === 'max_tokens')
-      throw new Error('The response was cut short. Try a smaller selection or a different model.');
+    cutShort = body.stop_reason === 'max_tokens';
     output = responseParts(body.content)
       .filter((p) => p.type === 'text' && typeof p.text === 'string')
       .map((p) => p.text as string)
       .join('\n');
   } else if (provider === 'openai') {
-    if (body.status === 'incomplete')
-      throw new Error('The response was cut short. Try a smaller selection or a different model.');
+    cutShort = body.status === 'incomplete';
     output = responseParts(body.output)
       .flatMap((p) => responseParts(p.content))
       .filter((p) => p.type === 'output_text' && typeof p.text === 'string')
@@ -222,16 +353,31 @@ export async function generate(
       .join('\n');
   } else {
     const choice = responseParts(body.choices)[0];
-    if (choice?.finish_reason === 'length')
-      throw new Error('The response was cut short. Try a smaller selection or a different model.');
+    cutShort = choice?.finish_reason === 'length';
     const message = choice?.message;
     if (message && typeof message === 'object' && !Array.isArray(message)) {
       const content = (message as Record<string, unknown>).content;
       if (typeof content === 'string') output = content;
     }
   }
-  if (!output) throw new Error('The provider returned no explanation. Try again.');
-  const lesson = parseLesson(output, config.prepared.evidenceIds);
+  let lesson: Lesson;
+  try {
+    if (cutShort)
+      throw new Error('The response was cut short. Try a smaller selection or a different model.');
+    if (!output) throw new Error('The provider returned no explanation. Try again.');
+    const parsed = parseLesson(output, config.prepared.evidenceIds, request.language);
+    lesson = notes ? reviewLesson(request, parsed, notes) : parsed;
+  } catch (error) {
+    if (!notes?.facts.length) throw error;
+    lesson = {
+      ...localLesson(
+        request,
+        notes,
+        'The AI reply was incomplete or invalid. Here are local code facts; no extra AI request was made.',
+      ),
+      local: true,
+    };
+  }
   const usage = tokenUsage(body.usage, provider);
   if (usage) lesson.usage = usage;
   return lesson;

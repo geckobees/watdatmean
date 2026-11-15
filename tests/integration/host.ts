@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { inspect } from '../../src/analyzer';
 import { collectContext } from '../../src/context';
+import { generate } from '../../src/provider';
+import { wombRequest, wombOutput } from '../quality/depth-cases';
+import { javaGeneralCases } from '../quality/java-general-cases';
+import { javaControlCases } from '../quality/java-control-cases';
+import { javaArrayExceptionCases } from '../quality/java-array-exception-cases';
 
 export async function run() {
   try {
@@ -37,6 +42,41 @@ async function checks() {
   const extension = vscode.extensions.getExtension('watdatmean.watdatmean');
   assert.ok(extension, 'Extension is installed in the development host');
   await extension.activate();
+  const javaLesson = await generate(
+    'groq',
+    'qwen/qwen3.8-27b',
+    'unused',
+    wombRequest,
+    undefined,
+    async () => {
+      throw new Error('Local Java trace must not use the network');
+    },
+  );
+  assert.equal(javaLesson.output?.text, wombOutput);
+  assert.equal(javaLesson.usage?.total, 0);
+  assert.equal(javaLesson.steps.length, 4);
+  assert.ok(javaLesson.steps.join(' ').includes('x.s → A.s="A"'));
+  console.log(
+    'PASS: Java field hiding, constructor order and complete output in VS Code host (zero API tokens)',
+  );
+  const javaCases = [...javaGeneralCases, ...javaControlCases, ...javaArrayExceptionCases];
+  for (const fixture of javaCases) {
+    const lesson = await generate(
+      'groq',
+      'qwen/qwen3.8-27b',
+      'unused',
+      { ...wombRequest, code: fixture.code },
+      undefined,
+      async () => {
+        throw new Error('General Java must not use the network');
+      },
+    );
+    assert.equal(lesson.output?.text, fixture.expected, fixture.id);
+    assert.equal(lesson.usage?.total, 0, fixture.id);
+  }
+  console.log(
+    `PASS: ${javaCases.length} independent Java examples including arrays and exception handling in VS Code host, all at zero tokens`,
+  );
   const commands = await vscode.commands.getCommands();
   for (const name of ['inspect', 'configure', 'removeKey', 'clearCache', 'demo'])
     assert.ok(commands.includes(`watdatmean.${name}`));
@@ -184,6 +224,28 @@ async function checks() {
     );
   }
   await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+  for (const [language, content] of [
+    ['python', 'import math as m\nscore = m.sqrt(9)\nprint(score)'],
+    ['javascript', 'const score = 3; console.log(score);'],
+    ['javascriptreact', 'const view = <button>Hi</button>;'],
+    ['java', 'class Demo { int score = 3; }'],
+    ['csharp', 'int score = 3;'],
+    ['go', 'package main\nfunc main() { score := 3; _ = score }'],
+    ['rust', 'fn main() { let score = 3; }'],
+  ]) {
+    const file = await vscode.workspace.openTextDocument({ language, content });
+    const editor = await vscode.window.showTextDocument(file);
+    const at = file.positionAt(Math.max(0, content.indexOf('score')));
+    editor.selection = new vscode.Selection(at, at);
+    const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      file.uri,
+      at,
+    );
+    assert.ok(hasTutorHover(hovers), `WatDatMean hover link available for ${language}`);
+    await vscode.commands.executeCommand('watdatmean.inspect');
+    await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+  }
   console.log(
     'PASS: activation, commands, hover, panel, cross-file references, test links, evidence bounds.',
   );

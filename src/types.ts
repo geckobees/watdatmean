@@ -1,7 +1,7 @@
 export type Provider = 'openai' | 'anthropic' | 'groq';
 export type Audience = 'beginner' | 'experienced';
 export type Mode = 'standalone' | 'project';
-export type Task = 'explain' | 'example' | 'concept' | 'impact';
+export type Task = 'explain' | 'walkthrough' | 'example' | 'concept' | 'impact';
 export interface Part {
   token: string;
   brief: string;
@@ -33,6 +33,7 @@ export interface LearningRequest {
   mode: Mode;
   code: string;
   context?: string;
+  learningContext?: string;
   evidence?: Evidence[];
   replacement?: string;
   concept?: string;
@@ -43,10 +44,17 @@ export interface TokenUsage {
   total: number;
 }
 export interface Lesson {
+  notice?: string;
+  local?: boolean;
   usage?: TokenUsage;
   title: string;
   summary: string;
+  note?: string;
   steps: string[];
+  stepOutput?: (string | null)[];
+  connections?: string[];
+  output?: { text: string; explanation: string };
+  pitfalls?: string[];
   concepts: { term: string; explanation: string }[];
   example: { code: string; explanation: string };
   predictions: { description: string; evidenceIds: string[] }[];

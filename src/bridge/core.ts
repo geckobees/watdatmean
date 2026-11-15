@@ -1,4 +1,4 @@
-import { inspect, syntaxErrors } from '../analyzer';
+import { inspectCode, checkSyntax, languageId, learningContext } from '../languages';
 import { Cache, fingerprint } from '../cache';
 import { defaults, generate } from '../provider';
 import type { LearningRequest, Lesson, Provider } from '../types';
@@ -46,9 +46,17 @@ export class BridgeCore {
         end > code.length
       )
         throw new Error('Invalid selection range.');
-      return inspect(code, start, end);
+      const language = languageId(text(p.language ?? 'typescript', 100));
+      const snippet = inspectCode(code, start, end, language);
+      return { ...snippet, learningContext: learningContext(code, language, snippet) };
     }
-    if (method === 'syntax') return syntaxErrors(text(p.code, 512000));
+    if (method === 'syntax' || method === 'checkSyntax') {
+      const checked = checkSyntax(
+        text(p.code, 512000),
+        languageId(text(p.language ?? 'typescript', 100)),
+      );
+      return method === 'syntax' ? checked.errors : checked;
+    }
     if (method !== 'request') throw new Error('Unknown bridge method.');
     const provider = text(p.provider, 30) as Provider;
     if (!Object.hasOwn(defaults, provider)) throw new Error('Unsupported AI provider.');
@@ -57,7 +65,7 @@ export class BridgeCore {
     if (!key.trim() || /\s/.test(key)) throw new Error('Configure an API key first.');
     const input = object(p.request);
     const task = input.task as LearningRequest['task'];
-    if (!['explain', 'example', 'concept', 'impact'].includes(task))
+    if (!['explain', 'walkthrough', 'example', 'concept', 'impact'].includes(task))
       throw new Error('Invalid task.');
     const request: LearningRequest = {
       task,
@@ -69,6 +77,7 @@ export class BridgeCore {
     if (task === 'concept') request.concept = text(input.concept, 150);
     if (task === 'impact') request.replacement = text(input.replacement, 12000);
     if (request.mode === 'project') {
+      if (task === 'walkthrough') request.learningContext = text(input.learningContext ?? '', 2500);
       request.context = text(input.context ?? '', 5000);
       if (!Array.isArray(input.evidence) || input.evidence.length > 12)
         throw new Error('Invalid evidence.');
@@ -90,7 +99,7 @@ export class BridgeCore {
         };
       });
     }
-    const cacheKey = fingerprint({ version: 3, provider, model, request });
+    const cacheKey = fingerprint({ version: 12, provider, model, request });
     const cached = this.cache.get(cacheKey);
     if (cached) return { lesson: cached, cached: true, provider, model };
     const controller = new AbortController();

@@ -1,7 +1,7 @@
 {
   "name": "watdatmean",
   "displayName": "WatDatMean — Learn in Your Code",
-  "description": "Understand TypeScript, explore examples, and preview edit impact without leaving VS Code.",
+  "description": "Understand code, explore examples, and preview edits in TypeScript, JavaScript, Python, and other languages.",
   "version": "0.1.2",
   "publisher": "watdatmean",
   "repository": {
@@ -25,7 +25,22 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onLanguage:typescript"
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:python",
+    "onLanguage:java",
+    "onLanguage:kotlin",
+    "onLanguage:csharp",
+    "onLanguage:cpp",
+    "onLanguage:c",
+    "onLanguage:go",
+    "onLanguage:rust",
+    "onLanguage:ruby",
+    "onLanguage:php",
+    "onLanguage:swift",
+    "onLanguage:sql"
   ],
   "capabilities": {
     "untrustedWorkspaces": {
@@ -60,7 +75,7 @@
       "editor/context": [
         {
           "command": "watdatmean.inspect",
-          "when": "editorLangId == typescript",
+          "when": "resourceScheme != watdatmean",
           "group": "navigation@10"
         }
       ]
@@ -70,7 +85,7 @@
         "command": "watdatmean.inspect",
         "key": "ctrl+alt+e",
         "mac": "cmd+alt+e",
-        "when": "editorTextFocus && editorLangId == typescript"
+        "when": "editorTextFocus && resourceScheme != watdatmean"
       }
     ],
     "configuration": {
@@ -113,6 +128,7 @@
     "watch": "node scripts/build.mjs --watch",
     "check": "tsc --noEmit",
     "test": "vitest run",
+    "test:stress": "node scripts/stress-test.mjs",
     "vscode:prepublish": "npm run check && npm run build",
     "package": "vsce package --no-dependencies --allow-missing-repository",
     "test:ui": "node scripts/build-intellij.mjs && playwright test",
@@ -122,6 +138,7 @@
     "test:intellij": "node scripts/test-intellij.mjs"
   },
   "dependencies": {
+    "@lezer/python": "1.1.19",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

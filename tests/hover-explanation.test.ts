@@ -8,6 +8,14 @@ const expectParagraph = (text: string) => {
 };
 
 describe('concise hover explanations', () => {
+  it.each(['const', 'let', 'for (const of list) {}', 'for (let in object) {}'])(
+    'handles unfinished declarations while typing: %s',
+    (code) => {
+      for (let offset = 0; offset <= code.length; offset++) {
+        expect(() => inspect(code, offset)).not.toThrow();
+      }
+    },
+  );
   it('explains the function signature together, wherever its header is hovered', () => {
     const code = 'export function weeklySummary(completedTasks: number): string { return "done"; }';
     for (const piece of [

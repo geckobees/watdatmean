@@ -103,15 +103,16 @@ public final class Tutor implements Disposable {
     try {
       var captured = SourceContext.capture(project, editor);
       long token = operation.get();
-      if (captured.typescript()) {
+      if (!captured.sharedLanguage().isEmpty()) {
         var args = new JsonObject(); args.addProperty("code", captured.source());
+        args.addProperty("language", captured.sharedLanguage());
         args.add("start", captured.snippet().get("cursorStart")); args.add("end", captured.snippet().get("cursorEnd"));
         background(() -> {
           try {
             var snippet = call("inspect", args).getAsJsonObject();
             ui(() -> {
               if (token != operation.get() || !captured.current()) return;
-              select(new SourceContext.Selection(captured.document(), captured.file(), captured.stamp(), captured.source(), "TypeScript", snippet), false);
+              select(new SourceContext.Selection(captured.document(), captured.file(), captured.stamp(), captured.source(), captured.language(), snippet), false);
             });
           } catch (Exception failure) { if (token == operation.get()) error(failure); }
         });
@@ -144,8 +145,9 @@ public final class Tutor implements Disposable {
     cancel(); preview = null; context = null;
     var captured = SourceContext.refresh(project, selection, selectedRange.getStartOffset(), selectedRange.getEndOffset());
     long token = operation.get();
-    if (captured.typescript() && captured.start() != captured.end()) {
+    if (!captured.sharedLanguage().isEmpty() && captured.start() != captured.end()) {
       var args = new JsonObject(); args.addProperty("code", captured.source());
+      args.addProperty("language", captured.sharedLanguage());
       args.addProperty("start", captured.start()); args.addProperty("end", captured.end());
       background(() -> {
         try {
@@ -240,7 +242,7 @@ public final class Tutor implements Disposable {
   }
   private void request(JsonObject input, SourceContext.Selection selected, long token, long version) {
     String task = string(input, "task");
-    if (!java.util.List.of("explain", "example", "concept", "impact").contains(task)) return;
+    if (!java.util.List.of("explain", "walkthrough", "example", "concept", "impact").contains(task)) return;
     String mode = task.equals("impact") || string(input, "mode").equals("project") ? "project" : "standalone";
     var request = new JsonObject();
     request.addProperty("task", task); request.addProperty("mode", mode);
@@ -249,7 +251,10 @@ public final class Tutor implements Disposable {
     if (task.equals("concept")) request.addProperty("concept", string(input, "concept").substring(0, Math.min(150, string(input, "concept").length())));
     if (task.equals("impact")) request.addProperty("replacement", replacement(input, selected));
     SourceContext.Context found = mode.equals("project") ? SourceContext.collect(project, selected) : null;
-    if (found != null) { request.addProperty("context", found.nearby()); request.add("evidence", found.evidence()); }
+    if (found != null) {
+      request.addProperty("context", found.nearby()); request.add("evidence", found.evidence());
+      if (task.equals("walkthrough")) request.addProperty("learningContext", SourceContext.learningContext(project, selected));
+    }
     var state = Settings.get().getState();
     String key = Keys.get(state.provider);
     if (key == null || key.isBlank()) throw new IllegalStateException("Connect an AI provider first using Connect provider above.");
@@ -276,9 +281,11 @@ public final class Tutor implements Disposable {
     String proposed = selected.source().substring(0, selected.start()) + value + selected.source().substring(selected.end());
     SourceContext.Context found = SourceContext.collect(project, selected);
     SourceContext.Syntax syntax;
-    if (selected.typescript()) {
+    if (!selected.sharedLanguage().isEmpty()) {
       var args = new JsonObject(); args.addProperty("code", proposed);
-      syntax = new SourceContext.Syntax(call("syntax", args).getAsJsonArray(), true);
+      args.addProperty("language", selected.sharedLanguage());
+      var checked = call("checkSyntax", args).getAsJsonObject();
+      syntax = new SourceContext.Syntax(checked.getAsJsonArray("errors"), checked.get("checked").getAsBoolean());
     } else syntax = SourceContext.syntax(project, selected, proposed);
     ui(() -> {
       if (!unchanged(selected, token, version)) return;
@@ -321,7 +328,7 @@ public final class Tutor implements Disposable {
       // Preserve the exact replacement range, including deletion followed by insertion.
       select(SourceContext.refresh(project, selected, selected.start(), selected.start() + replacement.length()), true);
       preview = null;
-      if (selection.typescript()) refreshSelection(true); else send(message("applied"));
+      if (!selection.sharedLanguage().isEmpty()) refreshSelection(true); else send(message("applied"));
       new OpenFileDescriptor(project, selected.file(), selected.start()).navigate(true);
     } finally {
       // Cancellation may have started another operation while the confirmation dialog was open.

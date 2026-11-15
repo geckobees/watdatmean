@@ -1,19 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import { defaults, generate, makeRequest, parseLesson } from '../src/provider';
 import { lessonSchema, lessonSchemaForTask } from '../src/lesson-schema';
-import { prepareRequest } from '../src/budget';
+import { outputLimit, prepareRequest } from '../src/budget';
+import { definitionTerms } from '../src/teaching';
 import type { LearningRequest, Provider } from '../src/types';
 
 const request: LearningRequest = {
   task: 'explain',
   audience: 'beginner',
   mode: 'standalone',
-  code: 'const score = 0;',
+  code: 'const score = readScore();',
 };
 const lesson = {
   title: 'A starting score',
-  summary: 'The score starts at zero.',
-  steps: ['Assign zero.'],
+  summary: 'This code calls readScore. The result is unknown because the helper is not shown.',
+  steps: ['Call the helper.'],
   concepts: [{ term: 'binding', explanation: 'A name referring to a value.' }],
   example: { code: 'const age = 20;', explanation: 'age is 20.' },
   predictions: [],
@@ -26,10 +27,14 @@ describe('provider protocols', () => {
       const body = JSON.parse(makeRequest('groq', model, 'test-secret', request).body);
       expect(body.response_format).toEqual({
         type: 'json_schema',
-        json_schema: { name: 'code_lesson', strict: true, schema: lessonSchemaForTask('explain') },
+        json_schema: {
+          name: 'code_lesson',
+          strict: true,
+          schema: lessonSchemaForTask('explain', definitionTerms('typescript')),
+        },
       });
       expect(body.reasoning_effort).toBe('low');
-      expect(body.max_completion_tokens).toBe(200);
+      expect(body.max_completion_tokens).toBe(900);
     },
   );
 
@@ -40,8 +45,9 @@ describe('provider protocols', () => {
   });
 
   it.each([
-    ['explain', ['summary', 'concepts']],
-    ['concept', ['summary']],
+    ['explain', ['summary', 'steps', 'note', 'concepts', 'output']],
+    ['walkthrough', ['summary', 'steps', 'note', 'concepts', 'output']],
+    ['concept', ['summary', 'steps']],
     ['example', ['summary', 'example']],
     ['impact', ['summary', 'predictions', 'checks']],
   ] as const)('keeps strict %s responses limited to the requested sections', (task, fields) => {
@@ -50,14 +56,21 @@ describe('provider protocols', () => {
     expect(Object.keys(schema.properties)).toEqual(fields);
     expect(schema.required).toEqual(fields);
     if (task === 'explain') {
-      expect(schema.properties.concepts.items.required).toEqual(['term', 'explanation']);
-      expect(body.messages[0].content).toContain('brief definition');
+      expect(schema.properties.concepts.items.anyOf[0].enum).toEqual(definitionTerms('typescript'));
+      expect(schema.properties.concepts.items.anyOf[1].required).toEqual(['term', 'explanation']);
+      expect(body.messages[0].content).toContain('Return a term string');
+      const [complete, unknown] = schema.properties.output.anyOf;
+      expect(complete.properties.complete.enum).toEqual([true]);
+      expect(complete.properties.explanation.enum).toEqual(['']);
+      expect(unknown.properties.complete.enum).toEqual([false]);
+      expect(unknown.properties.explanation).toEqual({ type: 'string' });
     }
-    expect(body.max_completion_tokens).toBe(200);
+    expect(body.max_completion_tokens).toBe(outputLimit(task) + (task === 'example' ? 0 : 2048));
   });
 
   it('marks every nested schema property required and forbids extra properties', () => {
     function checkSchema(schema: Record<string, unknown>) {
+      if (Array.isArray(schema.anyOf)) schema.anyOf.forEach(checkSchema);
       if (schema.type === 'object') {
         const properties = schema.properties as Record<string, Record<string, unknown>>;
         expect(schema.additionalProperties).toBe(false);
@@ -67,7 +80,7 @@ describe('provider protocols', () => {
     }
     checkSchema(lessonSchema);
     for (const task of ['explain', 'example', 'concept', 'impact'] as const)
-      checkSchema(lessonSchemaForTask(task));
+      checkSchema(lessonSchemaForTask(task, definitionTerms('java')));
   });
 
   it('accepts a successful Groq response with omitted optional sections without retrying', async () => {
@@ -98,15 +111,21 @@ describe('provider protocols', () => {
     expect(transport).toHaveBeenCalledTimes(1);
   });
 
-  it('disables reasoning on the supported Groq default without sending that option to other models', () => {
+  it('allows bounded reasoning on the Groq default and keeps hidden reasoning out of the lesson', () => {
     const body = JSON.parse(makeRequest('groq', defaults.groq, 'key', request).body);
     expect(body.model).toBe('qwen/qwen3.8-27b');
-    expect(body.reasoning_effort).toBe('none');
+    expect(body.reasoning_effort).toBe('low');
+    expect(body.reasoning_format).toBe('hidden');
+    expect(body.temperature).toBe(0.6);
     expect(body.response_format).toEqual({
       type: 'json_schema',
-      json_schema: { name: 'code_lesson', strict: true, schema: lessonSchemaForTask('explain') },
+      json_schema: {
+        name: 'code_lesson',
+        strict: true,
+        schema: lessonSchemaForTask('explain', definitionTerms('typescript')),
+      },
     });
-    expect(body.max_completion_tokens).toBe(200);
+    expect(body.max_completion_tokens).toBe(2948);
     expect(JSON.parse(makeRequest('groq', 'custom-model', 'key', request).body)).not.toHaveProperty(
       'reasoning_effort',
     );
@@ -122,7 +141,7 @@ describe('provider protocols', () => {
       expect(result.body).not.toContain('test-secret');
       const body = JSON.parse(result.body);
       expect(body.model).toBe('custom-model');
-      expect(body.max_tokens ?? body.max_output_tokens ?? body.max_completion_tokens).toBe(200);
+      expect(body.max_tokens ?? body.max_output_tokens ?? body.max_completion_tokens).toBe(900);
       if (provider === 'openai') expect(body.store).toBe(false);
       if (provider === 'anthropic') expect(result.headers['anthropic-version']).toBe('2023-06-01');
     },
@@ -156,7 +175,7 @@ describe('provider protocols', () => {
     expect(explain).not.toContain('predictions');
     expect(explain).not.toContain('"example"');
     expect(explain).toContain('untrusted data');
-    expect(explain).toContain('Use plain language');
+    expect(explain).toContain('Teach a sixth grader');
     const concept = prepareRequest({ ...request, task: 'concept', concept: 'scope' });
     expect(concept.system).toContain('requested concept');
     expect(concept.system).not.toContain('"concepts"');
@@ -266,19 +285,74 @@ describe('provider protocols', () => {
       generate('openai', 'test', 'key', request, controller.signal, transport),
     ).rejects.toThrow('cancelled');
   });
-  it('rejects a truncated response', async () => {
+  it('uses local facts for a truncated response without retrying', async () => {
     const transport = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ choices: [{ finish_reason: 'length' }] })));
-    await expect(generate('groq', 'test', 'key', request, undefined, transport)).rejects.toThrow(
-      'cut short',
+    const result = await generate('groq', 'test', 'key', request, undefined, transport);
+    expect(result.local).toBe(true);
+    expect(result.notice).toContain('no extra AI request');
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it.each(['{"summary":""}', '{"summary":', ''])(
+    'replaces a malformed lesson with local facts while retaining actual usage: %s',
+    async (content) => {
+      const transport = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [{ finish_reason: 'stop', message: { content } }],
+            usage: { prompt_tokens: 90, completion_tokens: 10, total_tokens: 100 },
+          }),
+        ),
+      );
+      const result = await generate(
+        'groq',
+        defaults.groq,
+        'key',
+        {
+          ...request,
+          task: 'walkthrough',
+          language: 'Java',
+          code: 'import java.util.ArrayList; class Basket { ArrayList<String> items = new ArrayList<>(); }',
+        },
+        undefined,
+        transport,
+      );
+      expect(result.local).toBe(true);
+      expect(result.summary).toContain('list');
+      expect(result.notice).toContain('no extra AI request');
+      expect(result.usage).toEqual({ input: 90, output: 10, total: 100 });
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
+  it('reports a malformed response when there are no local facts to explain it', async () => {
+    const transport = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: 'stop', message: { content: '{"summary":""}' } }],
+        }),
+      ),
     );
+    await expect(
+      generate(
+        'groq',
+        defaults.groq,
+        'key',
+        {
+          ...request,
+          language: 'SQL',
+          code: 'SELECT mystery(value) FROM data',
+        },
+        undefined,
+        transport,
+      ),
+    ).rejects.toThrow('nonempty text');
     expect(transport).toHaveBeenCalledTimes(1);
   });
   it.each(['openai', 'anthropic', 'groq'] as const)(
     'reports real %s usage, including cached input and without double-counting reasoning',
     async (provider) => {
-      const text = JSON.stringify({ summary: 'A short explanation.' });
+      const text = JSON.stringify({ summary: lesson.summary });
       const bodies = {
         openai: {
           output: [{ content: [{ type: 'output_text', text }] }],
@@ -306,7 +380,7 @@ describe('provider protocols', () => {
       const transport = vi.fn().mockResolvedValue(new Response(JSON.stringify(bodies[provider])));
       const result = await generate(provider, 'test', 'key', request, undefined, transport);
       expect(result.usage).toEqual({ input: 420, output: 100, total: 520 });
-      expect(result.summary).toBe('A short explanation.');
+      expect(result.summary).toBe(lesson.summary);
     },
   );
   it('does not trust token counts supplied inside generated lesson text', async () => {

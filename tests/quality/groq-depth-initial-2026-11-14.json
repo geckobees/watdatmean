@@ -1,0 +1,110 @@
+{
+  "available": true,
+  "provider": "groq",
+  "model": "qwen/qwen3.8-27b",
+  "results": [
+    {
+      "id": "java-construction-explain",
+      "status": "failed",
+      "error": "The provider could not produce valid JSON within the response budget. Try a simpler question or a different model. Your model ID may still be valid."
+    },
+    {
+      "id": "java-construction-explain",
+      "status": "complete",
+      "request": {
+        "code": "public class Womb {\n    static class A {\n        String s = \"A\";\n        int n = 1;\n        A() { show(); n += 10; }\n        void show() { System.out.print(s + n + \" \"); }\n        static String who() { return \"a\"; }\n    }\n    static class B extends A {\n        String s = \"B\";\n        int n = 2;\n        { n *= 3; }\n        B() { super(); show(); n += 100; }\n        @Override void show() { System.out.print(s + n + super.s + super.n + \" \"); }\n        static String who() { return \"b\"; }\n    }\n    public static void main(String[] args) {\n        A x = new B();\n        x.show();\n        System.out.println(x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who());\n    }\n}",
+        "language": "Java",
+        "task": "explain",
+        "audience": "beginner",
+        "mode": "standalone"
+      },
+      "expected": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "lesson": {
+        "title": "Explanation",
+        "summary": "This program shows how Java handles inheritance, field hiding, method overriding, and static methods. It creates an object of class B but stores it in a variable of type A, then shows how the declared type and actual type affect which fields and methods are used.",
+        "steps": [
+          "First, the program makes a new B object and stores it in a variable called x. Even though x is declared as type A, the actual object is a B.",
+          "When the B object is made, Java first makes the A part of it. It sets A's fields: s becomes \"A\" and n becomes 1.",
+          "Then, the A constructor runs. It calls show(), which prints \"A1 \" because s is \"A\" and n is 1. Then it adds 10 to n, so n becomes 11.",
+          "Next, Java makes the B part of the object. It sets B's fields: s becomes \"B\" and n becomes 2. This hides A's s and n.",
+          "Then, the instance initializer in B runs. It multiplies n by 3, so n becomes 6.",
+          "Then, the B constructor runs. It calls super(), but since the A constructor already ran, this does nothing new. Then it calls show(), which uses B's version of show(). This prints \"B6A11 \" because B's s is \"B\", B's n is 6, A's s is \"A\", and A's n is 11. Then it adds 100 to n, so n becomes 106.",
+          "Now, the program calls x.show(). Since x holds a B object, it uses B's version of show(). This prints \"B106A11 \" because B's s is \"B\", B's n is 106, A's s is \"A\", and A's n is 11.",
+          "Next, the program prints a line with several parts. x.s is \"A\" because x is declared as type A. x.n is 11 for the same reason. ((B) x).s is \"B\" because the cast changes the declared type to B. ((B) x).n is 106 for the same reason. x.who() calls A's who() because x is declared as type A, and static methods are not overridden. ((A) null).who() also calls A's who() because the cast makes the declared type A, and static methods do not need an object to run.",
+          "Putting all the parts together, the println statement prints \"A1B2bba\". The full output is \"B2A1 A1B2bba\"."
+        ],
+        "connections": [
+          "Class B extends Class A, so B is a child of A. This means B gets A's fields and methods, but can also add its own or change them.",
+          "When you make a new B object, Java first makes the A part of it, then the B part. This is why the A constructor runs before the B constructor.",
+          "The variable x is declared as type A, but it actually holds a B object. This means x.show() uses the B version of show() because of the actual object type, but x.s and x.n use the A versions because of the declared type.",
+          "The casts ((B) x) and ((A) null) change the declared type for that specific part of the code, letting you access B's fields or A's static method.",
+          "The static method who() is not overridden in the way instance methods are. Instead, B has its own static who() that hides A's. Which one runs depends on the declared type of the thing you call it on, not the actual object type."
+        ],
+        "pitfalls": [
+          "A common mistake is thinking that x.s and x.n will give you B's values because x holds a B object. But since x is declared as type A, x.s and x.n give you A's values. You need to cast to B to get B's values.",
+          "Another mistake is thinking that x.who() will call B's who() because x holds a B object. But who() is a static method, and static methods are not overridden. They are hidden. So x.who() calls A's who() because x is declared as type A.",
+          "The instance initializer { n *= 3; } in class B runs after the fields are set to their starting values, but before the constructor body runs. This is why n is 6 when show() is called in the B constructor.",
+          "The super() call in the B constructor makes the A constructor run. This is why n is 11 when show() is called in the B constructor, because the A constructor added 10 to n."
+        ],
+        "output": {
+          "text": "B2A1 A1B2bba",
+          "explanation": "The output is built in two parts. First, x.show() prints 'B2A1 '. Second, the println statement prints 'A1B2bba'. When you put these together, you get 'B2A1 A1B2bba'. The spaces are exactly as written in the code: one space after each part of the show() output, and no extra spaces in the println part except where the code adds them."
+        },
+        "concepts": [
+          {
+            "term": "static method",
+            "explanation": "A class that is not tied to a specific object. You can call its methods without making an object first."
+          },
+          {
+            "term": "static nested class",
+            "explanation": "A class declared static inside another class. It does not need an instance of the enclosing class. It is nested, but is not a non-static inner class."
+          },
+          {
+            "term": "instance initializer",
+            "explanation": "A block that runs while each object is being initialized. After superclass construction, it runs in source order with that class's field initializers, before the rest of its constructor body."
+          },
+          {
+            "term": "super()",
+            "explanation": "A special word that calls the constructor of the parent class."
+          },
+          {
+            "term": "super.",
+            "explanation": "A special word that refers to the parent class's version of a field or method."
+          },
+          {
+            "term": "method override",
+            "explanation": "When a child class makes its own version of a method that the parent class already has."
+          },
+          {
+            "term": "field hiding",
+            "explanation": "A subclass declares a field with the same name as a superclass field. Both fields still exist; the type of the expression decides which one a field access names."
+          },
+          {
+            "term": "cast",
+            "explanation": "An explicit type view of a reference, such as (B) x. It does not create or change the object. An incompatible checked reference cast can fail at runtime."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 734,
+          "output": 1440,
+          "total": 2174
+        }
+      },
+      "raw": "{\"concepts\": [{\"explanation\": \"A class that is not tied to a specific object. You can call its methods without making an object first.\", \"term\": \"static method\"}, {\"explanation\": \"A class that is inside another class but is not tied to a specific object of the outer class.\", \"term\": \"static nested class\"}, {\"explanation\": \"A block of code that runs every time an object is made, right after the fields are set to their starting values.\", \"term\": \"instance initializer\"}, {\"explanation\": \"A special word that calls the constructor of the parent class.\", \"term\": \"super()\"}, {\"explanation\": \"A special word that refers to the parent class's version of a field or method.\", \"term\": \"super.\"}, {\"explanation\": \"When a child class makes its own version of a method that the parent class already has.\", \"term\": \"method override\"}, {\"explanation\": \"When a child class makes its own version of a field that the parent class already has, hiding the parent's field.\", \"term\": \"field hiding\"}, {\"explanation\": \"Changing the type of a variable so you can use methods or fields that only exist in that type.\", \"term\": \"cast\"}, {\"explanation\": \"The actual type of the object in memory, which decides which version of an overridable method runs.\", \"term\": \"runtime type\"}, {\"explanation\": \"The type written in the code for a variable, which decides which fields and static methods you can access.\", \"term\": \"declared type\"}], \"connections\": [\"Class B extends Class A, so B is a child of A. This means B gets A's fields and methods, but can also add its own or change them.\", \"When you make a new B object, Java first makes the A part of it, then the B part. This is why the A constructor runs before the B constructor.\", \"The variable x is declared as type A, but it actually holds a B object. This means x.show() uses the B version of show() because of the actual object type, but x.s and x.n use the A versions because of the declared type.\", \"The casts ((B) x) and ((A) null) change the declared type for that specific part of the code, letting you access B's fields or A's static method.\", \"The static method who() is not overridden in the way instance methods are. Instead, B has its own static who() that hides A's. Which one runs depends on the declared type of the thing you call it on, not the actual object type.\"], \"output\": {\"explanation\": \"The output is built in two parts. First, x.show() prints 'B2A1 '. Second, the println statement prints 'A1B2bba'. When you put these together, you get 'B2A1 A1B2bba'. The spaces are exactly as written in the code: one space after each part of the show() output, and no extra spaces in the println part except where the code adds them.\", \"text\": \"B2A1 A1B2bba\"}, \"pitfalls\": [\"A common mistake is thinking that x.s and x.n will give you B's values because x holds a B object. But since x is declared as type A, x.s and x.n give you A's values. You need to cast to B to get B's values.\", \"Another mistake is thinking that x.who() will call B's who() because x holds a B object. But who() is a static method, and static methods are not overridden. They are hidden. So x.who() calls A's who() because x is declared as type A.\", \"The instance initializer { n *= 3; } in class B runs after the fields are set to their starting values, but before the constructor body runs. This is why n is 6 when show() is called in the B constructor.\", \"The super() call in the B constructor makes the A constructor run. This is why n is 11 when show() is called in the B constructor, because the A constructor added 10 to n.\"], \"steps\": [\"First, the program makes a new B object and stores it in a variable called x. Even though x is declared as type A, the actual object is a B.\", \"When the B object is made, Java first makes the A part of it. It sets A's fields: s becomes \\\"A\\\" and n becomes 1.\", \"Then, the A constructor runs. It calls show(), which prints \\\"A1 \\\" because s is \\\"A\\\" and n is 1. Then it adds 10 to n, so n becomes 11.\", \"Next, Java makes the B part of the object. It sets B's fields: s becomes \\\"B\\\" and n becomes 2. This hides A's s and n.\", \"Then, the instance initializer in B runs. It multiplies n by 3, so n becomes 6.\", \"Then, the B constructor runs. It calls super(), but since the A constructor already ran, this does nothing new. Then it calls show(), which uses B's version of show(). This prints \\\"B6A11 \\\" because B's s is \\\"B\\\", B's n is 6, A's s is \\\"A\\\", and A's n is 11. Then it adds 100 to n, so n becomes 106.\", \"Now, the program calls x.show(). Since x holds a B object, it uses B's version of show(). This prints \\\"B106A11 \\\" because B's s is \\\"B\\\", B's n is 106, A's s is \\\"A\\\", and A's n is 11.\", \"Next, the program prints a line with several parts. x.s is \\\"A\\\" because x is declared as type A. x.n is 11 for the same reason. ((B) x).s is \\\"B\\\" because the cast changes the declared type to B. ((B) x).n is 106 for the same reason. x.who() calls A's who() because x is declared as type A, and static methods are not overridden. ((A) null).who() also calls A's who() because the cast makes the declared type A, and static methods do not need an object to run.\", \"Putting all the parts together, the println statement prints \\\"A1B2bba\\\". The full output is \\\"B2A1 A1B2bba\\\".\"], \"summary\": \"This program shows how Java handles inheritance, field hiding, method overriding, and static methods. It creates an object of class B but stores it in a variable of type A, then shows how the declared type and actual type affect which fields and methods are used.\"}",
+      "ms": 3487
+    },
+    {
+      "id": "java-construction-walkthrough",
+      "status": "failed",
+      "providerStatus": 429,
+      "providerCode": "rate_limit_exceeded",
+      "error": "Provider quota or rate limit reached. Check billing or wait before retrying."
+    }
+  ]
+}

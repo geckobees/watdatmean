@@ -3,6 +3,13 @@ import { readFileSync } from 'node:fs';
 import { panelHtml } from '../../src/panel';
 import { inspect } from '../../src/analyzer';
 import { parseLesson } from '../../src/provider';
+import { fragmentLesson } from '../../src/teaching';
+import { javaTraceLesson } from '../../src/java-trace';
+import { constructorRequest } from '../quality/compact-cases';
+import { wombCode, wombLesson, wombOutput, wombRequest } from '../quality/depth-cases';
+import { javaGeneralCases } from '../quality/java-general-cases';
+import { javaControlCases } from '../quality/java-control-cases';
+import { javaArrayExceptionCases } from '../quality/java-array-exception-cases';
 
 const snippet = inspect('class Game { private score: number = 0; }', 21);
 const weeklyLesson = {
@@ -91,6 +98,237 @@ test('shows instant explanations without requesting AI, and fits a narrow panel'
   );
   await page.screenshot({ path: 'work/panel-narrow.png', fullPage: true });
 });
+
+test('keeps deeper help explicit and practice collapsed until requested', async ({ page }) => {
+  await page.locator('#walkthrough').click();
+  expect(await page.evaluate(() => (window as any).messages.at(-1))).toMatchObject({
+    task: 'walkthrough',
+    audience: 'beginner',
+  });
+  await expect(page.locator('#walkthrough')).toContainText('More detail');
+  await send(page, {
+    type: 'lesson',
+    task: 'walkthrough',
+    provider: 'fixture',
+    model: 'test',
+    cached: false,
+    lesson: {
+      ...weeklyLesson,
+      usage: { input: 300, output: 450, total: 750 },
+      checks: ['What is the input? Answer: 3.'],
+    },
+  });
+  await expect(page.locator('#explanation ol > li')).not.toHaveCount(0);
+  await expect(page.locator('.lesson-practice')).not.toHaveAttribute('open', '');
+  await expect(page.getByText('What is the input? Answer: 3.', { exact: true })).not.toBeVisible();
+  const requests = await page.evaluate(() => (window as any).messages.length);
+  await page.locator('.lesson-practice > summary').click();
+  await expect(page.getByText('What is the input? Answer: 3.', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as any).messages.length)).toBe(requests);
+  await expect(page.locator('#explanation')).not.toContainText('Above the 500-token target');
+});
+test('labels local learning help and renders correction notices as text', async ({ page }) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'walkthrough',
+    provider: 'groq',
+    model: 'test',
+    lesson: {
+      ...weeklyLesson,
+      local: true,
+      notice: 'Local syntax check: <img src=x onerror=alert(1)>',
+      usage: { input: 0, output: 0, total: 0 },
+    },
+  });
+  await expect(page.locator('#explanation')).toContainText('LOCAL LEARNING HELP');
+  await expect(page.locator('#explanation')).toContainText('0 tokens');
+  await expect(page.locator('#explanation')).toContainText('<img src=x onerror=alert(1)>');
+  await expect(page.locator('#explanation img')).toHaveCount(0);
+});
+
+test('keeps the two-line constructor compact and its missing output unknown', async ({ page }) => {
+  await send(page, {
+    type: 'selection',
+    ...constructorRequest,
+    file: 'Snippet.java',
+    line: 1,
+    parts: [],
+  });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'fixture',
+    model: 'test',
+    lesson: fragmentLesson(constructorRequest),
+  });
+  await expect(page.locator('#explanation ol > li')).toHaveCount(3);
+  await expect(page.locator('#explanation .lesson > pre')).toHaveCount(0);
+  await expect(page.locator('#explanation h3')).toHaveCount(0);
+  await expect(page.locator('#explanation')).toContainText(
+    'Missing declarations do not mean zero or null',
+  );
+  await expect(page.locator('#explanation')).not.toContainText('null0A1');
+  await expect(page.locator('#explanation .lesson-terms')).not.toHaveAttribute('open', '');
+  await page.setViewportSize({ width: 400, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#explanation').screenshot({ path: 'work/compact-constructor.png' });
+});
+test('renders the local Java fix as four steps, one exact output and collapsed terms', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'selection',
+    code: wombCode,
+    language: 'Java',
+    file: 'Womb.java',
+    line: 1,
+    parts: [],
+  });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'fixture',
+    model: 'test',
+    lesson: javaTraceLesson(wombRequest),
+  });
+  await expect(page.locator('#explanation ol > li')).toHaveCount(4);
+  await expect(page.locator('#explanation')).toContainText('x.s → A.s="A"');
+  await expect(page.locator('#explanation')).toContainText('0 tokens');
+  await expect(page.locator('#explanation .lesson > pre code')).toHaveCount(1);
+  expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(wombOutput);
+  await expect(page.locator('#explanation .lesson-terms')).not.toHaveAttribute('open', '');
+  await page.setViewportSize({ width: 360, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#explanation').screenshot({ path: 'work/java-trace-panel.png' });
+});
+test('renders independent Java objects compactly with one output and available deeper help', async ({
+  page,
+}) => {
+  const fixture = javaGeneralCases.find((c) => c.id === 'two-independent-objects')!;
+  await send(page, {
+    type: 'selection',
+    code: fixture.code,
+    language: 'Java',
+    file: 'Counter.java',
+    line: 1,
+    parts: [],
+  });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'fixture',
+    model: 'test',
+    lesson: javaTraceLesson({ ...wombRequest, code: fixture.code }),
+  });
+  await expect(page.locator('#explanation')).toContainText('2 independent objects');
+  await expect(page.locator('#explanation')).toContainText('For first:');
+  await expect(page.locator('#explanation')).toContainText('0 tokens');
+  await expect(page.locator('#explanation .lesson > pre code')).toHaveCount(1);
+  expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(
+    fixture.expected,
+  );
+  await expect(page.locator('#explanation .lesson-terms')).not.toHaveAttribute('open', '');
+  await page.setViewportSize({ width: 360, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#explanation').screenshot({ path: 'work/java-general-panel.png' });
+  await page.locator('#walkthrough').click();
+  expect(await page.evaluate(() => (window as any).messages.at(-1))).toMatchObject({
+    task: 'walkthrough',
+  });
+});
+for (const id of [
+  'many-passes',
+  'list-remove-overloads',
+  'overload-then-override',
+  'array-alias-clone',
+  'array-bounds',
+  'finally-saved-return',
+  'finally-return-replaces',
+]) {
+  test(`renders ${id} in one compact Java walkthrough`, async ({ page }) => {
+    const fixture = [...javaControlCases, ...javaArrayExceptionCases].find((c) => c.id === id)!;
+    await send(page, {
+      type: 'selection',
+      code: fixture.code,
+      language: 'Java',
+      file: 'Demo.java',
+      line: 1,
+      parts: [],
+    });
+    await send(page, {
+      type: 'lesson',
+      task: 'explain',
+      provider: 'fixture',
+      model: 'test',
+      lesson: javaTraceLesson({ ...wombRequest, code: fixture.code }),
+    });
+    await expect(page.locator('#explanation')).toContainText('0 tokens');
+    await expect(page.locator('#explanation .lesson > pre code')).toHaveCount(1);
+    expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(
+      fixture.expected,
+    );
+    await expect(page.locator('#explanation .lesson-terms')).not.toHaveAttribute('open', '');
+    if (id === 'many-passes') {
+      await expect(page.locator('#explanation ol > li')).toHaveCount(2);
+      await expect(page.locator('#explanation')).toContainText('100 iterations');
+    }
+    await page.setViewportSize({ width: 360, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.locator('#explanation').screenshot({ path: `work/java-control-${id}.png` });
+  });
+}
+
+test('renders one Java walkthrough and one exact output without repeating sections', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'selection',
+    code: wombCode,
+    language: 'Java',
+    file: 'Womb.java',
+    line: 1,
+    parts: [],
+  });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'fixture',
+    model: 'test',
+    lesson: wombLesson,
+  });
+  await expect(page.locator('#explanation ol > li')).toHaveCount(11);
+  await expect(page.locator('#explanation')).not.toContainText('How the parts work together');
+  await expect(page.locator('#explanation')).not.toContainText('Details that matter');
+  await expect(page.locator('#explanation ol pre code')).toHaveCount(0);
+  await expect(page.locator('#explanation .lesson-terms')).not.toHaveAttribute('open', '');
+  expect(await page.locator('#explanation .lesson > pre code').textContent()).toBe(wombOutput);
+  await page.setViewportSize({ width: 360, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#explanation').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'work/depth-panel.png', fullPage: true });
+  await page.locator('#explanation ol > li').nth(2).screenshot({ path: 'work/depth-step.png' });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'fixture',
+    model: 'test',
+    lesson: {
+      ...wombLesson,
+      stepOutput: [],
+      connections: ['<img src=x onerror=alert(1)>'],
+      pitfalls: ['<script>alert(1)</script>'],
+      note: '<img src=x onerror=alert(1)>',
+      output: { text: '<b>literal output</b>\n', explanation: '<iframe src=x>' },
+    },
+  });
+  await expect(
+    page.locator('#explanation img, #explanation script, #explanation iframe, #explanation b'),
+  ).toHaveCount(0);
+  await expect(page.locator('.lesson-note')).toHaveText('<img src=x onerror=alert(1)>');
+  expect(await page.locator('#explanation pre code').textContent()).toBe('<b>literal output</b>\n');
+});
 test('sends explicit explanation, example and concept requests; safely renders hostile content', async ({
   page,
 }) => {
@@ -117,6 +355,7 @@ test('sends explicit explanation, example and concept requests; safely renders h
   await expect(page.locator('#explanation')).toContainText('<img src=x onerror=alert(1)>');
   await expect(page.locator('#explanation img')).toHaveCount(0);
   await expect(page.locator('#explanation')).toContainText('REUSED FROM CACHE');
+  await page.locator('.lesson-terms > summary').click();
   await page.getByText('Scope', { exact: true }).click();
   await page.getByRole('button', { name: 'Explain this concept' }).click();
   expect(
@@ -144,7 +383,7 @@ test('renders concise results, loads concepts on click, and reports actual or ca
   };
   await send(page, message);
   await expect(page.locator('#explanation')).toContainText('520 tokens (420 input + 100 output)');
-  await expect(page.locator('#explanation')).toContainText('Your full context was kept');
+  await expect(page.locator('#explanation')).not.toContainText('Above the 500-token target');
   await expect(page.locator('#explanation')).not.toContainText('Put it into practice');
   await expect(page.locator('#explanation')).not.toContainText('Walk through it');
   expect(
@@ -154,6 +393,7 @@ test('renders concise results, loads concepts on click, and reports actual or ca
       ),
     ),
   ).toEqual([]);
+  await page.locator('.lesson-terms > summary').click();
   await page.getByText('binding', { exact: true }).click();
   await page.getByRole('button', { name: 'Explain this concept' }).click();
   expect(
@@ -209,6 +449,25 @@ test('preserves clickable definitions in a compact response with token usage', a
   expect(
     await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
   ).toMatchObject({ task: 'concept', concept: 'binding' });
+});
+
+test('opens a reviewed definition omitted by AI without another request', async ({ page }) => {
+  const lesson = parseLesson(
+    JSON.stringify({
+      summary: 'The return statement sends the result to the caller.',
+      concepts: [{ term: 'return', explanation: '' }],
+    }),
+  );
+  await send(page, { type: 'lesson', task: 'explain', provider: 'groq', model: 'fixture', lesson });
+  await page.getByRole('button', { name: 'Define return', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Definition of return' })).toContainText(
+    'Sends a result back to the code that called the function.',
+  );
+  expect(
+    await page.evaluate(() =>
+      (window as any).messages.filter((message: any) => message.type === 'request'),
+    ),
+  ).toEqual([]);
 });
 
 test('unpacks method and nested call pieces locally', async ({ page }) => {
@@ -276,6 +535,21 @@ test('only enables applying the exact preview and disables it after edits or sta
 });
 test('displays confirmed evidence separately and manages loading and errors', async ({ page }) => {
   await page.getByRole('button', { name: 'Try it yourself', exact: true }).click();
+  await send(page, {
+    type: 'lesson',
+    task: 'impact',
+    provider: 'fixture',
+    model: 'test',
+    lesson: {
+      ...weeklyLesson,
+      example: { code: '', explanation: '' },
+      checks: ['Check the caller with the changed value.'],
+    },
+  });
+  await expect(
+    page.getByText('Check the caller with the changed value.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('#impact-result .lesson-practice')).toHaveCount(0);
   await send(page, {
     type: 'evidence',
     note: 'References are confirmed; behavior is predicted.',

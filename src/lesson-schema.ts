@@ -52,9 +52,46 @@ const strictGroqModels = new Set([
 
 // Request only the sections needed for this action, retaining strict validation
 // without forcing a full lesson into the small completion budget.
-export function lessonSchemaForTask(task: Task) {
+export function lessonSchemaForTask(task: Task, localTerms: string[] = []) {
   const properties: Record<string, unknown> = { summary: lessonSchema.properties.summary };
-  if (task === 'explain') properties.concepts = lessonSchema.properties.concepts;
+  if (task === 'explain' || task === 'walkthrough') {
+    properties.steps = {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['explanation', 'printed'],
+        properties: { explanation: text, printed: { type: ['string', 'null'] } },
+      },
+    };
+    properties.note = text;
+    properties.concepts = localTerms.length
+      ? {
+          type: 'array',
+          items: {
+            anyOf: [
+              {
+                type: 'string',
+                enum: localTerms,
+              },
+              lessonSchema.properties.concepts.items,
+            ],
+          },
+        }
+      : lessonSchema.properties.concepts;
+    properties.output = {
+      anyOf: [true, false].map((complete) => ({
+        type: 'object',
+        additionalProperties: false,
+        required: ['complete', 'explanation'],
+        properties: {
+          complete: { type: 'boolean', enum: [complete] },
+          explanation: complete ? { type: 'string', enum: [''] } : text,
+        },
+      })),
+    };
+  }
+  if (task === 'concept') properties.steps = textList;
   if (task === 'example') properties.example = lessonSchema.properties.example;
   if (task === 'impact') {
     properties.predictions = lessonSchema.properties.predictions;
@@ -68,14 +105,14 @@ export function lessonSchemaForTask(task: Task) {
   };
 }
 
-export function groqResponseFormat(model: string, task?: Task) {
+export function groqResponseFormat(model: string, task?: Task, localTerms: string[] = []) {
   return strictGroqModels.has(model)
     ? {
         type: 'json_schema',
         json_schema: {
           name: 'code_lesson',
           strict: true,
-          schema: task ? lessonSchemaForTask(task) : lessonSchema,
+          schema: task ? lessonSchemaForTask(task, localTerms) : lessonSchema,
         },
       }
     : { type: 'json_object' };

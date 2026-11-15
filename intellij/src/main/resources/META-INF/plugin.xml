@@ -6,8 +6,9 @@
   <description><![CDATA[
     Understand selected code, explore examples, and preview edits in IntelliJ IDEA.
     Uses the same learning engine as the VS Code extension. Automatically sets up Node.js 22.12+
-    and the bundled JetBrains Runtime with JCEF. AI help is opt-in with your own
-    OpenAI, Anthropic, or Groq API key. Offline breakdowns support TypeScript .ts.
+    and uses the bundled JetBrains Runtime with JCEF. AI help is opt-in with your own
+    OpenAI, Anthropic, or Groq API key. Offline breakdowns support Java, TypeScript,
+    JavaScript, JSX, and Python. Optional step-by-step lessons use the same panel in both editors.
   ]]></description>
   <idea-version since-build="223" until-build="252.*"/>
   <depends>com.intellij.modules.platform</depends>
@@ -33,5 +34,9 @@
             text="WatDatMean: Remove API Key"/>
     <action id="WatDatMean.ClearCache" class="com.watdatmean.intellij.ClearCacheAction"
             text="WatDatMean: Clear Explanation Cache"/>
+    <action id="WatDatMean.Demo" class="com.watdatmean.intellij.DemoAction"
+            text="WatDatMean: Open Java Demo" description="Explore the learning panel with a fresh editable Java scratch file">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
   </actions>
 </idea-plugin>

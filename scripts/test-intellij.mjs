@@ -3,6 +3,7 @@ import './package-intellij.mjs';
 import { spawn } from 'node:child_process';
 import { readFile, writeFile, mkdir, cp, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { build } from 'esbuild';
 const option = (name, fallback) => {
   const i = process.argv.indexOf(name);
   return i < 0 ? fallback : process.argv[i + 1];
@@ -58,6 +59,24 @@ await writeFile(
 await exec(exe('javac'), ['@intellij/build/test-javac.args']);
 const resources = path.resolve('intellij/build/test-resources');
 await mkdir(path.join(resources, 'META-INF'), { recursive: true });
+const fixtureBundle = await build({
+  stdin: {
+    contents:
+      "export { javaGeneralCases } from './tests/quality/java-general-cases'; export { javaControlCases } from './tests/quality/java-control-cases'; export { javaArrayExceptionCases } from './tests/quality/java-array-exception-cases';",
+    resolveDir: process.cwd(),
+    loader: 'ts',
+  },
+  bundle: true,
+  write: false,
+  format: 'esm',
+});
+const { javaGeneralCases, javaControlCases, javaArrayExceptionCases } = await import(
+  'data:text/javascript;base64,' + Buffer.from(fixtureBundle.outputFiles[0].text).toString('base64')
+);
+await writeFile(
+  path.join(resources, 'java-general-fixtures.json'),
+  JSON.stringify([...javaGeneralCases, ...javaControlCases, ...javaArrayExceptionCases]),
+);
 const xml = (await readFile('intellij/src/main/resources/META-INF/plugin.xml', 'utf8')).replace(
   '<extensions defaultExtensionNs="com.intellij">',
   '<extensions defaultExtensionNs="com.intellij">\n<appStarter implementation="com.watdatmean.intellij.SmokeStarter" id="watdatmean-smoke"/>',

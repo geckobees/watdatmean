@@ -32,6 +32,98 @@ const response = () =>
   );
 
 describe('IDE-neutral learning bridge', () => {
+  it('corrects quiz answers in the shared provider path and caches the corrected lesson', async () => {
+    const transport = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    summary: 'Keep passing scores.',
+                    steps: ['Filter the numbers.'],
+                    checks: ['Changing >= 5 to > 5 still includes 5.'],
+                  }),
+                },
+              },
+            ],
+            usage: { prompt_tokens: 200, completion_tokens: 60, total_tokens: 260 },
+          }),
+        ),
+    );
+    const core = new BridgeCore(transport);
+    const input = {
+      provider: 'groq',
+      model: 'qwen/qwen3.8-27b',
+      key: 'test-key',
+      request: {
+        language: 'C#',
+        code: 'using System.Linq; int[] scores = {2,5,8}; var passed=scores.Where(x => x >= 5).ToArray();',
+        task: 'walkthrough',
+        audience: 'beginner',
+        mode: 'standalone',
+      },
+    };
+    const first = (await core.dispatch(1, 'request', input)) as any;
+    expect(first.lesson.checks[0]).toContain('Only 5 >= 5');
+    expect(first.lesson.usage.total).toBe(260);
+    const second = (await core.dispatch(2, 'request', input)) as any;
+    expect(second.cached).toBe(true);
+    expect(second.lesson.checks).toEqual(first.lesson.checks);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it.each(['Python', 'JavaScript', 'TypeScript JSX'])(
+    'shares offline inspection and preview for %s with IntelliJ',
+    async (language) => {
+      const code =
+        language === 'Python'
+          ? 'score = 3\nprint(score)'
+          : language === 'JavaScript'
+            ? 'const score = 3;'
+            : 'const score = <button>Hi</button>;';
+      const core = new BridgeCore();
+      const result = (await core.dispatch(1, 'inspect', {
+        code,
+        start: 0,
+        end: 0,
+        language,
+      })) as any;
+      expect(result.parts.length).toBeGreaterThan(0);
+      expect(await core.dispatch(2, 'checkSyntax', { code, language })).toMatchObject({
+        checked: true,
+        errors: [],
+      });
+      expect(
+        await core.dispatch(3, 'checkSyntax', { code: 'not valid', language: 'Rust' }),
+      ).toMatchObject({ checked: false });
+    },
+  );
+  it('uses a separate lesson budget and includes origin clues only in project mode', async () => {
+    const transport = vi.fn().mockImplementation(async () => response());
+    const core = new BridgeCore(transport);
+    await core.dispatch(
+      1,
+      'request',
+      params('Python', { task: 'walkthrough', learningContext: 'PRIVATE IMPORTS' }),
+    );
+    let body = JSON.parse(transport.mock.calls[0][1].body);
+    expect(body.max_output_tokens).toBe(1600);
+    expect(body.input).not.toContain('PRIVATE IMPORTS');
+    expect(body.instructions).toContain('sixth');
+    await core.dispatch(
+      2,
+      'request',
+      params('Python', {
+        task: 'walkthrough',
+        mode: 'project',
+        evidence: [],
+        learningContext: 'Written import: import math',
+      }),
+    );
+    body = JSON.parse(transport.mock.calls[1][1].body);
+    expect(body.input).toContain('import math');
+  });
   it('reuses the TypeScript analyzer and checks selection bounds', async () => {
     const core = new BridgeCore();
     const result = await core.dispatch(1, 'inspect', {
@@ -60,7 +152,7 @@ describe('IDE-neutral learning bridge', () => {
     expect(sent).not.toHaveProperty('evidence');
     expect(body.instructions).toContain('request language');
     expect(body.instructions).not.toContain('Teach TypeScript');
-    expect(body.max_output_tokens).toBe(200);
+    expect(body.max_output_tokens).toBe(900);
   });
   it('separates cache entries by language, guidance, and context, and clears them', async () => {
     const transport = vi.fn().mockImplementation(async () => response());
@@ -127,8 +219,8 @@ describe('IDE-neutral learning bridge', () => {
       const body = JSON.parse(transport.mock.calls[0][1].body);
       expect(JSON.parse(body.input)).toMatchObject({ language, task: 'example' });
       expect(body.instructions).toContain('example in the requested language');
-      expect(body.instructions).toContain('if unknown, infer cautiously');
-      expect(body.max_output_tokens).toBe(200);
+      expect(body.instructions).toContain('infer unknown languages cautiously');
+      expect(body.max_output_tokens).toBe(800);
       expect(transport).toHaveBeenCalledTimes(1);
     },
   );

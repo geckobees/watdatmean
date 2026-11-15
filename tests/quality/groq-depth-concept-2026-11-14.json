@@ -1,0 +1,78 @@
+{
+  "available": true,
+  "provider": "groq",
+  "model": "qwen/qwen3.8-27b",
+  "results": [
+    {
+      "id": "java-polymorphism-concept",
+      "status": "complete",
+      "request": {
+        "code": "public class Womb {\n    static class A {\n        String s = \"A\";\n        int n = 1;\n        A() { show(); n += 10; }\n        void show() { System.out.print(s + n + \" \"); }\n        static String who() { return \"a\"; }\n    }\n    static class B extends A {\n        String s = \"B\";\n        int n = 2;\n        { n *= 3; }\n        B() { super(); show(); n += 100; }\n        @Override void show() { System.out.print(s + n + super.s + super.n + \" \"); }\n        static String who() { return \"b\"; }\n    }\n    public static void main(String[] args) {\n        A x = new B();\n        x.show();\n        System.out.println(x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who());\n    }\n}",
+        "language": "Java",
+        "task": "concept",
+        "audience": "beginner",
+        "mode": "standalone",
+        "concept": "polymorphism"
+      },
+      "expected": "Runtime class selects overridden instance methods; fields/static methods differ. Connect x.show and A constructor to B.show.",
+      "lesson": {
+        "title": "Explanation",
+        "summary": "This code shows how Java decides which method, field, or static method to use when a variable of type A actually holds a B object. Instance methods are polymorphic (the real class wins), while fields and static methods are not (the declared type wins).",
+        "steps": [
+          "In this code, the line `A x = new B()` creates a variable named `x` whose declared type is `A` but whose actual object is a `B`. When you later call `x.show()`, Java looks at the real object (a `B`) and runs `B.show()`, not `A.show()`. This is polymorphism: the same call `x.show()` would run different code depending on what object actually sits behind the variable. The method `show` is marked `@Override` in class `B`, which tells the compiler and the runtime that this is the version that should be picked when the object is a `B`.",
+          "Now contrast this with the field accesses on the same variable. When you write `x.s`, Java does NOT ask \"what is the real class?\" It only looks at the declared type `A` and reads `A`'s field `s`. So `x.s` gives you `\"A\"`, even though the object is really a `B` that has its own `s` field set to `\"B\"`. Fields are never polymorphic in Java — they are always resolved by the compile-time type of the expression. The only way to reach `B`'s `s` is to cast: `((B) x).s`.",
+          "Static methods follow the same non-polymorphic rule as fields. The call `x.who()` uses the declared type `A`, so it runs `A.who()` and returns `\"a\"`, even though the object is a `B` that also defines a `who()` method. The line `((A) null).who()` is a trick: because `who()` is static, Java never actually touches the reference to check if it is null. It simply looks up `who` on type `A` and runs it. The `null` reference is irrelevant for static dispatch.",
+          "A subtle danger appears during construction. Inside `A`'s constructor, the call `show()` is an overridable instance method. Even though we are still inside `A`'s constructor body, Java dispatches to `B.show()` because the real object is a `B`. At that moment, `B`'s own field initializers (`s = \"B\"`, `n = 2`, and the block `n *= 3`) have not run yet, so `B.show()` sees the inherited values from `A`. This is why the first printed output during construction shows `\"A\"` and `1` instead of `\"B\"` and `6`. It is a good reminder that calling overridable methods from a constructor can expose a partially initialized object.",
+          "To summarize the three dispatch rules you see in this single program: (1) instance methods like `show` use the runtime class — that is polymorphism; (2) fields like `s` and `n` use the declared type — no polymorphism; (3) static methods like `who` use the declared type — no polymorphism. A practical limitation is that if you write a method that needs different behavior per subclass, you must make it an instance method and mark it `@Override` in the subclass. If you accidentally make it `static`, the subclass version is hidden, not overridden, and you lose the polymorphic dispatch entirely."
+        ],
+        "concepts": [],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 744,
+          "output": 1781,
+          "total": 2525
+        }
+      },
+      "raw": "{\"steps\": [\"In this code, the line `A x = new B()` creates a variable named `x` whose declared type is `A` but whose actual object is a `B`. When you later call `x.show()`, Java looks at the real object (a `B`) and runs `B.show()`, not `A.show()`. This is polymorphism: the same call `x.show()` would run different code depending on what object actually sits behind the variable. The method `show` is marked `@Override` in class `B`, which tells the compiler and the runtime that this is the version that should be picked when the object is a `B`.\", \"Now contrast this with the field accesses on the same variable. When you write `x.s`, Java does NOT ask \\\"what is the real class?\\\" It only looks at the declared type `A` and reads `A`'s field `s`. So `x.s` gives you `\\\"A\\\"`, even though the object is really a `B` that has its own `s` field set to `\\\"B\\\"`. Fields are never polymorphic in Java — they are always resolved by the compile-time type of the expression. The only way to reach `B`'s `s` is to cast: `((B) x).s`.\", \"Static methods follow the same non-polymorphic rule as fields. The call `x.who()` uses the declared type `A`, so it runs `A.who()` and returns `\\\"a\\\"`, even though the object is a `B` that also defines a `who()` method. The line `((A) null).who()` is a trick: because `who()` is static, Java never actually touches the reference to check if it is null. It simply looks up `who` on type `A` and runs it. The `null` reference is irrelevant for static dispatch.\", \"A subtle danger appears during construction. Inside `A`'s constructor, the call `show()` is an overridable instance method. Even though we are still inside `A`'s constructor body, Java dispatches to `B.show()` because the real object is a `B`. At that moment, `B`'s own field initializers (`s = \\\"B\\\"`, `n = 2`, and the block `n *= 3`) have not run yet, so `B.show()` sees the inherited values from `A`. This is why the first printed output during construction shows `\\\"A\\\"` and `1` instead of `\\\"B\\\"` and `6`. It is a good reminder that calling overridable methods from a constructor can expose a partially initialized object.\", \"To summarize the three dispatch rules you see in this single program: (1) instance methods like `show` use the runtime class — that is polymorphism; (2) fields like `s` and `n` use the declared type — no polymorphism; (3) static methods like `who` use the declared type — no polymorphism. A practical limitation is that if you write a method that needs different behavior per subclass, you must make it an instance method and mark it `@Override` in the subclass. If you accidentally make it `static`, the subclass version is hidden, not overridden, and you lose the polymorphic dispatch entirely.\"], \"summary\": \"This code shows how Java decides which method, field, or static method to use when a variable of type A actually holds a B object. Instance methods are polymorphic (the real class wins), while fields and static methods are not (the declared type wins).\"}",
+      "ms": 8031,
+      "reviewedLesson": {
+        "title": "How polymorphism applies here",
+        "summary": "The declaration says x has type A, while new B() creates a B object. The variable's declared type and the object's actual class are different pieces of information.",
+        "steps": [
+          "For an overridden instance method called through x, Java uses the actual object's class. If B overrides that method, its version runs even though the variable is declared A. This choice at runtime is called dynamic dispatch, a form of polymorphism.",
+          "The same rule applies to an overridable method called inside a constructor. A superclass constructor can call into subclass code before the subclass's written field initializers run. The subclass's own fields may still hold default values such as null or 0. They do not turn into the superclass's fields. This is why construction order matters.",
+          "Fields follow a different rule. If A and B declare a field with the same name, both fields still exist. An access through x selects the A field because that is the variable's declared type. A cast to B can select the B field. The cast changes the type of that expression, not the object itself.",
+          "Static methods belong to classes. A static call through x selects using A, rather than asking the object which version to run. A subclass static method can hide a superclass method; it does not override it. A static call through a null reference does not itself dereference an object. Writing the class name directly makes the choice clearer.",
+          "@Override asks the compiler to check that a method really overrides or implements an eligible method. The annotation does not cause runtime dispatch, and an override can work without it. Constructors are not inherited or overridden; calls made inside them can still use overridden instance methods.",
+          "In an application, several kinds of screen item can share one base type but each draw itself differently. Calling the same instance method can reach each item's own version. Avoid calling such overridable methods from a constructor when the child may still be unfinished; use an appropriate private/final helper or a separate step after construction."
+        ],
+        "concepts": [
+          {
+            "term": "polymorphism",
+            "explanation": "For an overridden instance method, Java chooses the version using the real class of the object at runtime. A variable typed A can hold a B object and call B's version. Fields and static methods follow different rules."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "local": true,
+        "notice": "Reviewed Java rules applied to the declarations in this selection.",
+        "usage": {
+          "input": 744,
+          "output": 1781,
+          "total": 2525
+        }
+      },
+      "proseWords": 377
+    }
+  ],
+  "reviewNote": "Final shared guards replayed locally against saved synthetic responses. No additional provider requests. Original replies and actual usage are preserved. This is a regression review, not proof of arbitrary AI accuracy or a child usability study."
+}

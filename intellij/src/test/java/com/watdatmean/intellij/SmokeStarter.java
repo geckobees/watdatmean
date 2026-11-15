@@ -34,6 +34,26 @@ public final class SmokeStarter implements ApplicationStarter {
         var result = bridge.call("inspect", input).get(20, TimeUnit.SECONDS).getAsJsonObject();
         check(result.get("symbol").getAsString().equals("score"), "Java/Node stdio bridge returns the TypeScript symbol");
         check(!result.getAsJsonArray("parts").isEmpty(), "Shared offline syntax explanations");
+        for (String language : List.of("python", "javascript", "typescriptreact")) {
+          String code = language.equals("python") ? "import math as m\nscore = m.sqrt(9)\nprint(score)" : language.equals("javascript") ? "const score = 3;" : "const score = <button>Hi</button>;";
+          var multi = new JsonObject(); multi.addProperty("code", code); multi.addProperty("start", code.indexOf("score")); multi.addProperty("end", code.indexOf("score")); multi.addProperty("language", language);
+          var inspected = bridge.call("inspect", multi).get(20, TimeUnit.SECONDS).getAsJsonObject();
+          check(!inspected.getAsJsonArray("parts").isEmpty(), "Native bridge returns " + language + " pieces");
+          if (language.equals("python")) check(inspected.get("learningContext").getAsString().contains("import math"), "Python import clues retained locally");
+          var syntax = bridge.call("checkSyntax", multi).get(20, TimeUnit.SECONDS).getAsJsonObject();
+          check(syntax.get("checked").getAsBoolean() && syntax.getAsJsonArray("errors").isEmpty(), "Native bridge checks " + language + " syntax");
+          multi.addProperty("code", language.equals("python") ? "score = (" : "const score = ;");
+          check(!bridge.call("checkSyntax", multi).get(20, TimeUnit.SECONDS).getAsJsonObject().getAsJsonArray("errors").isEmpty(), "Native bridge rejects malformed " + language);
+        }
+        var python = new JsonObject(); python.addProperty("language", "python");
+        for (String invalid : List.of("if True:\n    x=1\n  y=2", "return 3", "def f(x, x):\n return x", "try:\n x=1")) {
+          python.addProperty("code", invalid);
+          check(!bridge.call("checkSyntax", python).get(20, TimeUnit.SECONDS).getAsJsonObject().getAsJsonArray("errors").isEmpty(), "Native Python structural checks reject invalid code");
+        }
+        python.addProperty("code", "async def run():\n    value = await work()\n    return value");
+        check(bridge.call("checkSyntax", python).get(20, TimeUnit.SECONDS).getAsJsonObject().getAsJsonArray("errors").isEmpty(), "Native Python checker accepts valid async code");
+        System.out.println("PASS: native Python, JavaScript, and TSX inspection, import clues, and syntax previews");
+        JavaTraceSmoke.run(bridge);
         bridge.call("clearCache", new JsonObject()).get(5, TimeUnit.SECONDS);
       } finally { bridge.dispose(); }
       if (Boolean.getBoolean("watdatmean.test.ui")) {

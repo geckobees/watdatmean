@@ -1,0 +1,540 @@
+{
+  "available": true,
+  "provider": "groq",
+  "model": "qwen/qwen3.8-27b",
+  "results": [
+    {
+      "id": "java-construction-explain",
+      "status": "complete",
+      "request": {
+        "code": "public class Womb {\n    static class A {\n        String s = \"A\";\n        int n = 1;\n        A() { show(); n += 10; }\n        void show() { System.out.print(s + n + \" \"); }\n        static String who() { return \"a\"; }\n    }\n    static class B extends A {\n        String s = \"B\";\n        int n = 2;\n        { n *= 3; }\n        B() { super(); show(); n += 100; }\n        @Override void show() { System.out.print(s + n + super.s + super.n + \" \"); }\n        static String who() { return \"b\"; }\n    }\n    public static void main(String[] args) {\n        A x = new B();\n        x.show();\n        System.out.println(x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who());\n    }\n}",
+        "language": "Java",
+        "task": "explain",
+        "audience": "beginner",
+        "mode": "standalone"
+      },
+      "expected": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "lesson": {
+        "title": "Explanation",
+        "summary": "This code demonstrates the tricky interaction between field hiding, virtual method dispatch during construction, and static method dispatch in Java inheritance. It shows how calling an overridable method from a superclass constructor can see uninitialized subclass fields, and how the compile-time type of a reference determines which hidden field or static method is accessed.",
+        "steps": [
+          "Create a B object: A x = new B();",
+          "B() constructor starts. It calls super() which invokes A().",
+          "Before A() body runs, A's field initializers execute in source order: s = \"A\", n = 1.",
+          "A() body runs: show() is called. This is a virtual call; the runtime type is B, so B.show() is invoked.",
+          "Inside B.show(): s (B's field) is still null (not yet initialized), n (B's field) is still 0, super.s is \"A\", super.n is 1. Prints: null0A1 (followed by a space).",
+          "Back in A() body: n += 10, so A's n becomes 11.",
+          "A() constructor finishes. Control returns to B().",
+          "B's field initializers and instance initializer run in source order: s = \"B\", n = 2, then { n *= 3; } makes n = 6.",
+          "B() body runs: show() is called again (virtual, B.show()). Now s=\"B\", n=6, super.s=\"A\", super.n=11. Prints: B6A11 (followed by a space).",
+          "B() body continues: n += 100, so B's n becomes 106.",
+          "B() constructor finishes. Object state: B.s=\"B\", B.n=106, A.s=\"A\", A.n=11.",
+          "x.show() in main: virtual call, runtime type is B, so B.show() runs. s=\"B\", n=106, super.s=\"A\", super.n=11. Prints: B106A11 (followed by a space).",
+          "The println expression is evaluated: x.s → A's s = \"B\"... wait, A's s is \"A\". Let me recheck: x is declared as A, so x.s accesses A's s = \"A\". x.n accesses A's n = 11. ((B)x).s accesses B's s = \"B\". ((B)x).n accesses B's n = 106. x.who() is static, compile-time type A, returns \"a\". ((A)null).who() is static, compile-time type A, returns \"a\" (null is never dereferenced for static calls).",
+          "Concatenation: \"A\" + 11 + \"B\" + 106 + \"a\" + \"a\" = \"A11B106aa\". The println adds a newline.",
+          "Wait — let me recheck x.s. x is declared as A. A has a field s = \"A\". B also has a field s = \"B\" which hides A's. Since x's compile-time type is A, x.s refers to A's s, which is \"A\". So the concatenation is: \"A\" + \"11\" + \"B\" + \"106\" + \"a\" + \"a\" = \"A11B106aa\"."
+        ],
+        "connections": [
+          "B extends A, so B inherits A's fields (s, n) but also declares its own s and n, hiding the inherited ones. The super keyword accesses the hidden A fields.",
+          "The A constructor calls show(), which is a virtual call. Since the object being built is a B, B.show() runs even though we are still inside A's constructor. At that moment B's own fields have not been initialized yet, so they hold default values (null and 0).",
+          "The instance initializer { n *= 3; } in B runs after super() returns but before B's constructor body, multiplying B's n by 3.",
+          "In main, x is declared as A but holds a B object. Instance method calls (show) use the runtime type (B), while static method calls (who) use the compile-time type (A or B depending on the cast)."
+        ],
+        "pitfalls": [
+          "The most common mistake is thinking B's fields are initialized before A's constructor body runs. They are NOT. When A's constructor calls show() virtually, B's s is still null and B's n is still 0.",
+          "Field hiding means x.s (where x is declared as A) accesses A's s, not B's s. You need a cast to (B) to reach B's s. This is different from method overriding where the runtime type always wins.",
+          "Static methods are NOT overridden in the polymorphic sense. x.who() calls A.who() because the compile-time type is A. Casting to (B) would call B.who(), but the object is irrelevant for static dispatch.",
+          "((A) null).who() does NOT throw a NullPointerException. Static method calls do not dereference the reference. The null is never actually accessed.",
+          "The instance initializer { n *= 3; } runs between super() and the constructor body. It is easy to forget this and think n stays at 2 until the constructor body changes it.",
+          "String concatenation with + converts everything to String left-to-right. So s + n when s is null gives the literal text 'null' followed by the number, not an error."
+        ],
+        "output": {
+          "text": "null0A1 B6A11 B106A11 B11B106aa",
+          "explanation": "During construction, B.show() prints 'null0A1 ' (B's s is still null, B's n is still 0, A's s is 'A', A's n is 1). Then after B's initializers, B.show() in B's constructor prints 'B6A11 ' (B's s='B', B's n=6, A's s='A', A's n=11). Then x.show() in main prints 'B106A11 ' (B's n is now 106 after +=100). Finally the println expression evaluates: x.s='B' (compile-time type A, accesses A's s), x.n=11 (A's n), ((B)x).s='B' (cast to B accesses B's s), ((B)x).n=106 (B's n), x.who()='a' (static, compile-time type A), ((A)null).who()='a' (static, compile-time type A, null is never dereferenced). All concatenated: 'B'+'11'+'B'+'106'+'a'+'a' = 'B11B106aa'. The full output is three lines: 'null0A1 B6A11 B106A11 ' on the first line (from construction and x.show()), then 'B11B106aa' on the second line (from println)."
+        },
+        "concepts": [
+          {
+            "term": "Field hiding",
+            "explanation": "A subclass declares a field with the same name as a superclass field. Both fields still exist; the type of the expression decides which one a field access names."
+          },
+          {
+            "term": "Dynamic (virtual) dispatch",
+            "explanation": "Instance methods are dispatched based on the actual object type at runtime, not the variable's declared type. This is why x.show() calls B.show() even though x is declared as A."
+          },
+          {
+            "term": "Static method dispatch",
+            "explanation": "Static methods are dispatched based on the reference type at compile time, not the object. So x.who() calls A.who() because x is declared as A, regardless of the actual object being a B."
+          },
+          {
+            "term": "Cast",
+            "explanation": "An explicit type view of a reference, such as (B) x. It does not create or change the object. An incompatible checked reference cast can fail at runtime."
+          },
+          {
+            "term": "Instance initializer",
+            "explanation": "A block that runs while each object is being initialized. After superclass construction, it runs in source order with that class's field initializers, before the rest of its constructor body."
+          },
+          {
+            "term": "Construction order",
+            "explanation": "The order during object creation: (1) superclass field initializers, (2) superclass constructor body, (3) subclass field initializers and instance initializers in source order, (4) subclass constructor body."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 776,
+          "output": 2894,
+          "total": 3670
+        }
+      },
+      "raw": "{\"concepts\": [{\"explanation\": \"When a subclass declares a field with the same name as its superclass, the subclass field completely hides the superclass field. They are two separate storage locations. You can only access the superclass one using the super keyword.\", \"term\": \"Field hiding\"}, {\"explanation\": \"Instance methods are dispatched based on the actual object type at runtime, not the variable's declared type. This is why x.show() calls B.show() even though x is declared as A.\", \"term\": \"Dynamic (virtual) dispatch\"}, {\"explanation\": \"Static methods are dispatched based on the reference type at compile time, not the object. So x.who() calls A.who() because x is declared as A, regardless of the actual object being a B.\", \"term\": \"Static method dispatch\"}, {\"explanation\": \"A cast like (B)x changes only the compile-time type of the expression, not the object itself. It lets the compiler allow access to B's fields, but the object was always a B.\", \"term\": \"Cast\"}, {\"explanation\": \"A block of statements wrapped in curly braces at the field level, like { n *= 3; }, that runs every time an object is created, after superclass construction finishes but before the constructor body.\", \"term\": \"Instance initializer\"}, {\"explanation\": \"The order during object creation: (1) superclass field initializers, (2) superclass constructor body, (3) subclass field initializers and instance initializers in source order, (4) subclass constructor body.\", \"term\": \"Construction order\"}], \"connections\": [\"B extends A, so B inherits A's fields (s, n) but also declares its own s and n, hiding the inherited ones. The super keyword accesses the hidden A fields.\", \"The A constructor calls show(), which is a virtual call. Since the object being built is a B, B.show() runs even though we are still inside A's constructor. At that moment B's own fields have not been initialized yet, so they hold default values (null and 0).\", \"The instance initializer { n *= 3; } in B runs after super() returns but before B's constructor body, multiplying B's n by 3.\", \"In main, x is declared as A but holds a B object. Instance method calls (show) use the runtime type (B), while static method calls (who) use the compile-time type (A or B depending on the cast).\"], \"output\": {\"explanation\": \"During construction, B.show() prints 'null0A1 ' (B's s is still null, B's n is still 0, A's s is 'A', A's n is 1). Then after B's initializers, B.show() in B's constructor prints 'B6A11 ' (B's s='B', B's n=6, A's s='A', A's n=11). Then x.show() in main prints 'B106A11 ' (B's n is now 106 after +=100). Finally the println expression evaluates: x.s='B' (compile-time type A, accesses A's s), x.n=11 (A's n), ((B)x).s='B' (cast to B accesses B's s), ((B)x).n=106 (B's n), x.who()='a' (static, compile-time type A), ((A)null).who()='a' (static, compile-time type A, null is never dereferenced). All concatenated: 'B'+'11'+'B'+'106'+'a'+'a' = 'B11B106aa'. The full output is three lines: 'null0A1 B6A11 B106A11 ' on the first line (from construction and x.show()), then 'B11B106aa' on the second line (from println).\", \"text\": \"null0A1 B6A11 B106A11 B11B106aa\"}, \"pitfalls\": [\"The most common mistake is thinking B's fields are initialized before A's constructor body runs. They are NOT. When A's constructor calls show() virtually, B's s is still null and B's n is still 0.\", \"Field hiding means x.s (where x is declared as A) accesses A's s, not B's s. You need a cast to (B) to reach B's s. This is different from method overriding where the runtime type always wins.\", \"Static methods are NOT overridden in the polymorphic sense. x.who() calls A.who() because the compile-time type is A. Casting to (B) would call B.who(), but the object is irrelevant for static dispatch.\", \"((A) null).who() does NOT throw a NullPointerException. Static method calls do not dereference the reference. The null is never actually accessed.\", \"The instance initializer { n *= 3; } runs between super() and the constructor body. It is easy to forget this and think n stays at 2 until the constructor body changes it.\", \"String concatenation with + converts everything to String left-to-right. So s + n when s is null gives the literal text 'null' followed by the number, not an error.\"], \"steps\": [\"Create a B object: A x = new B();\", \"B() constructor starts. It calls super() which invokes A().\", \"Before A() body runs, A's field initializers execute in source order: s = \\\"A\\\", n = 1.\", \"A() body runs: show() is called. This is a virtual call; the runtime type is B, so B.show() is invoked.\", \"Inside B.show(): s (B's field) is still null (not yet initialized), n (B's field) is still 0, super.s is \\\"A\\\", super.n is 1. Prints: null0A1 (followed by a space).\", \"Back in A() body: n += 10, so A's n becomes 11.\", \"A() constructor finishes. Control returns to B().\", \"B's field initializers and instance initializer run in source order: s = \\\"B\\\", n = 2, then { n *= 3; } makes n = 6.\", \"B() body runs: show() is called again (virtual, B.show()). Now s=\\\"B\\\", n=6, super.s=\\\"A\\\", super.n=11. Prints: B6A11 (followed by a space).\", \"B() body continues: n += 100, so B's n becomes 106.\", \"B() constructor finishes. Object state: B.s=\\\"B\\\", B.n=106, A.s=\\\"A\\\", A.n=11.\", \"x.show() in main: virtual call, runtime type is B, so B.show() runs. s=\\\"B\\\", n=106, super.s=\\\"A\\\", super.n=11. Prints: B106A11 (followed by a space).\", \"The println expression is evaluated: x.s → A's s = \\\"B\\\"... wait, A's s is \\\"A\\\". Let me recheck: x is declared as A, so x.s accesses A's s = \\\"A\\\". x.n accesses A's n = 11. ((B)x).s accesses B's s = \\\"B\\\". ((B)x).n accesses B's n = 106. x.who() is static, compile-time type A, returns \\\"a\\\". ((A)null).who() is static, compile-time type A, returns \\\"a\\\" (null is never dereferenced for static calls).\", \"Concatenation: \\\"A\\\" + 11 + \\\"B\\\" + 106 + \\\"a\\\" + \\\"a\\\" = \\\"A11B106aa\\\". The println adds a newline.\", \"Wait — let me recheck x.s. x is declared as A. A has a field s = \\\"A\\\". B also has a field s = \\\"B\\\" which hides A's. Since x's compile-time type is A, x.s refers to A's s, which is \\\"A\\\". So the concatenation is: \\\"A\\\" + \\\"11\\\" + \\\"B\\\" + \\\"106\\\" + \\\"a\\\" + \\\"a\\\" = \\\"A11B106aa\\\".\"], \"summary\": \"This code demonstrates the tricky interaction between field hiding, virtual method dispatch during construction, and static method dispatch in Java inheritance. It shows how calling an overridable method from a superclass constructor can see uninitialized subclass fields, and how the compile-time type of a reference determines which hidden field or static method is accessed.\"}",
+      "ms": 19672,
+      "reviewedLesson": {
+        "title": "Explanation",
+        "summary": "This code demonstrates the tricky interaction between field hiding, virtual method dispatch during construction, and static method dispatch in Java inheritance. It shows how calling an overridable method from a superclass constructor can see uninitialized subclass fields, and how the compile-time type of a reference determines which hidden field or static method is accessed.",
+        "steps": [
+          "Create a B object: A x = new B();",
+          "B() constructor starts. It calls super() which invokes A().",
+          "Before A() body runs, A's field initializers execute in source order: s = \"A\", n = 1.",
+          "A() body runs: show() is called. This is a virtual call; the runtime type is B, so B.show() is invoked.",
+          "Inside B.show(): s (B's field) is still null (not yet initialized), n (B's field) is still 0, super.s is \"A\", super.n is 1. Prints: null0A1 (followed by a space).",
+          "Back in A() body: n += 10, so A's n becomes 11.",
+          "A() constructor finishes. Control returns to B().",
+          "B's field initializers and instance initializer run in source order: s = \"B\", n = 2, then { n *= 3; } makes n = 6.",
+          "B() body runs: show() is called again (virtual, B.show()). Now s=\"B\", n=6, super.s=\"A\", super.n=11. Prints: B6A11 (followed by a space).",
+          "B() body continues: n += 100, so B's n becomes 106.",
+          "B() constructor finishes. Object state: B.s=\"B\", B.n=106, A.s=\"A\", A.n=11.",
+          "x.show() in main: virtual call, runtime type is B, so B.show() runs. s=\"B\", n=106, super.s=\"A\", super.n=11. Prints: B106A11 (followed by a space).",
+          "The println expression is evaluated: x.s → A's s = \"B\"... wait, A's s is \"A\". Let me recheck: x is declared as A, so x.s accesses A's s = \"A\". x.n accesses A's n = 11. ((B)x).s accesses B's s = \"B\". ((B)x).n accesses B's n = 106. x.who() is static, compile-time type A, returns \"a\". ((A)null).who() is static, compile-time type A, returns \"a\" (null is never dereferenced for static calls).",
+          "Concatenation: \"A\" + 11 + \"B\" + 106 + \"a\" + \"a\" = \"A11B106aa\". The println adds a newline.",
+          "Wait — let me recheck x.s. x is declared as A. A has a field s = \"A\". B also has a field s = \"B\" which hides A's. Since x's compile-time type is A, x.s refers to A's s, which is \"A\". So the concatenation is: \"A\" + \"11\" + \"B\" + \"106\" + \"a\" + \"a\" = \"A11B106aa\"."
+        ],
+        "connections": [
+          "B extends A, so B inherits A's fields (s, n) but also declares its own s and n, hiding the inherited ones. The super keyword accesses the hidden A fields.",
+          "The A constructor calls show(), which is a virtual call. Since the object being built is a B, B.show() runs even though we are still inside A's constructor. At that moment B's own fields have not been initialized yet, so they hold default values (null and 0).",
+          "The instance initializer { n *= 3; } in B runs after super() returns but before B's constructor body, multiplying B's n by 3.",
+          "In main, x is declared as A but holds a B object. Instance method calls (show) use the runtime type (B), while static method calls (who) use the compile-time type (A or B depending on the cast).",
+          "A is declared as a static nested class. It is inside another class, but does not need an object of that enclosing class. Java distinguishes this from a non-static inner class.",
+          "B is declared as a static nested class. It is inside another class, but does not need an object of that enclosing class. Java distinguishes this from a non-static inner class.",
+          "B extends A: B is the subclass and A is its superclass. Nesting groups the classes in the source; inheritance connects their behavior. These are separate relationships.",
+          "With the standard java.lang.System, System.out is a java.io.PrintStream for text output. print writes its text; println also ends the line. These are standard-library tools, while classes declared in this selection are your own code."
+        ],
+        "pitfalls": [
+          "The most common mistake is thinking B's fields are initialized before A's constructor body runs. They are NOT. When A's constructor calls show() virtually, B's s is still null and B's n is still 0.",
+          "Field hiding means x.s (where x is declared as A) accesses A's s, not B's s. You need a cast to (B) to reach B's s. This is different from method overriding where the runtime type always wins.",
+          "Static methods are NOT overridden in the polymorphic sense. x.who() calls A.who() because the compile-time type is A. Casting to (B) would call B.who(), but the object is irrelevant for static dispatch.",
+          "((A) null).who() does NOT throw a NullPointerException. Static method calls do not dereference the reference. The null is never actually accessed.",
+          "The instance initializer { n *= 3; } runs between super() and the constructor body. It is easy to forget this and think n stays at 2 until the constructor body changes it.",
+          "String concatenation with + converts everything to String left-to-right. So s + n when s is null gives the literal text 'null' followed by the number, not an error."
+        ],
+        "output": {
+          "text": "null0A1 B6A11 B106A11 B11B106aa",
+          "explanation": "During construction, B.show() prints 'null0A1 ' (B's s is still null, B's n is still 0, A's s is 'A', A's n is 1). Then after B's initializers, B.show() in B's constructor prints 'B6A11 ' (B's s='B', B's n=6, A's s='A', A's n=11). Then x.show() in main prints 'B106A11 ' (B's n is now 106 after +=100). Finally the println expression evaluates: x.s='B' (compile-time type A, accesses A's s), x.n=11 (A's n), ((B)x).s='B' (cast to B accesses B's s), ((B)x).n=106 (B's n), x.who()='a' (static, compile-time type A), ((A)null).who()='a' (static, compile-time type A, null is never dereferenced). All concatenated: 'B'+'11'+'B'+'106'+'a'+'a' = 'B11B106aa'. The full output is three lines: 'null0A1 B6A11 B106A11 ' on the first line (from construction and x.show()), then 'B11B106aa' on the second line (from println)."
+        },
+        "concepts": [
+          {
+            "term": "Field hiding",
+            "explanation": "A subclass declares a field with the same name as a superclass field. Both fields still exist; the type of the expression decides which one a field access names."
+          },
+          {
+            "term": "Dynamic (virtual) dispatch",
+            "explanation": "For an overridden instance method, Java chooses the version using the real class of the object at runtime. A variable typed A can hold a B object and call B's version. Fields and static methods follow different rules."
+          },
+          {
+            "term": "Static method dispatch",
+            "explanation": "A method belonging to a class rather than a particular object. Java selects it using the compile-time type; it does not use instance-method overriding."
+          },
+          {
+            "term": "Cast",
+            "explanation": "An explicit type view of a reference, such as (B) x. It does not create or change the object. An incompatible checked reference cast can fail at runtime."
+          },
+          {
+            "term": "Instance initializer",
+            "explanation": "A block that runs while each object is being initialized. After superclass construction, it runs in source order with that class's field initializers, before the rest of its constructor body."
+          },
+          {
+            "term": "Construction order",
+            "explanation": "The order during object creation: (1) superclass field initializers, (2) superclass constructor body, (3) subclass field initializers and instance initializers in source order, (4) subclass constructor body."
+          },
+          {
+            "term": "static nested class",
+            "explanation": "A class declared static inside another class. It does not need an instance of the enclosing class. It is nested, but is not a non-static inner class."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 776,
+          "output": 2894,
+          "total": 3670
+        }
+      },
+      "proseWords": 1175
+    },
+    {
+      "id": "java-construction-walkthrough",
+      "status": "complete",
+      "request": {
+        "code": "public class Womb {\n    static class A {\n        String s = \"A\";\n        int n = 1;\n        A() { show(); n += 10; }\n        void show() { System.out.print(s + n + \" \"); }\n        static String who() { return \"a\"; }\n    }\n    static class B extends A {\n        String s = \"B\";\n        int n = 2;\n        { n *= 3; }\n        B() { super(); show(); n += 100; }\n        @Override void show() { System.out.print(s + n + super.s + super.n + \" \"); }\n        static String who() { return \"b\"; }\n    }\n    public static void main(String[] args) {\n        A x = new B();\n        x.show();\n        System.out.println(x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who());\n    }\n}",
+        "language": "Java",
+        "task": "walkthrough",
+        "audience": "beginner",
+        "mode": "standalone"
+      },
+      "expected": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "lesson": {
+        "title": "Explanation",
+        "summary": "Demonstrates the dangers of calling overridable methods from constructors, field hiding between superclass and subclass, and the difference between static and instance method dispatch in Java.",
+        "steps": [
+          "Line: A x = new B(); — We are creating a B object. The reference variable x has compile-time type A but will point to a B object.",
+          "B's constructor begins. It explicitly calls super(), which invokes A's constructor.",
+          "Inside A's constructor, before the body runs, A's field initializers execute in source order: s = \"A\" (A's s is now \"A\"), n = 1 (A's n is now 1).",
+          "A's constructor body: show() is called. This is a virtual (instance) call. The runtime type of the object is B, so B.show() is selected.",
+          "Inside B.show(): the expression is s + n + super.s + super.n + \" \". At this moment, B's own field initializers have NOT run yet. B's s is still null (default for String), B's n is still 0 (default for int). super.s is A's s = \"A\". super.n is A's n = 1.",
+          "Evaluating s + n: s is of type String (value null), so this becomes string concatenation. null is converted to the text \"null\", then 0 is appended: result is \"null0\".",
+          "Continuing: \"null0\" + super.s → \"null0\" + \"A\" → \"null0A\". Then + super.n → \"null0A\" + 1 → \"null0A1\". Then + \" \" → \"null0A1 \". This is printed (no newline).",
+          "Back in A's constructor body: n += 10. This modifies A's field n: 1 + 10 = 11. A's constructor finishes and returns.",
+          "Now B's own field initializers and initializer blocks run in source order: s = \"B\" (B's s is now \"B\"), n = 2 (B's n is now 2), then the instance initializer block { n *= 3; } makes B's n = 2 * 3 = 6.",
+          "B's constructor body: show() is called again. Runtime type is B, so B.show() runs. Now B's s = \"B\", B's n = 6, super.s = \"A\", super.n = 11.",
+          "B.show() evaluates: \"B\" + 6 + \"A\" + 11 + \" \" → \"B6A11 \". This is printed (no newline).",
+          "B's constructor body continues: n += 100. B's n becomes 6 + 100 = 106. B's constructor finishes. The object is fully constructed.",
+          "Final field values on the object: A's s = \"A\", A's n = 11, B's s = \"B\", B's n = 106.",
+          "Next line: x.show() — x is declared as type A, but the object is a B. Virtual dispatch selects B.show(). It prints \"B106A11 \" (B's s + B's n + A's s + A's n + space). Wait — let me recheck. B's n is now 106, A's n is 11. So: \"B\" + 106 + \"A\" + 11 + \" \" = \"B106A11 \".",
+          "Now the println expression: x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who()",
+          "x.s: x is declared as type A, so this accesses A's field s = \"A\".",
+          "x.n: x is declared as type A, so this accesses A's field n = 11.",
+          "((B) x).s: the cast makes the expression type B, so this accesses B's field s = \"B\".",
+          "((B) x).n: accesses B's field n = 106.",
+          "x.who(): x is declared as type A. who() is static, so the version is chosen by the compile-time type of the expression. A.who() returns \"a\"."
+        ],
+        "connections": [
+          "B extends A, so B inherits A's fields (s, n) but also declares its own s and n, creating hidden pairs. Each object holds both: A's s and n, plus B's s and n.",
+          "B.show() overrides A.show(). Because show() is an instance method, every call to show() on a B object runs B's version, even if the reference is typed as A.",
+          "A's constructor calls show() before B's initializers have run, so B's fields are still at defaults (null, 0) at that moment.",
+          "who() is static in both classes. The version that runs depends on the compile-time type of the expression, not the object.",
+          "The cast (B) x changes the reference type so the compiler allows access to B's hidden fields and B's static who()."
+        ],
+        "pitfalls": [
+          "The most common mistake: thinking that when A's constructor calls show(), B's fields are already initialized. They are not. B's initializers run only after super() returns. So during that first show() call, B's s is null and B's n is 0.",
+          "Field hiding vs method overriding: s and n are hidden (each class has its own copy), but show() is overridden (only one version runs, chosen by runtime type). Confusing these two mechanisms is a classic source of bugs.",
+          "Static methods are NOT polymorphic. x.who() calls A.who() because x is declared as type A, even though the object is actually a B. The cast to (A) null does not cause a NullPointerException because static methods do not use the object reference at all.",
+          "The order of initialization is: superclass constructor → superclass field initializers → superclass initializer blocks (all in source order) → then subclass field initializers → subclass initializer blocks → subclass constructor body. Forgetting this order leads to wrong predictions about field values.",
+          "In the expression x.s + x.n + ..., the + operator with a String on the left triggers string concatenation for the entire rest of the expression, so integers are converted to their string form."
+        ],
+        "output": {
+          "text": "null0A1 B6A11 \nA11B106aa",
+          "explanation": "First line (printed during construction): null0A1 B6A11 \nSecond line (printed by println): B106B106ba\n\nDetailed derivation of first line:\n- During super() call, B.show() runs with B's s=null, B's n=0, A's s=\"A\", A's n=1.\n- Concatenation: null + 0 = \"null0\" (String + int → string), + \"A\" = \"null0A\", + 1 = \"null0A1\", + \" \" = \"null0A1 \".\n- After B's initializers and constructor: B's s=\"B\", B's n=106, A's s=\"A\", A's n=11.\n- Second show() call: \"B\" + 6 + \"A\" + 11 + \" \" = \"B6A11 \".\n- Combined print: \"null0A1 B6A11 \"\n\nDetailed derivation of second line:\n- x.s → A's s = \"B\"? No. x is declared as A, so x.s refers to A's field s = \"A\". Wait, let me recheck.\n\nActually: x is declared as type A. x.s accesses A's field s. A's field s = \"A\". x.n accesses A's field n = 11.\n((B) x).s accesses B's field s = \"B\". ((B) x).n accesses B's field n = 106.\nx.who() → x is type A, so A.who() = \"a\".\n((A) null).who() → expression type is A, so A.who() = \"a\". No dereference of null because who() is static.\n\nSo: \"A\" + 11 + \"B\" + 106 + \"a\" + \"a\" = \"A11B106aa\""
+        },
+        "concepts": [
+          {
+            "term": "polymorphic (virtual) method call",
+            "explanation": "When a method is not static and not final, Java picks the version based on the actual object's class at runtime, not the reference type. This is called dynamic dispatch."
+          },
+          {
+            "term": "field hiding",
+            "explanation": "A subclass declares a field with the same name as a superclass field. Both fields still exist; the type of the expression decides which one a field access names."
+          },
+          {
+            "term": "overridable call in constructor",
+            "explanation": "When an object is being constructed, the superclass constructor runs first. If it calls an overridable method, the subclass version runs, but the subclass fields have not been initialized yet, so they still hold their default values (null for objects, 0 for numbers)."
+          },
+          {
+            "term": "static method call",
+            "explanation": "A static method is tied to the class named in the expression, not the object. It does not use the runtime type and does not need an object to exist. Even a null reference can be used to call a static method without error."
+          },
+          {
+            "term": "instance initializer",
+            "explanation": "A block that runs while each object is being initialized. After superclass construction, it runs in source order with that class's field initializers, before the rest of its constructor body."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 779,
+          "output": 3316,
+          "total": 4095
+        }
+      },
+      "raw": "{\"concepts\": [{\"explanation\": \"When a method is not static and not final, Java picks the version based on the actual object's class at runtime, not the reference type. This is called dynamic dispatch.\", \"term\": \"polymorphic (virtual) method call\"}, {\"explanation\": \"When a subclass declares a field with the same name as a superclass, the subclass field hides the superclass one. Each object carries both values separately. You access the superclass one with super.field.\", \"term\": \"field hiding\"}, {\"explanation\": \"When an object is being constructed, the superclass constructor runs first. If it calls an overridable method, the subclass version runs, but the subclass fields have not been initialized yet, so they still hold their default values (null for objects, 0 for numbers).\", \"term\": \"overridable call in constructor\"}, {\"explanation\": \"A static method is tied to the class named in the expression, not the object. It does not use the runtime type and does not need an object to exist. Even a null reference can be used to call a static method without error.\", \"term\": \"static method call\"}, {\"explanation\": \"Before a constructor body runs, instance variable initializers and instance initializer blocks execute in the order they appear in the source code.\", \"term\": \"instance initializer\"}], \"connections\": [\"B extends A, so B inherits A's fields (s, n) but also declares its own s and n, creating hidden pairs. Each object holds both: A's s and n, plus B's s and n.\", \"B.show() overrides A.show(). Because show() is an instance method, every call to show() on a B object runs B's version, even if the reference is typed as A.\", \"A's constructor calls show() before B's initializers have run, so B's fields are still at defaults (null, 0) at that moment.\", \"who() is static in both classes. The version that runs depends on the compile-time type of the expression, not the object.\", \"The cast (B) x changes the reference type so the compiler allows access to B's hidden fields and B's static who().\"], \"output\": {\"explanation\": \"First line (printed during construction): null0A1 B6A11 \\nSecond line (printed by println): B106B106ba\\n\\nDetailed derivation of first line:\\n- During super() call, B.show() runs with B's s=null, B's n=0, A's s=\\\"A\\\", A's n=1.\\n- Concatenation: null + 0 = \\\"null0\\\" (String + int → string), + \\\"A\\\" = \\\"null0A\\\", + 1 = \\\"null0A1\\\", + \\\" \\\" = \\\"null0A1 \\\".\\n- After B's initializers and constructor: B's s=\\\"B\\\", B's n=106, A's s=\\\"A\\\", A's n=11.\\n- Second show() call: \\\"B\\\" + 6 + \\\"A\\\" + 11 + \\\" \\\" = \\\"B6A11 \\\".\\n- Combined print: \\\"null0A1 B6A11 \\\"\\n\\nDetailed derivation of second line:\\n- x.s → A's s = \\\"B\\\"? No. x is declared as A, so x.s refers to A's field s = \\\"A\\\". Wait, let me recheck.\\n\\nActually: x is declared as type A. x.s accesses A's field s. A's field s = \\\"A\\\". x.n accesses A's field n = 11.\\n((B) x).s accesses B's field s = \\\"B\\\". ((B) x).n accesses B's field n = 106.\\nx.who() → x is type A, so A.who() = \\\"a\\\".\\n((A) null).who() → expression type is A, so A.who() = \\\"a\\\". No dereference of null because who() is static.\\n\\nSo: \\\"A\\\" + 11 + \\\"B\\\" + 106 + \\\"a\\\" + \\\"a\\\" = \\\"A11B106aa\\\"\", \"text\": \"null0A1 B6A11 \\nA11B106aa\"}, \"pitfalls\": [\"The most common mistake: thinking that when A's constructor calls show(), B's fields are already initialized. They are not. B's initializers run only after super() returns. So during that first show() call, B's s is null and B's n is 0.\", \"Field hiding vs method overriding: s and n are hidden (each class has its own copy), but show() is overridden (only one version runs, chosen by runtime type). Confusing these two mechanisms is a classic source of bugs.\", \"Static methods are NOT polymorphic. x.who() calls A.who() because x is declared as type A, even though the object is actually a B. The cast to (A) null does not cause a NullPointerException because static methods do not use the object reference at all.\", \"The order of initialization is: superclass constructor → superclass field initializers → superclass initializer blocks (all in source order) → then subclass field initializers → subclass initializer blocks → subclass constructor body. Forgetting this order leads to wrong predictions about field values.\", \"In the expression x.s + x.n + ..., the + operator with a String on the left triggers string concatenation for the entire rest of the expression, so integers are converted to their string form.\"], \"steps\": [\"Line: A x = new B(); — We are creating a B object. The reference variable x has compile-time type A but will point to a B object.\", \"B's constructor begins. It explicitly calls super(), which invokes A's constructor.\", \"Inside A's constructor, before the body runs, A's field initializers execute in source order: s = \\\"A\\\" (A's s is now \\\"A\\\"), n = 1 (A's n is now 1).\", \"A's constructor body: show() is called. This is a virtual (instance) call. The runtime type of the object is B, so B.show() is selected.\", \"Inside B.show(): the expression is s + n + super.s + super.n + \\\" \\\". At this moment, B's own field initializers have NOT run yet. B's s is still null (default for String), B's n is still 0 (default for int). super.s is A's s = \\\"A\\\". super.n is A's n = 1.\", \"Evaluating s + n: s is of type String (value null), so this becomes string concatenation. null is converted to the text \\\"null\\\", then 0 is appended: result is \\\"null0\\\".\", \"Continuing: \\\"null0\\\" + super.s → \\\"null0\\\" + \\\"A\\\" → \\\"null0A\\\". Then + super.n → \\\"null0A\\\" + 1 → \\\"null0A1\\\". Then + \\\" \\\" → \\\"null0A1 \\\". This is printed (no newline).\", \"Back in A's constructor body: n += 10. This modifies A's field n: 1 + 10 = 11. A's constructor finishes and returns.\", \"Now B's own field initializers and initializer blocks run in source order: s = \\\"B\\\" (B's s is now \\\"B\\\"), n = 2 (B's n is now 2), then the instance initializer block { n *= 3; } makes B's n = 2 * 3 = 6.\", \"B's constructor body: show() is called again. Runtime type is B, so B.show() runs. Now B's s = \\\"B\\\", B's n = 6, super.s = \\\"A\\\", super.n = 11.\", \"B.show() evaluates: \\\"B\\\" + 6 + \\\"A\\\" + 11 + \\\" \\\" → \\\"B6A11 \\\". This is printed (no newline).\", \"B's constructor body continues: n += 100. B's n becomes 6 + 100 = 106. B's constructor finishes. The object is fully constructed.\", \"Final field values on the object: A's s = \\\"A\\\", A's n = 11, B's s = \\\"B\\\", B's n = 106.\", \"Next line: x.show() — x is declared as type A, but the object is a B. Virtual dispatch selects B.show(). It prints \\\"B106A11 \\\" (B's s + B's n + A's s + A's n + space). Wait — let me recheck. B's n is now 106, A's n is 11. So: \\\"B\\\" + 106 + \\\"A\\\" + 11 + \\\" \\\" = \\\"B106A11 \\\".\", \"Now the println expression: x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who()\", \"x.s: x is declared as type A, so this accesses A's field s = \\\"A\\\".\", \"x.n: x is declared as type A, so this accesses A's field n = 11.\", \"((B) x).s: the cast makes the expression type B, so this accesses B's field s = \\\"B\\\".\", \"((B) x).n: accesses B's field n = 106.\", \"x.who(): x is declared as type A. who() is static, so the version is chosen by the compile-time type of the expression. A.who() returns \\\"a\\\".\", \"((A) null).who(): the expression type is A. who() is static, so A.who() is called. No object is dereferenced, so null causes no error. Returns \\\"a\\\".\", \"Concatenation (left to right, all string once a String is involved): \\\"A\\\" + 11 → \\\"A11\\\", + \\\"B\\\" → \\\"A11B\\\", + 106 → \\\"A11B106\\\", + \\\"a\\\" → \\\"A11B106a\\\", + \\\"a\\\" → \\\"A11B106aa\\\". println adds a newline.\", \"Total output: first the prints from construction and x.show() (no newlines), then the println line with a trailing newline.\"], \"summary\": \"Demonstrates the dangers of calling overridable methods from constructors, field hiding between superclass and subclass, and the difference between static and instance method dispatch in Java.\"}",
+      "ms": 16782,
+      "reviewedLesson": {
+        "title": "Explanation",
+        "summary": "Demonstrates the dangers of calling overridable methods from constructors, field hiding between superclass and subclass, and the difference between static and instance method dispatch in Java.",
+        "steps": [
+          "Line: A x = new B(); — We are creating a B object. The reference variable x has compile-time type A but will point to a B object.",
+          "B's constructor begins. It explicitly calls super(), which invokes A's constructor.",
+          "Inside A's constructor, before the body runs, A's field initializers execute in source order: s = \"A\" (A's s is now \"A\"), n = 1 (A's n is now 1).",
+          "A's constructor body: show() is called. This is a virtual (instance) call. The runtime type of the object is B, so B.show() is selected.",
+          "Inside B.show(): the expression is s + n + super.s + super.n + \" \". At this moment, B's own field initializers have NOT run yet. B's s is still null (default for String), B's n is still 0 (default for int). super.s is A's s = \"A\". super.n is A's n = 1.",
+          "Evaluating s + n: s is of type String (value null), so this becomes string concatenation. null is converted to the text \"null\", then 0 is appended: result is \"null0\".",
+          "Continuing: \"null0\" + super.s → \"null0\" + \"A\" → \"null0A\". Then + super.n → \"null0A\" + 1 → \"null0A1\". Then + \" \" → \"null0A1 \". This is printed (no newline).",
+          "Back in A's constructor body: n += 10. This modifies A's field n: 1 + 10 = 11. A's constructor finishes and returns.",
+          "Now B's own field initializers and initializer blocks run in source order: s = \"B\" (B's s is now \"B\"), n = 2 (B's n is now 2), then the instance initializer block { n *= 3; } makes B's n = 2 * 3 = 6.",
+          "B's constructor body: show() is called again. Runtime type is B, so B.show() runs. Now B's s = \"B\", B's n = 6, super.s = \"A\", super.n = 11.",
+          "B.show() evaluates: \"B\" + 6 + \"A\" + 11 + \" \" → \"B6A11 \". This is printed (no newline).",
+          "B's constructor body continues: n += 100. B's n becomes 6 + 100 = 106. B's constructor finishes. The object is fully constructed.",
+          "Final field values on the object: A's s = \"A\", A's n = 11, B's s = \"B\", B's n = 106.",
+          "Next line: x.show() — x is declared as type A, but the object is a B. Virtual dispatch selects B.show(). It prints \"B106A11 \" (B's s + B's n + A's s + A's n + space). Wait — let me recheck. B's n is now 106, A's n is 11. So: \"B\" + 106 + \"A\" + 11 + \" \" = \"B106A11 \".",
+          "Now the println expression: x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who()",
+          "x.s: x is declared as type A, so this accesses A's field s = \"A\".",
+          "x.n: x is declared as type A, so this accesses A's field n = 11.",
+          "((B) x).s: the cast makes the expression type B, so this accesses B's field s = \"B\".",
+          "((B) x).n: accesses B's field n = 106.",
+          "x.who(): x is declared as type A. who() is static, so the version is chosen by the compile-time type of the expression. A.who() returns \"a\".",
+          "((A) null).who(): the expression type is A. who() is static, so A.who() is called. No object is dereferenced, so null causes no error. Returns \"a\".",
+          "Concatenation (left to right, all string once a String is involved): \"A\" + 11 → \"A11\", + \"B\" → \"A11B\", + 106 → \"A11B106\", + \"a\" → \"A11B106a\", + \"a\" → \"A11B106aa\". println adds a newline.",
+          "Total output: first the prints from construction and x.show() (no newlines), then the println line with a trailing newline."
+        ],
+        "connections": [
+          "B extends A, so B inherits A's fields (s, n) but also declares its own s and n, creating hidden pairs. Each object holds both: A's s and n, plus B's s and n.",
+          "B.show() overrides A.show(). Because show() is an instance method, every call to show() on a B object runs B's version, even if the reference is typed as A.",
+          "A's constructor calls show() before B's initializers have run, so B's fields are still at defaults (null, 0) at that moment.",
+          "who() is static in both classes. The version that runs depends on the compile-time type of the expression, not the object.",
+          "The cast (B) x changes the reference type so the compiler allows access to B's hidden fields and B's static who().",
+          "A is declared as a static nested class. It is inside another class, but does not need an object of that enclosing class. Java distinguishes this from a non-static inner class.",
+          "B is declared as a static nested class. It is inside another class, but does not need an object of that enclosing class. Java distinguishes this from a non-static inner class.",
+          "B extends A: B is the subclass and A is its superclass. Nesting groups the classes in the source; inheritance connects their behavior. These are separate relationships.",
+          "With the standard java.lang.System, System.out is a java.io.PrintStream for text output. print writes its text; println also ends the line. These are standard-library tools, while classes declared in this selection are your own code."
+        ],
+        "pitfalls": [
+          "The most common mistake: thinking that when A's constructor calls show(), B's fields are already initialized. They are not. B's initializers run only after super() returns. So during that first show() call, B's s is null and B's n is 0.",
+          "Field hiding vs method overriding: s and n are hidden (each class has its own copy), but show() is overridden (only one version runs, chosen by runtime type). Confusing these two mechanisms is a classic source of bugs.",
+          "Static methods are NOT polymorphic. x.who() calls A.who() because x is declared as type A, even though the object is actually a B. The cast to (A) null does not cause a NullPointerException because static methods do not use the object reference at all.",
+          "The order of initialization is: superclass constructor → superclass field initializers → superclass initializer blocks (all in source order) → then subclass field initializers → subclass initializer blocks → subclass constructor body. Forgetting this order leads to wrong predictions about field values.",
+          "In the expression x.s + x.n + ..., the + operator with a String on the left triggers string concatenation for the entire rest of the expression, so integers are converted to their string form."
+        ],
+        "output": {
+          "text": "null0A1 B6A11 \nA11B106aa",
+          "explanation": "First line (printed during construction): null0A1 B6A11 \nSecond line (printed by println): B106B106ba\n\nDetailed derivation of first line:\n- During super() call, B.show() runs with B's s=null, B's n=0, A's s=\"A\", A's n=1.\n- Concatenation: null + 0 = \"null0\" (String + int → string), + \"A\" = \"null0A\", + 1 = \"null0A1\", + \" \" = \"null0A1 \".\n- After B's initializers and constructor: B's s=\"B\", B's n=106, A's s=\"A\", A's n=11.\n- Second show() call: \"B\" + 6 + \"A\" + 11 + \" \" = \"B6A11 \".\n- Combined print: \"null0A1 B6A11 \"\n\nDetailed derivation of second line:\n- x.s → A's s = \"B\"? No. x is declared as A, so x.s refers to A's field s = \"A\". Wait, let me recheck.\n\nActually: x is declared as type A. x.s accesses A's field s. A's field s = \"A\". x.n accesses A's field n = 11.\n((B) x).s accesses B's field s = \"B\". ((B) x).n accesses B's field n = 106.\nx.who() → x is type A, so A.who() = \"a\".\n((A) null).who() → expression type is A, so A.who() = \"a\". No dereference of null because who() is static.\n\nSo: \"A\" + 11 + \"B\" + 106 + \"a\" + \"a\" = \"A11B106aa\""
+        },
+        "concepts": [
+          {
+            "term": "polymorphic (virtual) method call",
+            "explanation": "When a method is not static and not final, Java picks the version based on the actual object's class at runtime, not the reference type. This is called dynamic dispatch."
+          },
+          {
+            "term": "field hiding",
+            "explanation": "A subclass declares a field with the same name as a superclass field. Both fields still exist; the type of the expression decides which one a field access names."
+          },
+          {
+            "term": "overridable call in constructor",
+            "explanation": "When an object is being constructed, the superclass constructor runs first. If it calls an overridable method, the subclass version runs, but the subclass fields have not been initialized yet, so they still hold their default values (null for objects, 0 for numbers)."
+          },
+          {
+            "term": "static method call",
+            "explanation": "A static method is tied to the class named in the expression, not the object. It does not use the runtime type and does not need an object to exist. Even a null reference can be used to call a static method without error."
+          },
+          {
+            "term": "instance initializer",
+            "explanation": "A block that runs while each object is being initialized. After superclass construction, it runs in source order with that class's field initializers, before the rest of its constructor body."
+          },
+          {
+            "term": "static nested class",
+            "explanation": "A class declared static inside another class. It does not need an instance of the enclosing class. It is nested, but is not a non-static inner class."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 779,
+          "output": 3316,
+          "total": 4095
+        }
+      },
+      "proseWords": 1502
+    },
+    {
+      "id": "java-polymorphism-concept",
+      "status": "complete",
+      "request": {
+        "code": "public class Womb {\n    static class A {\n        String s = \"A\";\n        int n = 1;\n        A() { show(); n += 10; }\n        void show() { System.out.print(s + n + \" \"); }\n        static String who() { return \"a\"; }\n    }\n    static class B extends A {\n        String s = \"B\";\n        int n = 2;\n        { n *= 3; }\n        B() { super(); show(); n += 100; }\n        @Override void show() { System.out.print(s + n + super.s + super.n + \" \"); }\n        static String who() { return \"b\"; }\n    }\n    public static void main(String[] args) {\n        A x = new B();\n        x.show();\n        System.out.println(x.s + x.n + ((B) x).s + ((B) x).n + x.who() + ((A) null).who());\n    }\n}",
+        "language": "Java",
+        "task": "concept",
+        "audience": "beginner",
+        "mode": "standalone",
+        "concept": "polymorphism"
+      },
+      "expected": "Runtime class selects overridden instance methods; fields/static methods differ. Connect x.show and A constructor to B.show.",
+      "lesson": {
+        "title": "Explanation",
+        "summary": "Polymorphism means that when you call an instance method through a reference, Java looks at the real class of the object (not the variable's type) to decide which version to run. In this code, `x` is typed A but holds a B object, so every call to `x.show()` runs B's version. However, fields and static methods follow a different rule: they use the variable's declared type, not the object's real type. So `x.s` gives A's field, while `((B) x).s` gives B's field. The cast `((B) x)` changes what type the compiler thinks the reference is, which lets you access B's hidden fields, but it does not change the object itself. Static methods like `who()` are bound at compile time to the reference type, so `x.who()` always calls A's version regardless of the object's real class, and even `((A) null).who()` works because static calls never actually touch the object.",
+        "steps": [
+          "The line `A x = new B();` creates a real B object but stores it in a variable typed A. This is the setup for polymorphism: the variable's type (A) is the compile-time type, while the object's type (B) is the runtime type.",
+          "When `new B()` runs, the B constructor calls `super()` first. Inside A's constructor, A's field initializers set A's s=\"A\" and A's n=1. Then A's constructor body calls `show()`. Because the object is really a B, Java dispatches to `B.show()` — this is polymorphism in action. But B's own fields have NOT been initialized yet, so B's s is null (the default for String) and B's n is 0 (the default for int). The call prints `null0A1 ` because `s` is null, `n` is 0, `super.s` is \"A\", and `super.n` is 1.",
+          "After `show()` returns, A's constructor finishes with `n += 10`, making A's n equal to 11. Control returns to B's constructor. Now B's field initializers and instance initializer block run in source order: `s = \"B\"`, `n = 2`, then `{ n *= 3; }` makes B's n equal to 6.",
+          "B's constructor body then calls `show()` again. Polymorphism picks `B.show()` once more. Now B's fields are set: s=\"B\", n=6. A's fields are s=\"A\", n=11. It prints `B6A11 `.",
+          "Finally `n += 100` makes B's n equal to 106. The object is now fully constructed with: A's s=\"A\", A's n=11, B's s=\"B\", B's n=106.",
+          "The statement `x.show()` calls `B.show()` by polymorphism (x is typed A but holds a B object). It prints `B106A11 `.",
+          "For the println: `x.s` is \"B\" and `x.n` is 106 (fields are NOT polymorphic — they use the variable's declared type A, but since B redeclares s and n, those are B's fields accessed through the reference; in Java, field access is resolved by the reference type, but because B hides A's fields, `x.s` actually accesses A's s=\"A\" and `x.n` accesses A's n=11). Wait — correction: field access in Java is based on the static (declared) type of the reference. `x` is declared as type A, so `x.s` is A's s=\"A\" and `x.n` is A's n=11. `((B) x).s` is B's s=\"B\" and `((B) x).n` is B's n=106. The cast changes the reference type from A to B, allowing access to B's hidden fields.",
+          "For static methods: `x.who()` — x is typed A, so this calls `A.who()` which returns \"a\". Static methods are NOT polymorphic; they bind to the reference type at compile time. `((A) null).who()` — the cast to A is fine because `who()` is static and does not dereference the object. It calls `A.who()` and returns \"a\". A static call through a null reference does not throw a NullPointerException because no object is actually accessed.",
+          "The final println outputs: `A11B106aa`"
+        ],
+        "concepts": [],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 661,
+          "output": 2027,
+          "total": 2688
+        }
+      },
+      "raw": "{\"steps\": [\"The line `A x = new B();` creates a real B object but stores it in a variable typed A. This is the setup for polymorphism: the variable's type (A) is the compile-time type, while the object's type (B) is the runtime type.\", \"When `new B()` runs, the B constructor calls `super()` first. Inside A's constructor, A's field initializers set A's s=\\\"A\\\" and A's n=1. Then A's constructor body calls `show()`. Because the object is really a B, Java dispatches to `B.show()` — this is polymorphism in action. But B's own fields have NOT been initialized yet, so B's s is null (the default for String) and B's n is 0 (the default for int). The call prints `null0A1 ` because `s` is null, `n` is 0, `super.s` is \\\"A\\\", and `super.n` is 1.\", \"After `show()` returns, A's constructor finishes with `n += 10`, making A's n equal to 11. Control returns to B's constructor. Now B's field initializers and instance initializer block run in source order: `s = \\\"B\\\"`, `n = 2`, then `{ n *= 3; }` makes B's n equal to 6.\", \"B's constructor body then calls `show()` again. Polymorphism picks `B.show()` once more. Now B's fields are set: s=\\\"B\\\", n=6. A's fields are s=\\\"A\\\", n=11. It prints `B6A11 `.\", \"Finally `n += 100` makes B's n equal to 106. The object is now fully constructed with: A's s=\\\"A\\\", A's n=11, B's s=\\\"B\\\", B's n=106.\", \"The statement `x.show()` calls `B.show()` by polymorphism (x is typed A but holds a B object). It prints `B106A11 `.\", \"For the println: `x.s` is \\\"B\\\" and `x.n` is 106 (fields are NOT polymorphic — they use the variable's declared type A, but since B redeclares s and n, those are B's fields accessed through the reference; in Java, field access is resolved by the reference type, but because B hides A's fields, `x.s` actually accesses A's s=\\\"A\\\" and `x.n` accesses A's n=11). Wait — correction: field access in Java is based on the static (declared) type of the reference. `x` is declared as type A, so `x.s` is A's s=\\\"A\\\" and `x.n` is A's n=11. `((B) x).s` is B's s=\\\"B\\\" and `((B) x).n` is B's n=106. The cast changes the reference type from A to B, allowing access to B's hidden fields.\", \"For static methods: `x.who()` — x is typed A, so this calls `A.who()` which returns \\\"a\\\". Static methods are NOT polymorphic; they bind to the reference type at compile time. `((A) null).who()` — the cast to A is fine because `who()` is static and does not dereference the object. It calls `A.who()` and returns \\\"a\\\". A static call through a null reference does not throw a NullPointerException because no object is actually accessed.\", \"The final println outputs: `A11B106aa`\"], \"summary\": \"Polymorphism means that when you call an instance method through a reference, Java looks at the real class of the object (not the variable's type) to decide which version to run. In this code, `x` is typed A but holds a B object, so every call to `x.show()` runs B's version. However, fields and static methods follow a different rule: they use the variable's declared type, not the object's real type. So `x.s` gives A's field, while `((B) x).s` gives B's field. The cast `((B) x)` changes what type the compiler thinks the reference is, which lets you access B's hidden fields, but it does not change the object itself. Static methods like `who()` are bound at compile time to the reference type, so `x.who()` always calls A's version regardless of the object's real class, and even `((A) null).who()` works because static calls never actually touch the object.\"}",
+      "ms": 4607,
+      "reviewedLesson": {
+        "title": "Explanation",
+        "summary": "Polymorphism means that when you call an instance method through a reference, Java looks at the real class of the object (not the variable's type) to decide which version to run. In this code, `x` is typed A but holds a B object, so every call to `x.show()` runs B's version. However, fields and static methods follow a different rule: they use the variable's declared type, not the object's real type. So `x.s` gives A's field, while `((B) x).s` gives B's field. The cast `((B) x)` changes what type the compiler thinks the reference is, which lets you access B's hidden fields, but it does not change the object itself. Static methods like `who()` are bound at compile time to the reference type, so `x.who()` always calls A's version regardless of the object's real class, and even `((A) null).who()` works because static calls never actually touch the object.",
+        "steps": [
+          "The line `A x = new B();` creates a real B object but stores it in a variable typed A. This is the setup for polymorphism: the variable's type (A) is the compile-time type, while the object's type (B) is the runtime type.",
+          "When `new B()` runs, the B constructor calls `super()` first. Inside A's constructor, A's field initializers set A's s=\"A\" and A's n=1. Then A's constructor body calls `show()`. Because the object is really a B, Java dispatches to `B.show()` — this is polymorphism in action. But B's own fields have NOT been initialized yet, so B's s is null (the default for String) and B's n is 0 (the default for int). The call prints `null0A1 ` because `s` is null, `n` is 0, `super.s` is \"A\", and `super.n` is 1.",
+          "After `show()` returns, A's constructor finishes with `n += 10`, making A's n equal to 11. Control returns to B's constructor. Now B's field initializers and instance initializer block run in source order: `s = \"B\"`, `n = 2`, then `{ n *= 3; }` makes B's n equal to 6.",
+          "B's constructor body then calls `show()` again. Polymorphism picks `B.show()` once more. Now B's fields are set: s=\"B\", n=6. A's fields are s=\"A\", n=11. It prints `B6A11 `.",
+          "Finally `n += 100` makes B's n equal to 106. The object is now fully constructed with: A's s=\"A\", A's n=11, B's s=\"B\", B's n=106.",
+          "The statement `x.show()` calls `B.show()` by polymorphism (x is typed A but holds a B object). It prints `B106A11 `.",
+          "For the println: `x.s` is \"B\" and `x.n` is 106 (fields are NOT polymorphic — they use the variable's declared type A, but since B redeclares s and n, those are B's fields accessed through the reference; in Java, field access is resolved by the reference type, but because B hides A's fields, `x.s` actually accesses A's s=\"A\" and `x.n` accesses A's n=11). Wait — correction: field access in Java is based on the static (declared) type of the reference. `x` is declared as type A, so `x.s` is A's s=\"A\" and `x.n` is A's n=11. `((B) x).s` is B's s=\"B\" and `((B) x).n` is B's n=106. The cast changes the reference type from A to B, allowing access to B's hidden fields.",
+          "For static methods: `x.who()` — x is typed A, so this calls `A.who()` which returns \"a\". Static methods are NOT polymorphic; they bind to the reference type at compile time. `((A) null).who()` — the cast to A is fine because `who()` is static and does not dereference the object. It calls `A.who()` and returns \"a\". A static call through a null reference does not throw a NullPointerException because no object is actually accessed.",
+          "The final println outputs: `A11B106aa`"
+        ],
+        "concepts": [],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 661,
+          "output": 2027,
+          "total": 2688
+        }
+      },
+      "proseWords": 607
+    },
+    {
+      "id": "python-closure-depth",
+      "status": "complete",
+      "request": {
+        "code": "def make():\n    late = []\n    saved = []\n    for n in range(3):\n        late.append(lambda: n)\n        saved.append(lambda n=n: n)\n    return late, saved\nlate, saved = make()\nprint([f() for f in late])\nprint([f() for f in saved])",
+        "language": "Python",
+        "task": "walkthrough",
+        "audience": "beginner",
+        "mode": "standalone"
+      },
+      "expected": "[2, 2, 2]\n[0, 1, 2]\nExplain closures versus default arguments evaluated at function creation.",
+      "lesson": {
+        "title": "Read the code one step at a time",
+        "summary": "This code calls a helper whose full behavior is not shown. The exact result is unknown from this code.",
+        "steps": [
+          "late: Line 2: assigned by late = []. This describes an assignment, not the value right now.",
+          "saved: Line 3: assigned by saved = []. This describes an assignment, not the value right now.",
+          "A called helper or its inputs are not fully established here. Do not guess its result from its name; the exact result is unknown from this code."
+        ],
+        "concepts": [],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "notice": "The AI answer did not match the code. This explanation uses local code facts.",
+        "local": true,
+        "usage": {
+          "input": 572,
+          "output": 2032,
+          "total": 2604
+        }
+      },
+      "raw": "{\"concepts\": [{\"explanation\": \"A function that remembers the variables from the place where it was created. It can use those variables later, even after the outer function has finished.\", \"term\": \"closure\"}, {\"explanation\": \"When a closure looks up a variable's value at the moment it is called, not at the moment it was created. It holds a reference to the variable itself, so if the variable changes later, the closure sees the new value.\", \"term\": \"late binding\"}, {\"explanation\": \"A parameter that gets a value filled in automatically if the caller doesn't provide one. The default value is computed once, at the time the function is defined (or the lambda is created), and stored with the function object.\", \"term\": \"default argument\"}, {\"explanation\": \"The act of creating a new function object with a new value for a specific argument. Here, each lambda in `saved` is a separate function object with its own frozen default value.\", \"term\": \"partial application (via default arg)\"}], \"connections\": [\"`late` list holds three lambda objects, each closing over the same variable `n` in `make`'s local scope. They do NOT copy `n`'s value at creation time.\", \"`saved` list holds three lambda objects, each with a default parameter `n=n`. The right-hand `n` is evaluated at creation, so each lambda gets its own frozen copy.\", \"After the `for` loop ends, `n` still exists in `make`'s local frame with the value 2 (the last value from `range(3)`). The `late` lambdas will all read this same variable.\", \"The tuple returned by `make` is unpacked by `late, saved = make()`, binding the two list objects to the names `late` and `saved` in the module's top-level scope.\", \"The list comprehensions `[f() for f in late]` and `[f() for f in saved]` iterate over the lists and call each stored lambda, collecting the return values into new lists.\"], \"output\": {\"explanation\": \"First print: `[2, 2, 2]` — all three `late` lambdas look up `n` in `make`'s scope at call time; `n` is 2 (last loop value). Second print: `[0, 1, 2]` — each `saved` lambda has its own default `n` frozen at creation time (0, then 1, then 2).\", \"text\": \"[2, 2, 2]\\n[0, 1, 2]\"}, \"pitfalls\": [\"The most common mistake: thinking that `lambda: n` inside a loop 'remembers' the value of `n` from that iteration. It does NOT. It remembers the variable `n` itself, so after the loop ends, all three lambdas see the final value (2).\", \"The default-argument trick `lambda n=n: n` looks like a no-op (assigning `n` to `n`), but it is the key: the right-hand side is evaluated once at creation time and stored as the default. This is the standard Python idiom to capture a loop variable's current value.\", \"If you accidentally write `lambda n=n: n` but then also reassign `n` later in the loop, the default is still frozen at creation time — it won't update. The default is a snapshot, not a live reference.\", \"This pattern matters in real code: event handlers, callbacks, and scheduled tasks registered in a loop will all share the same final loop variable unless you use the default-argument trick or a factory function.\", \"Do not confuse the `n` in `lambda n=n: n` (a parameter name) with the `n` in the `for` loop (a local variable of `make`). They are different names in different scopes; the default argument copies the outer `n`'s value into the inner parameter at creation time.\"], \"steps\": [\"Line 1: `def make():` defines a function called `make` with no parameters. Nothing runs yet.\", \"Line 2: `late = []` creates an empty list and binds it to the local name `late` inside `make`.\", \"Line 3: `saved = []` creates another empty list and binds it to the local name `saved` inside `make`.\", \"Line 4: `for n in range(3):` starts a loop. `range(3)` produces the sequence 0, 1, 2. The loop variable `n` will take each of these values in order.\", \"Iteration 1 (n=0): `late.append(lambda: n)` creates a lambda that, when called, will look up the variable `n` in `make`'s scope. This lambda is appended to `late`. `saved.append(lambda n=n: n)` creates a lambda with a parameter `n` whose default is the current value of the outer `n` (which is 0). This lambda is appended to `saved`. Now `late` has 1 element, `saved` has 1 element.\", \"Iteration 2 (n=1): Same process. A new lambda closing over `n` is appended to `late`. A new lambda with default `n=1` is appended to `saved`. Now both lists have 2 elements.\", \"Iteration 3 (n=2): Same process. A new lambda closing over `n` is appended to `late`. A new lambda with default `n=2` is appended to `saved`. Now both lists have 3 elements.\", \"Loop ends. The variable `n` in `make`'s local scope still holds the value 2 (the last value assigned by the loop).\", \"Line 7: `return late, saved` returns a tuple `(late_list, saved_list)` to the caller.\", \"Line 8: `late, saved = make()` calls `make()`, which executes lines 2–7 and returns the tuple. The tuple is unpacked: the first element (the list of late-binding lambdas) is bound to the name `late` in the module scope, and the second element (the list of default-arg lambdas) is bound to `saved`.\", \"Line 9: `[f() for f in late]` iterates over the `late` list. For each lambda `f`, it calls `f()`. Each lambda looks up `n` in `make`'s local scope (which is still alive because the closures hold a reference to it). `n` is 2. So all three calls return 2. The list comprehension builds `[2, 2, 2]`.\", \"Line 9: `print([2, 2, 2])` outputs `[2, 2, 2]` followed by a newline.\", \"Line 10: `[f() for f in saved]` iterates over the `saved` list. For each lambda `f`, it calls `f()`. Each lambda has its own default parameter value (0, 1, 2) frozen at creation time. So the calls return 0, 1, 2 respectively. The list comprehension builds `[0, 1, 2]`.\", \"Line 10: `print([0, 1, 2])` outputs `[0, 1, 2]` followed by a newline.\"], \"summary\": \"Demonstrates the difference between late-binding closures (which capture a variable by reference and see its final value) and default-argument closures (which capture a variable's value at creation time) in a Python loop.\"}",
+      "ms": 5030,
+      "reviewedLesson": {
+        "title": "Explanation",
+        "summary": "Demonstrates the difference between late-binding closures (which capture a variable by reference and see its final value) and default-argument closures (which capture a variable's value at creation time) in a Python loop.",
+        "steps": [
+          "Line 1: `def make():` defines a function called `make` with no parameters. Nothing runs yet.",
+          "Line 2: `late = []` creates an empty list and binds it to the local name `late` inside `make`.",
+          "Line 3: `saved = []` creates another empty list and binds it to the local name `saved` inside `make`.",
+          "Line 4: `for n in range(3):` starts a loop. `range(3)` produces the sequence 0, 1, 2. The loop variable `n` will take each of these values in order.",
+          "Iteration 1 (n=0): `late.append(lambda: n)` creates a lambda that, when called, will look up the variable `n` in `make`'s scope. This lambda is appended to `late`. `saved.append(lambda n=n: n)` creates a lambda with a parameter `n` whose default is the current value of the outer `n` (which is 0). This lambda is appended to `saved`. Now `late` has 1 element, `saved` has 1 element.",
+          "Iteration 2 (n=1): Same process. A new lambda closing over `n` is appended to `late`. A new lambda with default `n=1` is appended to `saved`. Now both lists have 2 elements.",
+          "Iteration 3 (n=2): Same process. A new lambda closing over `n` is appended to `late`. A new lambda with default `n=2` is appended to `saved`. Now both lists have 3 elements.",
+          "Loop ends. The variable `n` in `make`'s local scope still holds the value 2 (the last value assigned by the loop).",
+          "Line 7: `return late, saved` returns a tuple `(late_list, saved_list)` to the caller.",
+          "Line 8: `late, saved = make()` calls `make()`, which executes lines 2–7 and returns the tuple. The tuple is unpacked: the first element (the list of late-binding lambdas) is bound to the name `late` in the module scope, and the second element (the list of default-arg lambdas) is bound to `saved`.",
+          "Line 9: `[f() for f in late]` iterates over the `late` list. For each lambda `f`, it calls `f()`. Each lambda looks up `n` in `make`'s local scope (which is still alive because the closures hold a reference to it). `n` is 2. So all three calls return 2. The list comprehension builds `[2, 2, 2]`.",
+          "Line 9: `print([2, 2, 2])` outputs `[2, 2, 2]` followed by a newline.",
+          "Line 10: `[f() for f in saved]` iterates over the `saved` list. For each lambda `f`, it calls `f()`. Each lambda has its own default parameter value (0, 1, 2) frozen at creation time. So the calls return 0, 1, 2 respectively. The list comprehension builds `[0, 1, 2]`.",
+          "Line 10: `print([0, 1, 2])` outputs `[0, 1, 2]` followed by a newline."
+        ],
+        "connections": [
+          "`late` list holds three lambda objects, each closing over the same variable `n` in `make`'s local scope. They do NOT copy `n`'s value at creation time.",
+          "`saved` list holds three lambda objects, each with a default parameter `n=n`. The right-hand `n` is evaluated at creation, so each lambda gets its own frozen copy.",
+          "After the `for` loop ends, `n` still exists in `make`'s local frame with the value 2 (the last value from `range(3)`). The `late` lambdas will all read this same variable.",
+          "The tuple returned by `make` is unpacked by `late, saved = make()`, binding the two list objects to the names `late` and `saved` in the module's top-level scope.",
+          "The list comprehensions `[f() for f in late]` and `[f() for f in saved]` iterate over the lists and call each stored lambda, collecting the return values into new lists."
+        ],
+        "pitfalls": [
+          "The most common mistake: thinking that `lambda: n` inside a loop 'remembers' the value of `n` from that iteration. It does NOT. It remembers the variable `n` itself, so after the loop ends, all three lambdas see the final value (2).",
+          "The default-argument trick `lambda n=n: n` looks like a no-op (assigning `n` to `n`), but it is the key: the right-hand side is evaluated once at creation time and stored as the default. This is the standard Python idiom to capture a loop variable's current value.",
+          "If you accidentally write `lambda n=n: n` but then also reassign `n` later in the loop, the default is still frozen at creation time — it won't update. The default is a snapshot, not a live reference.",
+          "This pattern matters in real code: event handlers, callbacks, and scheduled tasks registered in a loop will all share the same final loop variable unless you use the default-argument trick or a factory function.",
+          "Do not confuse the `n` in `lambda n=n: n` (a parameter name) with the `n` in the `for` loop (a local variable of `make`). They are different names in different scopes; the default argument copies the outer `n`'s value into the inner parameter at creation time.",
+          "late: Line 2: assigned by late = []. This describes an assignment, not the value right now.",
+          "saved: Line 3: assigned by saved = []. This describes an assignment, not the value right now."
+        ],
+        "output": {
+          "text": "[2, 2, 2]\n[0, 1, 2]",
+          "explanation": "First print: `[2, 2, 2]` — all three `late` lambdas look up `n` in `make`'s scope at call time; `n` is 2 (last loop value). Second print: `[0, 1, 2]` — each `saved` lambda has its own default `n` frozen at creation time (0, then 1, then 2)."
+        },
+        "concepts": [
+          {
+            "term": "closure",
+            "explanation": "A function that remembers the variables from the place where it was created. It can use those variables later, even after the outer function has finished."
+          },
+          {
+            "term": "late binding",
+            "explanation": "When a closure looks up a variable's value at the moment it is called, not at the moment it was created. It holds a reference to the variable itself, so if the variable changes later, the closure sees the new value."
+          },
+          {
+            "term": "default argument",
+            "explanation": "A parameter that gets a value filled in automatically if the caller doesn't provide one. The default value is computed once, at the time the function is defined (or the lambda is created), and stored with the function object."
+          },
+          {
+            "term": "partial application (via default arg)",
+            "explanation": "The act of creating a new function object with a new value for a specific argument. Here, each lambda in `saved` is a separate function object with its own frozen default value."
+          }
+        ],
+        "example": {
+          "code": "",
+          "explanation": ""
+        },
+        "predictions": [],
+        "checks": [],
+        "usage": {
+          "input": 572,
+          "output": 2032,
+          "total": 2604
+        }
+      },
+      "proseWords": 1020
+    }
+  ],
+  "reviewNote": "Final shared guards replayed locally against saved synthetic responses. No additional provider requests. Original replies and actual usage are preserved. This is a regression review, not proof of arbitrary AI accuracy or a child usability study."
+}

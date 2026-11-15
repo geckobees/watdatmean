@@ -1,0 +1,328 @@
+{
+  "compiledFor": "Java 17",
+  "runtimeVersion": "17.0.5",
+  "expected": "null0A1 B6A11 B106A11 A11B106aa\n",
+  "results": [
+    {
+      "id": "original",
+      "sourceSha256": "b20d37b0ed2eae97b12b64469af7f22ce5b06251ed9f4f2b064e05dd3d105956",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "reordered-classes",
+      "sourceSha256": "54c99a247c398781c75fc3cdb88ab591e44a9983ed9de744a88320039f489c76",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "inherited-method",
+      "sourceSha256": "c414183024d55513d03a9790f80f91966b6d744e949c548d3a8f08541c2b89bf",
+      "output": "A1 A11 A11 A11B106aa\n",
+      "localOutput": "A1 A11 A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "renamed",
+      "sourceSha256": "cd144b67396ed81419230a416340ab41f73bb0dac7b589bc8cd9d6e747bed693",
+      "output": "null0Parent1 Child6Parent11 Child106Parent11 Parent11Child106aa\n",
+      "localOutput": "null0Parent1 Child6Parent11 Child106Parent11 Parent11Child106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "different-values",
+      "sourceSha256": "7cee6517e5b84a06cc35e0fd4901eb3269f9530b4b10169ad06a0109c3f68d4d",
+      "output": "null0A4 B20A2 B50A2 A2B50aa\n",
+      "localOutput": "null0A4 B20A2 B50A2 A2B50aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "declarations-below-constructor",
+      "sourceSha256": "17807c7b94f9b7d61489085dfbeb9b6cb4249a002128396d54c414f1040ab507",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "implicit-super",
+      "sourceSha256": "14877338f7364876dd44dc2b94f0c252bc9d1cab5cb6014dbb42cdb903ff0bac",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "no-annotation",
+      "sourceSha256": "850cceef20c54a4afbd2719e07c4b73f95317da5a1b6d1312380ac03926ff7bc",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "child-reference",
+      "sourceSha256": "92dcf772b6cb6d322e3815c6f793369a4146ae8859561c6fd01a06dee3b3fdf9",
+      "output": "null0A1 B6A11 B106A11 B106B106ba\n",
+      "localOutput": "null0A1 B6A11 B106A11 B106B106ba\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "numeric-prefix",
+      "sourceSha256": "d032b0088f1cd0170772b5e98d57c433d87d669abe45869bc0e957311451db49",
+      "output": "null0A1 B6A11 B106A11 117AB106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 117AB106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "int-overflow",
+      "sourceSha256": "a3cbce9725806d01a68126555b6b46169a35b1a1bf065c8555832104b6c67fe3",
+      "output": "null0A2147483647 B-2A-2147483639 B98A-2147483639 A-2147483639B98aa\n",
+      "localOutput": "null0A2147483647 B-2A-2147483639 B98A-2147483639 A-2147483639B98aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "no-child-field",
+      "sourceSha256": "8116045c9a35690e6fed4ec0a91add3330afd156c1766a3aecf2d791851898f4",
+      "output": "A0A1 A6A11 A106A11 A11A106aa\n",
+      "localOutput": "A0A1 A6A11 A106A11 A11A106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "default-string",
+      "sourceSha256": "723026e958c8fb33b0d1db5b19cbfa6a12d538c593b098b743871dbad57f3fe6",
+      "output": "null0A1 null6A11 null106A11 A11null106aa\n",
+      "localOutput": "null0A1 null6A11 null106A11 A11null106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "super-call",
+      "sourceSha256": "ec548177c5b9d19343100cb9b15e0f9c6c8de6c1314e829cb3dd13e317854d0a",
+      "output": "null0A1 A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "null-static-result",
+      "sourceSha256": "175357983f461c9e4b29f0b3179dcb448c4fb5cbd0714a5384dc7dbcfb0c0037",
+      "output": "null0A1 B6A11 B106A11 A11B106nullnull\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106nullnull\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "class-static-call",
+      "sourceSha256": "a2f89bb33faf049abfe948dbb5bbea3effe6cee623f2f80bec499cc6da95f338",
+      "output": "null0A1 B6A11 B106A11 A11B106ba\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106ba\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "parent-cast",
+      "sourceSha256": "7b35475e9e35a4b8e5372f847c211459d029eaad3fc55dfbd05df3b2590fe880",
+      "output": "null0A1 B6A11 B106A11 A11B11aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B11aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "comments-and-escapes",
+      "sourceSha256": "a5e789f5875cf3e442610ea1f54758d12ee07df88c9ee49c34baaf2bf111f411",
+      "output": "null0A1 B\"\t6A11 B\"\t106A11 A11B\"\t106aa\n",
+      "localOutput": "null0A1 B\"\t6A11 B\"\t106A11 A11B\"\t106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "qualified-assignment",
+      "sourceSha256": "b0cb0504eb108b79bfd3d0a5fd69b319f3b5e29c724c635479f5b4ee6e8b1737",
+      "output": "null0A1 B6A13 B106A13 A13B106aa\n",
+      "localOutput": "null0A1 B6A13 B106A13 A13B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "constant-initializer",
+      "sourceSha256": "fc7f24084b1c425809eec58b43977a6770bf88af32e2e40461329e4700713e3f",
+      "output": "null0A1 B-60A11 B40A11 A11B40aa\n",
+      "localOutput": "null0A1 B-60A11 B40A11 A11B40aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "empty-constructor",
+      "sourceSha256": "b50fef9a5154138e5bc1a91d80c2fff8bc61a758b946b51ab0169a4baa70a385",
+      "output": "null0A1 B6A11 A11B6aa\n",
+      "localOutput": "null0A1 B6A11 A11B6aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "string-assignment",
+      "sourceSha256": "c345a213ca6cbf4560059911653b6a8d05e3278cd7caacb896ec5bc4816ed031",
+      "output": "null0A1 B26A11 B2106A11 A11B2106aa\n",
+      "localOutput": "null0A1 B26A11 B2106A11 A11B2106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "base-object",
+      "sourceSha256": "6e3c30465fc3d55db8f439297c45ee818349404a145903220f59f1360b2f8790",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    },
+    {
+      "id": "all-public-methods",
+      "sourceSha256": "a2616914c8245072b99142b85a00db92b91b98bd73868b103144909113c4278b",
+      "output": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "localOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "passed": true
+    }
+  ],
+  "comparison": [
+    {
+      "variant": "before",
+      "before": {
+        "input": 1050,
+        "output": 1476,
+        "total": 2526
+      },
+      "beforeOutput": "null0A1 B6A11 B106A11 A11B106aa\n",
+      "after": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterOutput": "null0A1 B6A11 B106A11 A11B106aa\n"
+    },
+    {
+      "variant": "after",
+      "before": {
+        "input": 1050,
+        "output": 1663,
+        "total": 2713
+      },
+      "beforeOutput": "null0A1 B6A11 B106A11 B11B106aa\n",
+      "after": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterOutput": "null0A1 B6A11 B106A11 A11B106aa\n"
+    }
+  ],
+  "passed": true
+}

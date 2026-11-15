@@ -289,6 +289,8 @@ export function hoverExplanation(target: ts.Node, source: ts.SourceFile, offset:
     return 'This code is incomplete or has a syntax error. The learning panel can help you explore the pieces already here.';
   if (ts.isVariableStatement(target)) {
     const declarations = target.declarationList.declarations;
+    if (!declarations.length)
+      return 'This declaration is incomplete. Add a name and a starting value to see its explanation.';
     return declaration(declarations.find(focused) ?? declarations[0]) + exported(target);
   }
   if (ts.isPropertyDeclaration(target)) return declaration(target);
@@ -322,7 +324,7 @@ export function hoverExplanation(target: ts.Node, source: ts.SourceFile, offset:
     return `${ref('if')} checks ${ref(target.expression)}. When it counts as true, the first branch runs${target.elseStatement ? `; otherwise, the ${ref('else')} branch runs` : ''}.`;
   if (ts.isForOfStatement(target) || ts.isForInStatement(target)) {
     const name = ts.isVariableDeclarationList(target.initializer)
-      ? target.initializer.declarations[0].name
+      ? (target.initializer.declarations[0]?.name ?? target.initializer)
       : target.initializer;
     return `${ref(ts.isForOfStatement(target) ? 'for...of' : 'for...in')} goes through ${ref(target.expression)}, assigning ${ts.isForOfStatement(target) ? 'each value' : 'each enumerable property name'} to ${ref(name)} and running the loop body for each one.`;
   }

@@ -150,11 +150,15 @@ vi.mock('vscode', () => {
 async function start(
   code = 'const score = 0;\nconst untouched = 9;',
   selection?: [number, number],
+  language = 'typescript',
 ) {
   host.text = code;
   const document = {
-    uri: vscode.Uri.parse('file:/test.ts'),
-    languageId: 'typescript',
+    uri: vscode.Uri.parse(
+      'file:/test.' +
+        ({ typescript: 'ts', python: 'py', javascript: 'js', java: 'java' }[language] ?? 'txt'),
+    ),
+    languageId: language,
     isClosed: false,
     get version() {
       return host.version;
@@ -208,6 +212,40 @@ beforeEach(() => {
 });
 
 describe('repeatable code experiments in the extension host', () => {
+  it('opens Python, shows local origins, previews and applies a checked edit', async () => {
+    await start('score = 3\nprint(score)', [0, 9], 'python');
+    expect(last('selection').language).toBe('Python');
+    expect(last('selection').parts.length).toBeGreaterThan(0);
+    await message({ type: 'preview', replacement: 'score = (' });
+    expect(last('preview').errors.length).toBeGreaterThan(0);
+    await message({ type: 'preview', replacement: 'score = 7' });
+    expect(last('preview').syntaxChecked).toBe(true);
+    await message({ type: 'apply', replacement: 'score = 7' });
+    expect(host.text).toBe('score = 7\nprint(score)');
+    expect(last('selection').language).toBe('Python');
+  });
+  it('offers a Java diff but blocks apply without a matching local parser', async () => {
+    await start('int score = 3;', [0, 14], 'java');
+    expect(last('selection').language).toBe('Java');
+    await message({ type: 'preview', replacement: 'int score = 7;' });
+    expect(last('preview').syntaxChecked).toBe(false);
+    await message({ type: 'apply', replacement: 'int score = 7;' });
+    expect(last('error').message).toMatch(/preview|compare|changes/i);
+    expect(host.confirm).not.toHaveBeenCalled();
+    expect(host.text).toBe('int score = 3;');
+  });
+  it.each(['if True:\n    x=1\n  y=2', 'return 3', 'def f(x, x):\n return x'])(
+    'blocks applying invalid Python even when the editor grammar recovers: %s',
+    async (replacement) => {
+      await start('score = 3\nprint(score)', [0, 22], 'python');
+      await message({ type: 'preview', replacement });
+      expect(last('preview').syntaxChecked).toBe(true);
+      expect(last('preview').errors.length).toBeGreaterThan(0);
+      await message({ type: 'apply', replacement });
+      expect(host.confirm).not.toHaveBeenCalled();
+      expect(host.text).toBe('score = 3\nprint(score)');
+    },
+  );
   it('closes the panel without sending messages to a disposed webview', async () => {
     await start();
     expect(() => host.closePanel!()).not.toThrow();

@@ -2,7 +2,7 @@ import { panelHtml } from './panel';
 import { assertPreviewCurrent, trackRange, validateReplacement, type OffsetRange } from './edit';
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
-import { inspect, syntaxErrors } from './analyzer';
+import { inspectCode, checkSyntax, languageLabel, learningContext } from './languages';
 import { Cache, fingerprint } from './cache';
 import { collectContext, type ContextResult } from './context';
 import { defaults, generate } from './provider';
@@ -33,14 +33,31 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.commands.registerCommand(`watdatmean.${name}`, action));
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
-      { language: 'typescript' },
+      [
+        'typescript',
+        'typescriptreact',
+        'javascript',
+        'javascriptreact',
+        'python',
+        'java',
+        'kotlin',
+        'csharp',
+        'cpp',
+        'c',
+        'go',
+        'rust',
+        'ruby',
+        'php',
+        'swift',
+        'sql',
+      ].map((language) => ({ language })),
       {
         provideHover(document, position) {
           if (document.getText().length > 500000) return;
           const offset = document.offsetAt(position);
-          const snippet = inspect(document.getText(), offset);
+          const snippet = inspectCode(document.getText(), offset, offset, document.languageId);
           const md = new vscode.MarkdownString();
-          md.appendMarkdown('**WatDatMean** · TypeScript\n\n');
+          md.appendMarkdown(`**WatDatMean** · ${languageLabel(document.languageId)}\n\n`);
           if (snippet.explanation) {
             md.appendMarkdown(`${snippet.explanation}\n\n`);
             md.appendMarkdown('*Instant explanation · no AI tokens*\n\n');
@@ -59,9 +76,10 @@ export function activate(context: vscode.ExtensionContext) {
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 20);
   status.text = '$(lightbulb) WatDatMean';
   status.command = 'watdatmean.inspect';
-  status.tooltip = 'Understand TypeScript at your cursor';
+  status.tooltip = 'Understand code at your cursor';
   const update = () =>
-    vscode.window.activeTextEditor?.document.languageId === 'typescript'
+    vscode.window.activeTextEditor &&
+    vscode.window.activeTextEditor.document.uri.scheme !== 'watdatmean'
       ? status.show()
       : status.hide();
   context.subscriptions.push(status, vscode.window.onDidChangeActiveTextEditor(update));
@@ -96,9 +114,13 @@ class Tutor implements vscode.Disposable {
         this.invalidate(event.document.uri);
       }),
     );
-    const watcher = vscode.workspace.createFileSystemWatcher('**/*.ts');
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*');
     const onFileChange = (uri: vscode.Uri) => {
-      if (!/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//i.test(uri.path))
+      if (
+        !/(?:^|\/)(?:node_modules|\.git|\.idea|\.venv|venv|__pycache__|dist|build|target|vendor)\//i.test(
+          uri.path,
+        )
+      )
         this.invalidate(uri);
     };
     this.disposables.push(
@@ -246,28 +268,25 @@ class Tutor implements vscode.Disposable {
       start = document.positionAt(args.offset);
       end = start;
     }
-    if (
-      !document ||
-      document.languageId !== 'typescript' ||
-      document.uri.scheme === 'watdatmean' ||
-      !start ||
-      !end
-    ) {
+    if (!document || document.uri.scheme === 'watdatmean' || !start || !end) {
       void vscode.window.showInformationMessage(
-        'Open a TypeScript (.ts) file and place your cursor on code, or select a snippet.',
+        'Open a source file and place your cursor on code, or select a snippet.',
       );
       return;
     }
     if (document.getText().length > 500000) {
-      void vscode.window.showInformationMessage(
-        'Choose a TypeScript file smaller than 500 KB for this MVP.',
-      );
+      void vscode.window.showInformationMessage('Choose a source file under 500,000 characters.');
       return;
     }
     this.cancelRequest();
     this.preview = undefined;
     this.evidence = undefined;
-    const snippet = inspect(document.getText(), document.offsetAt(start), document.offsetAt(end));
+    const snippet = inspectCode(
+      document.getText(),
+      document.offsetAt(start),
+      document.offsetAt(end),
+      document.languageId,
+    );
     this.selection = {
       document,
       version: document.version,
@@ -316,6 +335,7 @@ class Tutor implements vscode.Disposable {
       type: 'selection',
       keepTab,
       code: snippet.code,
+      language: languageLabel(document.languageId),
       parts: snippet.parts,
       symbol: snippet.symbol,
       file: vscode.workspace.asRelativePath(document.uri),
@@ -329,7 +349,7 @@ class Tutor implements vscode.Disposable {
     const { document, range } = this.selection;
     if (document.isClosed) throw new Error('Reopen this file and inspect the code again.');
     const source = document.getText();
-    if (source.length > 500000) throw new Error('Choose a TypeScript file smaller than 500 KB.');
+    if (source.length > 500000) throw new Error('Choose a source file under 500,000 characters.');
     this.cancelRequest();
     this.preview = undefined;
     this.evidence = undefined;
@@ -342,13 +362,13 @@ class Tutor implements vscode.Disposable {
       snippet:
         range.start === range.end
           ? { code: '', ...range, symbol: '', symbolOffset: range.start, parts: [] }
-          : inspect(source, range.start, range.end),
+          : inspectCode(source, range.start, range.end, document.languageId),
     };
     this.sendSelection(true);
   }
 
   private current(): Selection {
-    if (!this.selection) throw new Error('Inspect some TypeScript code first.');
+    if (!this.selection) throw new Error('Inspect some code first.');
     if (
       this.selection.document.isClosed ||
       this.selection.document.version !== this.selection.version
@@ -416,7 +436,7 @@ class Tutor implements vscode.Disposable {
       }
       this.trusted();
       const task = m.task as Task;
-      if (!['explain', 'example', 'concept', 'impact'].includes(task)) return;
+      if (!['explain', 'walkthrough', 'example', 'concept', 'impact'].includes(task)) return;
       const audience: Audience = m.audience === 'experienced' ? 'experienced' : 'beginner';
       const mode: Mode = task === 'impact' || m.mode === 'project' ? 'project' : 'standalone';
       const config = this.config();
@@ -425,13 +445,25 @@ class Tutor implements vscode.Disposable {
       if (!key) throw new Error('Connect an AI provider first. Use “Connect provider” above.');
       if (selection.snippet.code.length > 12000)
         throw new Error('Select a smaller block of code (under 12,000 characters).');
-      const request: LearningRequest = { task, mode, audience, code: selection.snippet.code };
+      const request: LearningRequest = {
+        task,
+        mode,
+        audience,
+        code: selection.snippet.code,
+        language: languageLabel(selection.document.languageId),
+      };
       if (task === 'concept')
         request.concept = typeof m.concept === 'string' ? m.concept.slice(0, 150) : '';
       if (task === 'impact') {
         request.replacement = this.validateReplacement(m.replacement, selection);
       }
       if (mode === 'project') {
+        if (task === 'walkthrough')
+          request.learningContext = learningContext(
+            selection.document.getText(),
+            selection.document.languageId,
+            selection.snippet,
+          );
         const evidence = await collectContext(selection.document, selection.snippet);
         if (abort.signal.aborted || revision !== this.revision) return;
         this.evidence = evidence;
@@ -441,7 +473,7 @@ class Tutor implements vscode.Disposable {
       }
       if (abort.signal.aborted) return;
       const model = config.model || defaults[config.provider];
-      const cacheKey = fingerprint({ version: 2, provider: config.provider, model, request });
+      const cacheKey = fingerprint({ version: 12, provider: config.provider, model, request });
       const cached = this.cache.get(cacheKey);
       const lesson = cached ?? (await generate(config.provider, model, key, request, abort.signal));
       if (abort.signal.aborted || selection !== this.selection) return;
@@ -494,10 +526,11 @@ class Tutor implements vscode.Disposable {
       throw new Error('Code changed while preparing the preview. Inspect it again.');
     this.evidence = evidence;
     this.send({ type: 'evidence', items: evidence.evidence, note: evidence.note });
-    const errors = syntaxErrors(proposed);
+    const { errors, checked } = checkSyntax(proposed, selection.document.languageId);
     const id = randomBytes(8).toString('hex');
-    const before = vscode.Uri.parse(`watdatmean:/${id}/original.ts`);
-    const after = vscode.Uri.parse(`watdatmean:/${id}/proposed.ts`);
+    const extension = /\.[a-z0-9]+$/i.exec(selection.document.uri.path)?.[0] ?? '.txt';
+    const before = vscode.Uri.parse(`watdatmean:/${id}/original${extension}`);
+    const after = vscode.Uri.parse(`watdatmean:/${id}/proposed${extension}`);
     this.virtual.set(before.toString(), source);
     this.virtual.set(after.toString(), proposed);
     try {
@@ -517,8 +550,8 @@ class Tutor implements vscode.Disposable {
       );
       if (signal.aborted || selection !== this.selection || revision !== this.revision) return;
       this.current();
-      this.preview = errors.length ? undefined : { replacement, revision };
-      this.send({ type: 'preview', errors, replacement });
+      this.preview = !checked || errors.length ? undefined : { replacement, revision };
+      this.send({ type: 'preview', errors, replacement, syntaxChecked: checked });
     } catch (error) {
       this.virtual.delete(before.toString());
       this.virtual.delete(after.toString());
