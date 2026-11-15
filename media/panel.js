@@ -12,6 +12,7 @@
   let originalCode = '';
   let focusAfterWork = false;
   const conceptTargets = new Map();
+  let definitionId = 0;
   const saved = vscode.getState() || {};
   $('mode').value = saved.mode || 'standalone';
   let chosenMode = $('mode').value;
@@ -21,12 +22,39 @@
     if (className) element.className = className;
     return element;
   };
-  function appendConceptText(parent, text, concepts) {
+  function addConceptExpansion(parent, concept, label = 'Explain this concept ↗') {
+    const target = node('div', undefined, 'concept-result');
+    target.hidden = true;
+    const more = node('button', label, 'secondary ai-action');
+    more.type = 'button';
+    more.disabled = busy || stale;
+    more.onclick = () => {
+      conceptTargets.set(concept.term, target);
+      request('concept', { concept: concept.term });
+    };
+    parent.append(more, target);
+  }
+  function appendConceptText(parent, text, concepts, nested = false) {
     const terms = concepts
       .filter((concept) => concept.term && concept.explanation)
       .slice()
       .sort((a, b) => b.term.length - a.term.length);
     const word = (character) => !!character && /[\p{L}\p{N}_]/u.test(character);
+    const definitions = new Map();
+    let active;
+    function closeDefinition(returnFocus = false) {
+      if (!active) return;
+      active.card.hidden = true;
+      active.button.setAttribute('aria-expanded', 'false');
+      if (returnFocus) active.button.focus();
+      active = undefined;
+    }
+    parent.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && active) {
+        event.stopPropagation();
+        closeDefinition(true);
+      }
+    });
     let cursor = 0;
     while (cursor < text.length) {
       let match;
@@ -46,16 +74,45 @@
       if (match.index > cursor)
         parent.append(document.createTextNode(text.slice(cursor, match.index)));
       const term = node(
-        'span',
+        'button',
         text.slice(match.index, match.index + match.concept.term.length),
         'concept-term',
       );
+      term.type = 'button';
       term.title = match.concept.explanation;
-      term.tabIndex = 0;
-      term.setAttribute('aria-label', `${term.textContent}: ${match.concept.explanation}`);
+      term.setAttribute('aria-label', `Define ${term.textContent}`);
+      term.setAttribute('aria-expanded', 'false');
+      let card = definitions.get(match.concept.term);
+      if (!card) {
+        card = node('div', undefined, 'concept-definition');
+        card.id = `concept-definition-${++definitionId}`;
+        card.hidden = true;
+        card.setAttribute('role', 'region');
+        card.setAttribute('aria-label', `Definition of ${match.concept.term}`);
+        const heading = node('div', undefined, 'concept-definition-heading');
+        const close = node('button', '×', 'quiet');
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Close definition');
+        close.onclick = () => closeDefinition(true);
+        heading.append(node('strong', match.concept.term), close);
+        card.append(heading, node('p', match.concept.explanation));
+        if (!nested) addConceptExpansion(card, match.concept, 'Explain further · AI ↗');
+        definitions.set(match.concept.term, card);
+      }
+      term.setAttribute('aria-controls', card.id);
+      term.onclick = () => {
+        const wasOpen = active?.button === term;
+        closeDefinition();
+        if (!wasOpen) {
+          card.hidden = false;
+          term.setAttribute('aria-expanded', 'true');
+          active = { button: term, card };
+        }
+      };
       parent.append(term);
       cursor = match.index + match.concept.term.length;
     }
+    parent.append(...definitions.values());
   }
   const updateButtons = () => {
     document.querySelectorAll('.ai-action, .work-action').forEach((button) => {
@@ -73,6 +130,15 @@
       $('replacement').focus();
     }
   };
+  function clearEvidence() {
+    evidence = [];
+    evidenceNote = '';
+    $('evidence').replaceChildren();
+    $('evidence-section').hidden = true;
+    document.querySelectorAll('.evidence-link').forEach((button) => {
+      button.disabled = true;
+    });
+  }
   function request(task, extra = {}) {
     $('error').hidden = true;
     post('request', {
@@ -145,15 +211,15 @@
   function renderLesson(lesson, meta, nested = false) {
     const root = node('article', undefined, 'lesson');
     root.append(node('div', meta, 'result-meta'), node('h2', lesson.title));
-    const summary = node('p');
-    appendConceptText(summary, lesson.summary, lesson.concepts);
+    const summary = node('div', undefined, 'concept-copy');
+    appendConceptText(summary, lesson.summary, lesson.concepts, nested);
     root.append(summary);
     if (lesson.steps.length) {
       root.append(node('h3', 'Walk through it'));
       const list = node('ol');
       lesson.steps.forEach((step) => {
         const item = node('li');
-        appendConceptText(item, step, lesson.concepts);
+        appendConceptText(item, step, lesson.concepts, nested);
         list.append(item);
       });
       root.append(list);
@@ -164,16 +230,7 @@
         const detail = node('details');
         detail.append(node('summary', concept.term));
         if (concept.explanation) detail.append(node('p', concept.explanation));
-        if (!nested) {
-          const target = node('div', undefined, 'concept-result');
-          target.hidden = true;
-          const more = node('button', 'Explain this concept ↗', 'secondary ai-action');
-          more.onclick = () => {
-            conceptTargets.set(concept.term, target);
-            request('concept', { concept: concept.term });
-          };
-          detail.append(more, target);
-        }
+        if (!nested) addConceptExpansion(detail, concept);
         root.append(detail);
       });
     }
@@ -184,8 +241,8 @@
         pre.append(node('code', lesson.example.code));
         root.append(pre);
       }
-      const exampleExplanation = node('p');
-      appendConceptText(exampleExplanation, lesson.example.explanation, lesson.concepts);
+      const exampleExplanation = node('div', undefined, 'concept-copy');
+      appendConceptText(exampleExplanation, lesson.example.explanation, lesson.concepts, nested);
       root.append(exampleExplanation);
     }
     lesson.predictions.forEach((prediction) => {
@@ -204,6 +261,55 @@
       root.append(list);
     }
     return root;
+  }
+  function renderParts(message) {
+    const root = $('parts');
+    let cursor = 0;
+    for (const part of message.parts) {
+      const start = part.start - message.start;
+      const end = part.end - message.start;
+      // Offsets refer to the whole file. Leave any unmapped source as plain text
+      // rather than guessing where repeated names or punctuation belong.
+      if (
+        !Number.isInteger(start) ||
+        !Number.isInteger(end) ||
+        start < cursor ||
+        end <= start ||
+        end > message.code.length
+      )
+        continue;
+      root.append(document.createTextNode(message.code.slice(cursor, start)));
+      // Inline spans can cross lines without changing tab stops or indentation.
+      // Give them button semantics and the same keyboard controls as a button.
+      const button = node('span', message.code.slice(start, end), 'part');
+      button.setAttribute('role', 'button');
+      button.tabIndex = 0;
+      button.setAttribute('aria-label', part.token);
+      button.setAttribute('aria-pressed', 'false');
+      button.setAttribute('aria-controls', 'part-detail');
+      button.title = part.brief;
+      button.onclick = () => {
+        root.querySelectorAll('.part').forEach((p) => {
+          p.classList.remove('selected');
+          p.setAttribute('aria-pressed', 'false');
+        });
+        button.classList.add('selected');
+        button.setAttribute('aria-pressed', 'true');
+        $('part-detail').hidden = false;
+        $('part-detail').replaceChildren(node('strong', part.brief), node('p', part.detail));
+      };
+      button.onkeydown = (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          button.click();
+        }
+      };
+      root.append(button);
+      cursor = end;
+    }
+    root.append(document.createTextNode(message.code.slice(cursor)));
+    root.parentElement.scrollTop = 0;
+    root.parentElement.scrollLeft = 0;
   }
   window.addEventListener('message', (event) => {
     const message = event.data;
@@ -225,17 +331,7 @@
         $(id).replaceChildren();
       $('part-detail').hidden = true;
       $('syntax-section').hidden = !message.parts.length;
-      message.parts.forEach((part) => {
-        const button = node('button', part.token, 'part');
-        button.title = part.brief;
-        button.onclick = () => {
-          document.querySelectorAll('.part').forEach((p) => p.classList.remove('selected'));
-          button.classList.add('selected');
-          $('part-detail').hidden = false;
-          $('part-detail').replaceChildren(node('strong', part.brief), node('p', part.detail));
-        };
-        $('parts').append(button);
-      });
+      renderParts(message);
       selectTab(message.keepTab ? tab : 'understand');
       updateButtons();
     } else if (message.type === 'config') {
@@ -306,6 +402,10 @@
         $('evidence').append(item);
       });
       selectTab(tab);
+    } else if (message.type === 'previewReset') {
+      canApply = false;
+      $('preview-status').textContent = '';
+      updateButtons();
     } else if (message.type === 'preview') {
       canApply = !message.errors.length && message.replacement === $('replacement').value && !stale;
       $('preview-status').textContent = message.errors.length
@@ -316,6 +416,8 @@
       stale = true;
       canApply = false;
       $('stale').hidden = false;
+      clearEvidence();
+      $('impact-result').replaceChildren();
       updateButtons();
     } else if (message.type === 'contextChanged') {
       canApply = false;
@@ -326,11 +428,7 @@
         $('example-result').replaceChildren();
         conceptTargets.clear();
       }
-      if (evidenceNote) {
-        evidenceNote =
-          'Workspace changed. Compare again or request a new explanation to refresh these references.';
-        $('evidence-note').textContent = evidenceNote;
-      }
+      clearEvidence();
       updateButtons();
     } else if (message.type === 'applied') {
       canApply = false;

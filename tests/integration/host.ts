@@ -67,20 +67,45 @@ async function checks() {
     vscode.Uri.joinPath(folder.uri, 'dashboard.ts'),
   );
   for (const [code, meaning] of [
-    ['board.addCompletedTasks(3);', 'argument 1 to board.addCompletedTasks'],
-    ['console.log(weeklySummary(3));', 'argument 1 to weeklySummary'],
+    ['board.addCompletedTasks(3);', '`3` as its input'],
+    ['console.log(weeklySummary(3));', 'The outer call, `console.log(…)`'],
+    ['console.log(board.getLevel());', 'The inner call, `board.getLevel()`'],
+    ['const board = new Scoreboard();', '`board` holds a reference to that object'],
+    [
+      'export function weeklySummary(completedTasks: number): string',
+      '`completedTasks` (a number)',
+    ],
   ]) {
     const start = dashboard.getText().indexOf(code);
-    for (const relative of [0, code.indexOf('.'), code.indexOf('3'), code.length - 1]) {
+    for (const relative of [
+      0,
+      code.indexOf('.'),
+      code.indexOf('('),
+      code.lastIndexOf(')'),
+      code.length - 1,
+    ]) {
+      if (relative < 0) continue;
       const actual = await vscode.commands.executeCommand<vscode.Hover[]>(
         'vscode.executeHoverProvider',
         dashboard.uri,
         dashboard.positionAt(start + relative),
       );
-      const content = hoverText(actual);
+      const content = hoverText(actual?.filter((hover) => hasTutorHover([hover])));
       assert.ok(content.includes(meaning), `Instant breakdown at ${code}:${relative}: ${content}`);
       assert.ok(content.includes('no AI tokens'));
       assert.ok(content.includes('command:watdatmean.inspect?'), 'Panel link is present for calls');
+      assert.ok(
+        !/^\s*(?:[-*]|\d+\.)\s/m.test(content),
+        'Hover contains no bullet or numbered lists',
+      );
+      assert.ok(!content.includes(' — '), 'Hover contains no token-by-token rows');
+      if (code === 'console.log(board.getLevel());') {
+        assert.ok(content.indexOf('The outer call') > content.indexOf('The inner call'));
+        assert.ok(content.includes('`board` (initially a `Scoreboard` object)'));
+        assert.ok(
+          content.includes("built-in `console` object's `log` method to display that result"),
+        );
+      }
     }
   }
   const longCall = await vscode.workspace.openTextDocument({
@@ -93,7 +118,7 @@ async function checks() {
     longCall.positionAt(longCall.getText().indexOf('29')),
   );
   assert.ok(
-    hoverText(tail).includes('argument 30 to log'),
+    hoverText(tail).includes('`29` is input 30 to `log`'),
     'Long hovers include the piece under the cursor',
   );
   await vscode.commands.executeCommand('watdatmean.inspect');
@@ -135,6 +160,30 @@ async function checks() {
     'Each evidence ID resolves to a location',
   );
   assert.ok(result.evidence.length <= 12);
+  // Exercise the hover provider during actual editor changes, including invalid intermediate code.
+  const scratch = await vscode.workspace.openTextDocument({
+    language: 'typescript',
+    content: 'const score: number = 0;',
+  });
+  const scratchEditor = await vscode.window.showTextDocument(scratch);
+  for (const content of ['const score=;', 'const score:=0;', 'const score: number = 1;']) {
+    await scratchEditor.edit((edit) => {
+      edit.replace(
+        new vscode.Range(scratch.positionAt(0), scratch.positionAt(scratch.getText().length)),
+        content,
+      );
+    });
+    const editHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+      'vscode.executeHoverProvider',
+      scratch.uri,
+      new vscode.Position(0, 7),
+    );
+    assert.ok(
+      hasTutorHover(editHovers),
+      'Hover remains responsive while a declaration is incomplete',
+    );
+  }
+  await vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
   console.log(
     'PASS: activation, commands, hover, panel, cross-file references, test links, evidence bounds.',
   );

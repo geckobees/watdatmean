@@ -1,10 +1,35 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { panelHtml } from '../../src/panel';
 import { inspect } from '../../src/analyzer';
 import { parseLesson } from '../../src/provider';
 
 const snippet = inspect('class Game { private score: number = 0; }', 21);
+// Exercise installed assets as well as workspace assets, without recording the screen.
+const assetRoot = process.env.WATDATMEAN_UI_ASSET_ROOT ?? process.cwd();
+const captureScreenshots = process.env.WATDATMEAN_UI_SCREENSHOTS === '1';
+const weeklyLesson = {
+  title: 'Calling weeklySummary',
+  summary:
+    'The script calls a function named weeklySummary with the number 3 as its argument and prints the returned value to the console.',
+  steps: ['The argument 3 enters weeklySummary.'],
+  concepts: [
+    {
+      term: 'argument',
+      explanation:
+        'An argument is a value passed into a function when you call it. Here, that value is 3.',
+    },
+    {
+      term: 'function',
+      explanation:
+        'A function is a reusable block of code that can take inputs and return a result.',
+    },
+  ],
+  example: { code: 'log(3);', explanation: '3 is the argument passed to log.' },
+  predictions: [],
+  checks: [],
+};
 async function send(page: Page, data: unknown) {
   await page.evaluate((data) => window.dispatchEvent(new MessageEvent('message', { data })), data);
 }
@@ -22,7 +47,7 @@ test.beforeEach(async ({ page }) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('.js') || path.endsWith('.css')) {
       await route.fulfill({
-        body: readFileSync(`media${path}`),
+        body: readFileSync(resolve(assetRoot, `media${path}`)),
         contentType: path.endsWith('.js') ? 'application/javascript' : 'text/css',
       });
     } else
@@ -63,12 +88,211 @@ test('shows instant explanations without requesting AI, and fits a narrow panel'
         ).length,
     ),
   ).toBe(0);
-  await page.screenshot({ path: 'work/panel-wide.png', fullPage: true });
+  if (captureScreenshots) await page.screenshot({ path: 'work/panel-wide.png', fullPage: true });
   await page.setViewportSize({ width: 360, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: 'work/panel-narrow.png', fullPage: true });
+  if (captureScreenshots) await page.screenshot({ path: 'work/panel-narrow.png', fullPage: true });
+});
+test('lets beginners unpack new and the constructor independently without changing the code layout', async ({
+  page,
+}) => {
+  const code = 'const board = new Scoreboard();';
+  await send(page, { type: 'selection', ...inspect(code, 0), file: 'dashboard.ts', line: 1 });
+  const parts = page.locator('#parts');
+  expect(await parts.textContent()).toBe(code);
+  await parts.getByRole('button', { name: 'new', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('new creates a Scoreboard object');
+  await parts.getByRole('button', { name: 'Scoreboard', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('A constructor is the setup code');
+  await expect(parts.getByRole('button', { name: 'new', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await parts.getByRole('button', { name: '(', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText(
+    'Empty () means Scoreboard receives no inputs',
+  );
+  await parts.getByRole('button', { name: 'board', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText(
+    'board holds a reference to the new object',
+  );
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+});
+test('unpacks a long Record and tuple declaration, including when its object is unfinished', async ({
+  page,
+}) => {
+  const header = 'const glossary: Record<string, [string, string]> = {';
+  for (const code of [header, header + '\n  const: ["brief", "detail"],\n};']) {
+    await send(page, { type: 'selection', ...inspect(code, 0), file: 'analyzer.ts', line: 6 });
+    const parts = page.locator('#parts');
+    expect(await parts.textContent()).toBe(code);
+    await parts.getByRole('button', { name: 'Record', exact: true }).click();
+    await expect(page.locator('#part-detail')).toContainText(
+      'text keys each hold a pair of text values',
+    );
+    const strings = parts.getByRole('button', { name: 'string', exact: true });
+    await strings.nth(0).click();
+    await expect(page.locator('#part-detail')).toContainText('Each key is text');
+    await strings.nth(1).click();
+    await expect(page.locator('#part-detail')).toContainText('Entry 1 should be text');
+    await strings.nth(2).click();
+    await expect(page.locator('#part-detail')).toContainText('Entry 2 should be text');
+    await page.setViewportSize({ width: 360, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  }
+});
+test('lays out clickable interface pieces like the source and selects repeated pieces independently', async ({
+  page,
+}) => {
+  const code = `export interface Part {
+  token: string;
+  brief: string;
+  detail: string;
+  start?: number;
+  end?: number;
+}`;
+  const prefix = 'const note = "token: string";\n\n';
+  await send(page, {
+    type: 'selection',
+    ...inspect(prefix + code, prefix.length),
+    file: 'types.ts',
+    line: 3,
+  });
+  const parts = page.locator('#parts');
+  expect(await parts.textContent()).toBe(code);
+  const first = await parts.getByRole('button', { name: 'export', exact: true }).boundingBox();
+  const token = await parts.getByRole('button', { name: 'token', exact: true }).boundingBox();
+  const brief = await parts.getByRole('button', { name: 'brief', exact: true }).boundingBox();
+  const close = await parts.getByRole('button', { name: '}', exact: true }).boundingBox();
+  expect(token!.x - first!.x).toBeCloseTo((2 * first!.width) / 'export'.length, 0);
+  expect(brief!.x).toBeCloseTo(token!.x, 1);
+  expect(brief!.y).toBeGreaterThan(token!.y);
+  expect(close!.x).toBeCloseTo(first!.x, 1);
+  expect(close!.y).toBeGreaterThan(brief!.y);
+
+  const strings = parts.getByRole('button', { name: 'string', exact: true });
+  await strings.nth(1).click();
+  await expect(strings.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(strings.nth(0)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#part-detail')).toContainText('Stores text');
+  await parts.getByRole('button', { name: 'interface', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#part-detail')).toContainText('creates no runtime object');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Space');
+  await expect(parts.getByRole('button', { name: 'Part', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(parts.locator('.selected')).toHaveCount(1);
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+  await parts.getByRole('button', { name: 'token', exact: true }).click();
+  if (captureScreenshots)
+    await page.locator('#syntax-section').screenshot({ path: 'work/panel-indented-pieces.png' });
+});
+
+test('preserves tabs, blank lines, comments, and multiline pieces as safe source text', async ({
+  page,
+}) => {
+  const code =
+    'export interface Part {\r\n\t// Keep this comment and spacing.\r\n\ttoken: string;\r\n\r\n\tdetail: {\r\n\t\tlabel: "<img src=x onerror=alert(1)>";\r\n\t};\r\n}';
+  await send(page, { type: 'selection', ...inspect(code, 0), file: 'types.ts', line: 1 });
+  expect(await page.locator('#parts').textContent()).toBe(code);
+  await expect(page.locator('#parts img')).toHaveCount(0);
+  const multiline = page.locator('#parts .part').filter({ hasText: 'label:' });
+  await multiline.focus();
+  await page.keyboard.press('Enter');
+  await expect(multiline).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#part-detail')).toBeVisible();
+  const aligned = await page.evaluate(() => {
+    const source = document.getElementById('source')!.firstChild!;
+    const parts = document.getElementById('parts')!;
+    const origin = parts.querySelector('.part')!.getBoundingClientRect();
+    const start = document.createRange();
+    start.setStart(source, 0);
+    start.setEnd(source, 1);
+    const sourceOrigin = start.getBoundingClientRect();
+    return ['token', 'detail'].map((name) => {
+      const index = source.textContent!.indexOf(name + ':');
+      const range = document.createRange();
+      range.setStart(source, index);
+      range.setEnd(source, index + name.length);
+      const original = range.getBoundingClientRect();
+      const piece = parts.querySelector(`[aria-label="${name}"]`)!.getBoundingClientRect();
+      return {
+        x: piece.x - origin.x,
+        y: piece.y - origin.y,
+        expectedX: original.x - sourceOrigin.x,
+        expectedY: original.y - sourceOrigin.y,
+      };
+    });
+  });
+  for (const position of aligned) {
+    expect(position.x).toBeCloseTo(position.expectedX, 1);
+    expect(position.y).toBeCloseTo(position.expectedY, 1);
+  }
+});
+
+test('opens only the selected interface member and keeps its pieces clickable', async ({
+  page,
+}) => {
+  const source = 'export interface Part {\n  token: string;\n  start?: number;\n}';
+  await send(page, {
+    type: 'selection',
+    ...inspect(source, source.indexOf('start?')),
+    file: 'types.ts',
+    line: 3,
+  });
+  expect(await page.locator('#source').textContent()).toBe('start?: number;');
+  expect(await page.locator('#parts').textContent()).toBe('start?: number;');
+  await expect(
+    page.locator('#parts').getByRole('button', { name: 'token', exact: true }),
+  ).toHaveCount(0);
+  await page.locator('#parts').getByRole('button', { name: '?', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('optional');
+  await page.locator('#parts').getByRole('button', { name: ':', exact: true }).click();
+  await expect(page.locator('#part-detail')).toContainText('start should hold a number');
+});
+
+test('keeps long lines intact within a narrow panel and resets the selected piece on refresh', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 900 });
+  const code = `const message = \`First line\n\t${'A long line of text. '.repeat(10)}\nLast line\`;`;
+  await send(page, { type: 'selection', ...inspect(code, 0), file: 'message.ts', line: 1 });
+  expect(await page.locator('#parts').textContent()).toBe(code);
+  const scrolling = await page.locator('.parts-code').evaluate((el) => ({
+    width: el.clientWidth,
+    content: el.scrollWidth,
+    whiteSpace: getComputedStyle(el).whiteSpace,
+  }));
+  expect(scrolling.content).toBeGreaterThan(scrolling.width);
+  expect(scrolling.whiteSpace).toBe('pre');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#parts').getByRole('button', { name: 'message', exact: true }).click();
+  await expect(page.locator('#part-detail')).toBeVisible();
+  if (captureScreenshots)
+    await page.locator('#syntax-section').screenshot({ path: 'work/panel-pieces-narrow.png' });
+  await send(page, { type: 'selection', ...snippet, file: 'score.ts', line: 4 });
+  expect(await page.locator('#parts').textContent()).toBe(snippet.code);
+  await expect(page.locator('#parts .selected')).toHaveCount(0);
+  await expect(page.locator('#part-detail')).toBeHidden();
 });
 test('sends explicit explanation, example and concept requests; safely renders hostile content', async ({
   page,
@@ -158,6 +382,38 @@ test('renders concise results, loads concepts on click, and reports actual or ca
   await expect(page.locator('#explanation')).toContainText('Token usage not reported');
 });
 
+test('preserves clickable definitions in a compact response with token usage', async ({ page }) => {
+  const lesson = parseLesson(
+    JSON.stringify({
+      summary: 'A binding gives the value zero the name score.',
+      concepts: [{ term: 'binding', explanation: 'A name connected to a value.' }],
+    }),
+  );
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    cached: false,
+    provider: 'groq',
+    model: 'test',
+    lesson: { ...lesson, usage: { input: 200, output: 70, total: 270 } },
+  });
+  await expect(page.locator('#explanation')).toContainText('270 tokens');
+  await page.getByRole('button', { name: 'Define binding', exact: true }).click();
+  const definition = page.getByRole('region', { name: 'Definition of binding' });
+  await expect(definition).toContainText('A name connected to a value.');
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+  await definition.getByRole('button', { name: 'Explain further' }).click();
+  expect(
+    await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+  ).toMatchObject({ task: 'concept', concept: 'binding' });
+});
+
 test('unpacks method and nested call pieces locally', async ({ page }) => {
   const source = 'const board = new Scoreboard();\nboard.addCompletedTasks(3);';
   await send(page, {
@@ -194,7 +450,8 @@ test('unpacks method and nested call pieces locally', async ({ page }) => {
       ),
     ),
   ).toEqual([]);
-  await page.screenshot({ path: 'work/panel-nested-call.png', fullPage: true });
+  if (captureScreenshots)
+    await page.screenshot({ path: 'work/panel-nested-call.png', fullPage: true });
 });
 test('only enables applying the exact preview and disables it after edits or stale code', async ({
   page,
@@ -349,5 +606,144 @@ test('continues in Try it yourself after applying a change or loading the latest
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
-  await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
+  if (captureScreenshots)
+    await page.screenshot({ path: 'work/panel-try-it-yourself.png', fullPage: true });
+});
+
+test('opens and reopens underlined definitions with clicks and keyboard without AI requests', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  const argument = summary.getByRole('button', { name: 'Define argument', exact: true });
+  const definition = summary.getByRole('region', {
+    name: 'Definition of argument',
+    includeHidden: true,
+  });
+  await expect(definition).toBeHidden();
+  await argument.click();
+  await expect(argument).toHaveAttribute('aria-expanded', 'true');
+  await expect(definition).toContainText('Here, that value is 3');
+  await definition.getByRole('button', { name: 'Close definition' }).click();
+  await expect(definition).toBeHidden();
+  await expect(argument).toBeFocused();
+  await argument.press('Enter');
+  await expect(definition).toBeVisible();
+  await argument.press('Escape');
+  await expect(definition).toBeHidden();
+  await argument.press('Space');
+  await expect(definition).toBeVisible();
+  await summary.getByRole('button', { name: 'Define function', exact: true }).click();
+  await expect(definition).toBeHidden();
+  await expect(argument).toHaveAttribute('aria-expanded', 'false');
+  await expect(summary.getByRole('region', { name: 'Definition of function' })).toContainText(
+    'reusable block',
+  );
+  await argument.click();
+  await argument.click();
+  await expect(definition).toBeHidden();
+  for (const section of [
+    page.locator('#explanation li').first(),
+    page.locator('#explanation > .lesson > .concept-copy').last(),
+  ]) {
+    await section.getByRole('button', { name: 'Define argument', exact: true }).click();
+    await expect(section.getByRole('region', { name: 'Definition of argument' })).toBeVisible();
+  }
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { messages: { type: string }[] }).messages.filter(
+        (m) => m.type === 'request',
+      ),
+    ),
+  ).toEqual([]);
+});
+
+test('requests a deeper concept explanation only explicitly and keeps its terms clickable', async ({
+  page,
+}) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  await summary.getByRole('button', { name: 'Define argument', exact: true }).click();
+  const definition = summary.getByRole('region', { name: 'Definition of argument' });
+  await definition.getByRole('button', { name: 'Explain further · AI' }).click();
+  expect(
+    await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages.at(-1)),
+  ).toMatchObject({ type: 'request', task: 'concept', concept: 'argument' });
+  await send(page, {
+    type: 'lesson',
+    task: 'concept',
+    concept: 'argument',
+    provider: 'groq',
+    model: 'test',
+    lesson: {
+      ...weeklyLesson,
+      title: 'An input for the function',
+      summary: 'An argument supplies the value received by a parameter.',
+      steps: [],
+      concepts: [
+        {
+          term: 'parameter',
+          explanation: 'A parameter is the name that receives an input inside the function.',
+        },
+      ],
+      example: { code: '', explanation: '' },
+    },
+  });
+  await expect(definition).toContainText('An input for the function');
+  await definition.getByRole('button', { name: 'Define parameter', exact: true }).click();
+  const nested = definition.getByRole('region', { name: 'Definition of parameter' });
+  await expect(nested).toContainText('name that receives an input');
+  await expect(nested.getByRole('button', { name: 'Explain further · AI' })).toHaveCount(0);
+  await send(page, { type: 'busy', value: true });
+  await expect(definition.getByRole('button', { name: 'Explain further · AI' })).toBeDisabled();
+  await send(page, { type: 'busy', value: false });
+  await send(page, { type: 'stale' });
+  await expect(definition.getByRole('button', { name: 'Explain further · AI' })).toBeDisabled();
+});
+
+test('renders definitions as text and fits them into a narrow panel', async ({ page }) => {
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: weeklyLesson,
+  });
+  await page.setViewportSize({ width: 360, height: 900 });
+  const summary = page.locator('#explanation > .lesson > .concept-copy').first();
+  await summary.getByRole('button', { name: 'Define argument', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  if (captureScreenshots)
+    await page.screenshot({ path: 'work/panel-clickable-definition.png', fullPage: true });
+  await send(page, {
+    type: 'lesson',
+    task: 'explain',
+    provider: 'groq',
+    model: 'test',
+    lesson: {
+      ...weeklyLesson,
+      concepts: [{ term: 'argument', explanation: '<img src=x onerror=alert(1)>' }],
+    },
+  });
+  await summary.getByRole('button', { name: 'Define argument', exact: true }).click();
+  await expect(summary.getByRole('region', { name: 'Definition of argument' })).toContainText(
+    '<img src=x onerror=alert(1)>',
+  );
+  await expect(page.locator('#explanation img')).toHaveCount(0);
+  await send(page, { type: 'selection', ...snippet, file: 'score.ts', line: 4 });
+  await expect(page.locator('.concept-definition')).toHaveCount(0);
 });

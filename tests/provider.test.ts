@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { defaults, generate, makeRequest, parseLesson } from '../src/provider';
+import { lessonSchema, lessonSchemaForTask } from '../src/lesson-schema';
 import { prepareRequest } from '../src/budget';
 import type { LearningRequest, Provider } from '../src/types';
 
@@ -19,11 +20,92 @@ const lesson = {
   checks: [],
 };
 describe('provider protocols', () => {
+  it.each(['openai/gpt-oss-20b', 'openai/gpt-oss-120b'])(
+    'requests a strict lesson schema from Groq for %s',
+    (model) => {
+      const body = JSON.parse(makeRequest('groq', model, 'test-secret', request).body);
+      expect(body.response_format).toEqual({
+        type: 'json_schema',
+        json_schema: { name: 'code_lesson', strict: true, schema: lessonSchemaForTask('explain') },
+      });
+      expect(body.reasoning_effort).toBe('low');
+      expect(body.max_completion_tokens).toBe(200);
+    },
+  );
+
+  it('keeps JSON object mode for Groq models without known strict-schema support', () => {
+    const body = JSON.parse(makeRequest('groq', 'llama-3.3-70b-versatile', 'key', request).body);
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body).not.toHaveProperty('reasoning_effort');
+  });
+
+  it.each([
+    ['explain', ['summary', 'concepts']],
+    ['concept', ['summary']],
+    ['example', ['summary', 'example']],
+    ['impact', ['summary', 'predictions', 'checks']],
+  ] as const)('keeps strict %s responses limited to the requested sections', (task, fields) => {
+    const body = JSON.parse(makeRequest('groq', defaults.groq, 'key', { ...request, task }).body);
+    const schema = body.response_format.json_schema.schema;
+    expect(Object.keys(schema.properties)).toEqual(fields);
+    expect(schema.required).toEqual(fields);
+    if (task === 'explain') {
+      expect(schema.properties.concepts.items.required).toEqual(['term', 'explanation']);
+      expect(body.messages[0].content).toContain('brief definition');
+    }
+    expect(body.max_completion_tokens).toBe(200);
+  });
+
+  it('marks every nested schema property required and forbids extra properties', () => {
+    function checkSchema(schema: Record<string, unknown>) {
+      if (schema.type === 'object') {
+        const properties = schema.properties as Record<string, Record<string, unknown>>;
+        expect(schema.additionalProperties).toBe(false);
+        expect(schema.required).toEqual(Object.keys(properties));
+        Object.values(properties).forEach(checkSchema);
+      } else if (schema.type === 'array') checkSchema(schema.items as Record<string, unknown>);
+    }
+    checkSchema(lessonSchema);
+    for (const task of ['explain', 'example', 'concept', 'impact'] as const)
+      checkSchema(lessonSchemaForTask(task));
+  });
+
+  it('accepts a successful Groq response with omitted optional sections without retrying', async () => {
+    const transport = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: 'stop',
+              message: {
+                content: JSON.stringify({ title: lesson.title, summary: lesson.summary }),
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    const result = await generate('groq', defaults.groq, 'key', request, undefined, transport);
+    expect(result).toEqual({
+      title: lesson.title,
+      summary: lesson.summary,
+      steps: [],
+      concepts: [],
+      example: { code: '', explanation: '' },
+      predictions: [],
+      checks: [],
+    });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
   it('disables reasoning on the supported Groq default without sending that option to other models', () => {
     const body = JSON.parse(makeRequest('groq', defaults.groq, 'key', request).body);
     expect(body.model).toBe('qwen/qwen3.8-27b');
     expect(body.reasoning_effort).toBe('none');
-    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: { name: 'code_lesson', strict: true, schema: lessonSchemaForTask('explain') },
+    });
     expect(body.max_completion_tokens).toBe(200);
     expect(JSON.parse(makeRequest('groq', 'custom-model', 'key', request).body)).not.toHaveProperty(
       'reasoning_effort',
@@ -117,7 +199,36 @@ describe('provider protocols', () => {
     },
   );
   it.each([
+    [{ param: 'reasoning_effort' }, 'reasoning setting'],
+    [{ message: 'reasoning_effort must be low, medium, or high' }, 'reasoning setting'],
+    [{ code: 'model_not_found' }, 'model is unavailable'],
+    [{ param: 'response_format' }, 'structured response format'],
+    [{ code: 'context_length_exceeded' }, 'context limit'],
+    [{ code: 'json_validate_failed' }, 'could not produce valid JSON'],
+    [{ message: 'private source and key' }, 'request format (HTTP 400)'],
+  ])(
+    'distinguishes request rejections without echoing provider content: %j',
+    async (error, expected) => {
+      const transport = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ error }), { status: 400 }));
+      await expect(
+        generate('groq', defaults.groq, 'key', request, undefined, transport),
+      ).rejects.toThrow(expected);
+    },
+  );
+  it('handles non-JSON rejection bodies safely', async () => {
+    const transport = vi
+      .fn()
+      .mockResolvedValue(new Response('private proxy diagnostic', { status: 400 }));
+    await expect(
+      generate('groq', defaults.groq, 'key', request, undefined, transport),
+    ).rejects.toThrow('request format (HTTP 400)');
+  });
+
+  it.each([
     [400, 'json_validate_failed', 'could not produce valid JSON'],
+    [422, 'json_validate_failed', 'could not produce valid JSON'],
     [404, 'model_not_found', 'model is unavailable'],
     [400, 'model_decommissioned', 'model is unavailable'],
     [400, 'unknown-private-code', 'request format'],
@@ -214,6 +325,55 @@ describe('provider protocols', () => {
   });
 });
 describe('untrusted response validation', () => {
+  it.each(['steps', 'concepts', 'predictions', 'checks'])(
+    'treats an absent or null %s section as an empty list',
+    (field) => {
+      for (const value of [undefined, null]) {
+        expect(parseLesson(JSON.stringify({ ...lesson, [field]: value }))).toEqual({
+          ...lesson,
+          [field]: [],
+        });
+      }
+    },
+  );
+
+  it('handles missing examples and unused example fields', () => {
+    expect(parseLesson(JSON.stringify({ ...lesson, example: null })).example).toEqual({
+      code: '',
+      explanation: '',
+    });
+    expect(
+      parseLesson(JSON.stringify({ ...lesson, example: { code: 'const x = 1;' } })).example,
+    ).toEqual({ code: 'const x = 1;', explanation: '' });
+  });
+
+  it('does not invent evidence when a prediction omits its links', () => {
+    const result = parseLesson(
+      JSON.stringify({
+        ...lesson,
+        predictions: [{ description: 'The result may change.' }],
+      }),
+    );
+    expect(result.predictions[0].evidenceIds).toEqual([]);
+  });
+
+  it('identifies invalid fields without exposing response content', () => {
+    expect(() => parseLesson(JSON.stringify({ ...lesson, steps: 'private-source-code' }))).toThrow(
+      '"steps" field (expected an array)',
+    );
+    expect(() => parseLesson(JSON.stringify({ ...lesson, concepts: [{ term: 'scope' }] }))).toThrow(
+      '"concepts[].explanation" field',
+    );
+    expect(() => parseLesson(JSON.stringify({ ...lesson, summary: '   ' }))).toThrow(
+      '"summary" field (expected nonempty text)',
+    );
+    try {
+      parseLesson(JSON.stringify({ ...lesson, steps: 'private-source-code' }));
+    } catch (error) {
+      expect(String(error)).not.toContain('private-source-code');
+    }
+  });
+
   it('accepts a concise summary and normalizes on-demand concept names', () => {
     expect(
       parseLesson(JSON.stringify({ summary: 'Starts at zero.', concepts: ['binding'] })),
@@ -227,8 +387,11 @@ describe('untrusted response validation', () => {
       checks: [],
     });
     expect(parseLesson('{"summary":"Only a summary."}').concepts).toEqual([]);
-    expect(() => parseLesson('{"summary":"Hi","concepts":null}')).toThrow();
-    expect(() => parseLesson('{"summary":"Hi","example":null}')).toThrow();
+    expect(parseLesson('{"summary":"Hi","concepts":null}').concepts).toEqual([]);
+    expect(parseLesson('{"summary":"Hi","example":null}').example).toEqual({
+      code: '',
+      explanation: '',
+    });
     expect(() => parseLesson('{"summary":null}')).toThrow();
   });
   it('filters invented evidence IDs', () => {

@@ -4,7 +4,7 @@ export const MAX_OUTPUT_TOKENS = 200;
 
 const tasks: Record<Task, string> = {
   explain:
-    'Explain the mechanism with one concrete value. JSON: {"summary":"2 short sentences","concepts":["up to 2 terms"]}.',
+    'Explain the mechanism with one concrete value. JSON: {"summary":"2 short sentences","concepts":[{"term":"term from summary","explanation":"brief definition"}]}. Include at most 2 concepts.',
   concept:
     'Explain the requested concept and a tiny concrete example. JSON: {"summary":"2 short sentences"}.',
   example:

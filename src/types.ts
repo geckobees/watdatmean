@@ -16,6 +16,7 @@ export interface Snippet {
   symbol: string;
   symbolOffset: number;
   parts: Part[];
+  explanation?: string;
 }
 export interface Evidence {
   id: string;

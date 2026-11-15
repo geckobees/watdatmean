@@ -2,7 +2,7 @@
   "name": "watdatmean",
   "displayName": "WatDatMean — Learn in Your Code",
   "description": "Understand TypeScript, explore examples, and preview edit impact without leaving VS Code.",
-  "version": "0.1.0",
+  "version": "0.1.8",
   "publisher": "watdatmean",
   "repository": {
     "type": "git",
@@ -38,6 +38,10 @@
       {
         "command": "watdatmean.inspect",
         "title": "WatDatMean: Explain Selection or Code at Cursor"
+      },
+      {
+        "command": "watdatmean.reopenPanel",
+        "title": "WatDatMean: Reopen Learning Panel"
       },
       {
         "command": "watdatmean.configure",
@@ -106,6 +110,7 @@
     }
   },
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "build": "node scripts/build.mjs",
@@ -118,6 +123,7 @@
     "test:integration": "node scripts/integration.mjs"
   },
   "dependencies": {
+    "package": "^1.0.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {

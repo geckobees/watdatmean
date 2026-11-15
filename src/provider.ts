@@ -1,5 +1,7 @@
-import { MAX_OUTPUT_TOKENS, prepareRequest } from './budget';
 import type { LearningRequest, Lesson, Provider, TokenUsage } from './types';
+import { MAX_OUTPUT_TOKENS, prepareRequest } from './budget';
+import { groqResponseFormat } from './lesson-schema';
+import { rejectionMessage } from './provider-errors';
 
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-4.1-mini',
@@ -49,28 +51,43 @@ export function makeRequest(
         { role: 'system', content: instructions },
         { role: 'user', content: input },
       ],
-      response_format: { type: 'json_object' },
-      ...(model === 'qwen/qwen3.8-27b' ? { reasoning_effort: 'none' } : {}),
+      response_format: groqResponseFormat(model, request.task),
+      ...(model === 'qwen/qwen3.8-27b'
+        ? { reasoning_effort: 'none' }
+        : ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'].includes(model)
+          ? { reasoning_effort: 'low' }
+          : {}),
     };
   }
   return { url: endpoints[provider], headers, body: JSON.stringify(body), prepared };
 }
 
-function record(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('The AI returned an invalid response. Please try again.');
+function invalidField(path: string, expected: string): never {
+  // Report only our own field names, never provider content or private source code.
+  throw new Error(
+    `The AI response has an invalid "${path}" field (expected ${expected}). Try again or choose a different model.`,
+  );
+}
+
+function record(value: unknown, path = 'response'): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalidField(path, 'an object');
   return value as Record<string, unknown>;
 }
 
-function string(value: unknown, max = 8000): string {
-  if (typeof value !== 'string')
-    throw new Error('The AI response was incomplete. Please try again.');
+function string(value: unknown, path: string, max = 8000): string {
+  if (typeof value !== 'string') invalidField(path, 'text');
   return value.slice(0, max);
 }
 
-function list(value: unknown): unknown[] {
-  if (value === undefined) return [];
-  if (!Array.isArray(value)) throw new Error('The AI response was incomplete. Please try again.');
+function requiredText(value: unknown, path: string, max = 8000): string {
+  const result = string(value, path, max);
+  if (!result.trim()) invalidField(path, 'nonempty text');
+  return result;
+}
+
+function optionalList(value: unknown, path: string): unknown[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) invalidField(path, 'an array');
   return value.slice(0, 8);
 }
 
@@ -87,27 +104,34 @@ export function parseLesson(text: string, validIds: string[] = []): Lesson {
     throw new Error('The AI did not return valid JSON. Try again or choose a different model.');
   }
   const data = record(parsed);
-  const example = data.example === undefined ? { code: '', explanation: '' } : record(data.example);
+  const example = data.example == null ? {} : record(data.example, 'example');
   return {
-    title: data.title === undefined ? 'Explanation' : string(data.title, 180),
-    summary: string(data.summary),
-    steps: list(data.steps).map((v) => string(v)),
-    concepts: list(data.concepts).map((v) => {
-      if (typeof v === 'string') return { term: string(v, 150), explanation: '' };
-      const c = record(v);
-      return { term: string(c.term, 150), explanation: string(c.explanation) };
-    }),
-    example: { code: string(example.code), explanation: string(example.explanation) },
-    predictions: list(data.predictions).map((v) => {
-      const p = record(v);
+    title: data.title === undefined ? 'Explanation' : requiredText(data.title, 'title', 180),
+    summary: requiredText(data.summary, 'summary'),
+    steps: optionalList(data.steps, 'steps').map((v) => string(v, 'steps[]')),
+    concepts: optionalList(data.concepts, 'concepts').map((v) => {
+      if (typeof v === 'string')
+        return { term: requiredText(v, 'concepts[].term', 150), explanation: '' };
+      const c = record(v, 'concepts[]');
       return {
-        description: string(p.description),
-        evidenceIds: list(p.evidenceIds)
-          .map((v) => string(v))
+        term: requiredText(c.term, 'concepts[].term', 150),
+        explanation: requiredText(c.explanation, 'concepts[].explanation'),
+      };
+    }),
+    example: {
+      code: string(example.code ?? '', 'example.code'),
+      explanation: string(example.explanation ?? '', 'example.explanation'),
+    },
+    predictions: optionalList(data.predictions, 'predictions').map((v) => {
+      const p = record(v, 'predictions[]');
+      return {
+        description: requiredText(p.description, 'predictions[].description'),
+        evidenceIds: optionalList(p.evidenceIds, 'predictions[].evidenceIds')
+          .map((v) => string(v, 'predictions[].evidenceIds[]'))
           .filter((id) => validIds.includes(id)),
       };
     }),
-    checks: list(data.checks).map((v) => string(v)),
+    checks: optionalList(data.checks, 'checks').map((v) => string(v, 'checks[]')),
   };
 }
 
@@ -141,13 +165,15 @@ export async function generate(
 ): Promise<Lesson> {
   const config = makeRequest(provider, model, key, request);
   const timeout = AbortSignal.timeout(60000);
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  if (signal?.aborted) throw new Error('Request cancelled.');
   let response: Response;
   try {
     response = await transport(config.url, {
       method: 'POST',
       headers: config.headers,
       body: config.body,
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      signal: requestSignal,
       redirect: 'error',
     });
   } catch {
@@ -155,61 +181,67 @@ export async function generate(
     if (timeout.aborted) throw new Error('The provider took too long. Please retry.');
     throw new Error('Could not reach the AI provider. Check your connection and try again.');
   }
-  if (!response.ok) {
-    // Only classify known codes; raw messages and failed generations can contain private code.
-    let code: unknown;
-    try {
-      const failure = await response.json();
-      code = failure?.error?.code;
-    } catch {
-      // Some provider/proxy errors are HTML or plain text.
-    }
-    if ((response.status === 400 || response.status === 422) && code === 'json_validate_failed')
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    if (signal?.aborted) throw new Error('Request cancelled.');
+    if (timeout.aborted) throw new Error('The provider took too long. Please retry.');
+    if (!response.ok)
       throw new Error(
-        'The provider could not produce valid JSON within the response budget. Try a simpler question or a different model. Your model ID may still be valid.',
+        rejectionMessage(
+          response.status,
+          undefined,
+          provider === 'groq' ? defaults.groq : undefined,
+        ),
       );
-    if (response.status === 404 || code === 'model_not_found' || code === 'model_decommissioned')
-      throw new Error(
-        'The selected model is unavailable or your API account cannot access it. Run WatDatMean: Configure AI Provider / API Key and choose an available model.' +
-          (provider === 'groq' ? ` The current Groq default is ${defaults.groq}.` : ''),
-      );
-    const message =
-      response.status === 401 || response.status === 403
-        ? 'API key rejected or model access denied. Configure your provider and key again.'
-        : response.status === 429
-          ? 'Provider quota or rate limit reached. Check billing or wait before retrying.'
-          : response.status === 400
-            ? 'The provider rejected the request format (HTTP 400). The model may not support these request options; try the current default model.'
-            : `The AI provider returned HTTP ${response.status}. Please retry later.`;
-    // Never display raw provider errors, which may echo request content or credentials.
-    throw new Error(message);
+    throw new Error('The provider returned an unreadable response. Please try again.');
   }
-  const body = record(await response.json());
+  if (signal?.aborted) throw new Error('Request cancelled.');
+  if (timeout.aborted) throw new Error('The provider took too long. Please retry.');
+  if (!response.ok)
+    throw new Error(
+      rejectionMessage(response.status, payload, provider === 'groq' ? defaults.groq : undefined),
+    );
+  const body = record(payload);
   let output = '';
   if (provider === 'anthropic') {
     if (body.stop_reason === 'max_tokens')
       throw new Error('The response was cut short. Try a smaller selection or a different model.');
-    output = (Array.isArray(body.content) ? body.content : [])
-      .filter((p) => p.type === 'text')
-      .map((p) => p.text)
+    output = responseParts(body.content)
+      .filter((p) => p.type === 'text' && typeof p.text === 'string')
+      .map((p) => p.text as string)
       .join('\n');
   } else if (provider === 'openai') {
     if (body.status === 'incomplete')
       throw new Error('The response was cut short. Try a smaller selection or a different model.');
-    output = (Array.isArray(body.output) ? body.output : [])
-      .flatMap((p) => p.content ?? [])
-      .filter((p) => p.type === 'output_text')
-      .map((p) => p.text)
+    output = responseParts(body.output)
+      .flatMap((p) => responseParts(p.content))
+      .filter((p) => p.type === 'output_text' && typeof p.text === 'string')
+      .map((p) => p.text as string)
       .join('\n');
   } else {
-    const choice = Array.isArray(body.choices) ? body.choices[0] : undefined;
+    const choice = responseParts(body.choices)[0];
     if (choice?.finish_reason === 'length')
       throw new Error('The response was cut short. Try a smaller selection or a different model.');
-    output = choice?.message?.content ?? '';
+    const message = choice?.message;
+    if (message && typeof message === 'object' && !Array.isArray(message)) {
+      const content = (message as Record<string, unknown>).content;
+      if (typeof content === 'string') output = content;
+    }
   }
   if (!output) throw new Error('The provider returned no explanation. Try again.');
   const lesson = parseLesson(output, config.prepared.evidenceIds);
   const usage = tokenUsage(body.usage, provider);
   if (usage) lesson.usage = usage;
   return lesson;
+}
+
+function responseParts(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === 'object' && !Array.isArray(item),
+      )
+    : [];
 }

@@ -15,6 +15,7 @@ demo/out/**
 dist/integration.cjs
 dist/*.map
 .vscode-test/**
+.vscode-dev/**
 .editorconfig
 .prettierrc.json
 .prettierignore

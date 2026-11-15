@@ -20,6 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(app);
   for (const [name, action] of Object.entries({
     inspect: (args?: { uri: string; offset: number }) => app.inspectEditor(args),
+    reopenPanel: () => app.reopenPanel(),
     configure: () => app.configure(),
     removeKey: () => app.removeKey(),
     clearCache: () => app.clearCache(),
@@ -41,25 +42,11 @@ export function activate(context: vscode.ExtensionContext) {
           const snippet = inspect(document.getText(), offset);
           const md = new vscode.MarkdownString();
           md.appendMarkdown('**WatDatMean** · TypeScript\n\n');
-          if (snippet.parts.length) {
-            const focused = snippet.parts.findIndex(
-              (part) =>
-                part.start !== undefined &&
-                part.end !== undefined &&
-                part.start <= offset &&
-                offset < part.end,
-            );
-            const first = Math.max(0, Math.min(focused - 6, snippet.parts.length - 14));
-            if (first) md.appendMarkdown('*Earlier pieces in the learning panel…*\n\n');
-            for (const part of snippet.parts.slice(first, first + 14)) {
-              md.appendText(`${part.token} — ${part.brief}`);
-              md.appendMarkdown('  \n');
-            }
-            if (first + 14 < snippet.parts.length)
-              md.appendMarkdown('\n*More pieces in the learning panel…*\n');
-            md.appendMarkdown('\n*Instant explanation · no AI tokens*\n\n');
+          if (snippet.explanation) {
+            md.appendMarkdown(`${snippet.explanation}\n\n`);
+            md.appendMarkdown('*Instant explanation · no AI tokens*\n\n');
           } else
-            md.appendMarkdown('Understand this code, explore examples, and preview an edit.\n\n');
+            md.appendMarkdown('Open the learning panel to explore this code and try changes.\n\n');
           const args = encodeURIComponent(
             JSON.stringify([{ uri: document.uri.toString(), offset: document.offsetAt(position) }]),
           );
@@ -84,6 +71,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 class Tutor implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
+  private panelReady = false;
+  private panelLoadTimer?: ReturnType<typeof setTimeout>;
   private selection?: Selection;
   private cache = new Cache<Lesson>();
   private abort?: AbortController;
@@ -103,19 +92,33 @@ class Tutor implements vscode.Disposable {
     this.disposables.push(
       vscode.workspace.onDidChangeTextDocument((event) => {
         if (!event.contentChanges.length || event.document.uri.scheme === 'watdatmean') return;
-        this.revision++;
-        this.preview = undefined;
         if (this.selection?.document.uri.toString() === event.document.uri.toString()) {
           if (this.selection.version === event.document.version) return;
           this.selection.range = trackRange(this.selection.range, event.contentChanges);
-          this.abort?.abort();
-          this.send({ type: 'stale' });
-        } else this.send({ type: 'contextChanged' });
+        }
+        this.invalidate(event.document.uri);
       }),
     );
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.ts');
+    const onFileChange = (uri: vscode.Uri) => {
+      if (!/(?:^|\/)(?:node_modules|\.git|dist|build|vendor)\//i.test(uri.path))
+        this.invalidate(uri);
+    };
     this.disposables.push(
+      watcher,
+      watcher.onDidCreate(onFileChange),
+      watcher.onDidChange(onFileChange),
+      watcher.onDidDelete(onFileChange),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.invalidate()),
       vscode.workspace.onDidCloseTextDocument((document) => {
         if (document.uri.scheme === 'watdatmean') this.virtual.delete(document.uri.toString());
+        else if (document === this.selection?.document) this.invalidate(document.uri);
+      }),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (!event.affectsConfiguration('watdatmean')) return;
+        this.cancelRequest();
+        this.cache.clear();
+        void this.sendConfig();
       }),
     );
   }
@@ -132,10 +135,14 @@ class Tutor implements vscode.Disposable {
     this.preview = undefined;
     this.evidence = undefined;
     this.cancelRequest();
-    this.send({ type: uri?.toString() === this.selection?.document.uri.toString() ? 'stale' : 'contextChanged' });
+    this.send({
+      type:
+        uri?.toString() === this.selection?.document.uri.toString() ? 'stale' : 'contextChanged',
+    });
   }
 
   dispose() {
+    clearTimeout(this.panelLoadTimer);
     this.cancelRequest();
     this.panel?.dispose();
     this.disposables.forEach((d) => d.dispose());
@@ -243,7 +250,13 @@ class Tutor implements vscode.Disposable {
       start = document.positionAt(args.offset);
       end = start;
     }
-    if (!document || document.languageId !== 'typescript' || document.uri.scheme === 'watdatmean' || !start || !end) {
+    if (
+      !document ||
+      document.languageId !== 'typescript' ||
+      document.uri.scheme === 'watdatmean' ||
+      !start ||
+      !end
+    ) {
       void vscode.window.showInformationMessage(
         'Open a TypeScript (.ts) file and place your cursor on code, or select a snippet.',
       );
@@ -265,36 +278,71 @@ class Tutor implements vscode.Disposable {
       snippet,
       range: { start: snippet.start, end: snippet.end },
     };
-    if (!this.panel) {
-      this.panel = vscode.window.createWebviewPanel(
-        'watdatmean',
-        'WatDatMean',
-        { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [vscode.Uri.joinPath(this.extension.extensionUri, 'media')],
-        },
-      );
-      this.panel.webview.html = this.html(this.panel.webview);
-      this.panel.webview.onDidReceiveMessage((message) =>
-        this.handle(message).catch((error) =>
-          this.send({
-            type: 'error',
-            message:
-              error instanceof Error ? error.message : 'Something went wrong. Please try again.',
-          }),
-        ),
-      );
-      this.panel.onDidDispose(() => {
-        this.cancelRequest();
-        this.panel = undefined;
-        this.selection = undefined;
-      });
-    } else {
+    if (!this.panel) this.openPanel();
+    else {
       this.panel.reveal(vscode.ViewColumn.Beside, true);
       this.sendSelection();
     }
+  }
+
+  async reopenPanel() {
+    if (!this.selection || this.selection.document.isClosed) return this.inspectEditor();
+    // Refresh the saved range, even when focus is on a broken webview or a diff.
+    this.refreshSelection(false);
+    const selection = this.selection;
+    this.panel?.dispose();
+    this.selection = selection;
+    this.openPanel();
+  }
+
+  private openPanel() {
+    const panel = vscode.window.createWebviewPanel(
+      'watdatmean',
+      'WatDatMean',
+      { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [vscode.Uri.joinPath(this.extension.extensionUri, 'media')],
+      },
+    );
+    this.panel = panel;
+    this.panelReady = false;
+    // Register the ready listener before loading HTML so a fast panel cannot miss it.
+    panel.webview.onDidReceiveMessage((message) => {
+      if (this.panel !== panel) return;
+      const selection = this.selection;
+      return this.handle(message).catch((error) => {
+        if (selection !== this.selection || this.panel !== panel) return;
+        this.send({
+          type: 'error',
+          message:
+            error instanceof Error ? error.message : 'Something went wrong. Please try again.',
+        });
+      });
+    });
+    panel.onDidDispose(() => {
+      if (this.panel !== panel) return;
+      clearTimeout(this.panelLoadTimer);
+      this.cancelRequest();
+      this.panel = undefined;
+      this.panelReady = false;
+      this.selection = undefined;
+    });
+    this.panelLoadTimer = setTimeout(() => {
+      if (this.panel !== panel || this.panelReady) return;
+      void vscode.window
+        .showWarningMessage(
+          'WatDatMean’s learning panel did not finish loading. Try reopening it. If VS Code reports a ServiceWorker error, save your work, fully quit VS Code, and reopen it.',
+          'Reopen panel',
+        )
+        .then((choice) => {
+          if (choice === 'Reopen panel' && this.panel === panel && !this.panelReady)
+            return this.reopenPanel();
+        });
+    }, 10000);
+    this.panelLoadTimer.unref();
+    panel.webview.html = this.html(panel.webview);
   }
 
   private sendSelection(keepTab = false) {
@@ -304,6 +352,7 @@ class Tutor implements vscode.Disposable {
       type: 'selection',
       keepTab,
       code: snippet.code,
+      start: snippet.start,
       parts: snippet.parts,
       symbol: snippet.symbol,
       file: vscode.workspace.asRelativePath(document.uri),
@@ -312,13 +361,13 @@ class Tutor implements vscode.Disposable {
     void this.sendConfig();
   }
 
-  private refreshSelection() {
+  private refreshSelection(send = true) {
     if (!this.selection) return;
     const { document, range } = this.selection;
     if (document.isClosed) throw new Error('Reopen this file and inspect the code again.');
     const source = document.getText();
     if (source.length > 500000) throw new Error('Choose a TypeScript file smaller than 500 KB.');
-    this.abort?.abort();
+    this.cancelRequest();
     this.preview = undefined;
     this.evidence = undefined;
     this.selection = {
@@ -332,7 +381,7 @@ class Tutor implements vscode.Disposable {
           ? { code: '', ...range, symbol: '', symbolOffset: range.start, parts: [] }
           : inspect(source, range.start, range.end),
     };
-    this.sendSelection(true);
+    if (send) this.sendSelection(true);
   }
 
   private current(): Selection {
@@ -356,6 +405,8 @@ class Tutor implements vscode.Disposable {
     if (!message || typeof message !== 'object') return;
     const m = message as Record<string, unknown>;
     if (m.type === 'ready') {
+      this.panelReady = true;
+      clearTimeout(this.panelLoadTimer);
       this.sendSelection();
       return;
     }
@@ -390,7 +441,7 @@ class Tutor implements vscode.Disposable {
     this.send({ type: 'busy', value: true });
     try {
       if (m.type === 'apply') {
-        if (typeof m.replacement === 'string') await this.apply(m.replacement);
+        if (typeof m.replacement === 'string') await this.apply(m.replacement, abort.signal);
         return;
       }
       if (m.type === 'preview') {
@@ -482,24 +533,38 @@ class Tutor implements vscode.Disposable {
     this.evidence = evidence;
     this.send({ type: 'evidence', items: evidence.evidence, note: evidence.note });
     const errors = syntaxErrors(proposed);
-
-    this.send({ type: 'preview', errors, replacement });
-    this.preview = errors.length ? undefined : { replacement, revision };
     const id = randomBytes(8).toString('hex');
     const before = vscode.Uri.parse(`watdatmean:/${id}/original.ts`);
     const after = vscode.Uri.parse(`watdatmean:/${id}/proposed.ts`);
     this.virtual.set(before.toString(), source);
     this.virtual.set(after.toString(), proposed);
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      before,
-      after,
-      'WatDatMean · See what changes',
-      { viewColumn: vscode.ViewColumn.One, preview: true, preserveFocus: true },
-    );
+    try {
+      // Keep the editable source document open when the diff replaces the preview tab.
+      await vscode.window.showTextDocument(selection.document, {
+        viewColumn: vscode.ViewColumn.One,
+        preview: false,
+        preserveFocus: true,
+      });
+      if (signal.aborted) return;
+      await vscode.commands.executeCommand(
+        'vscode.diff',
+        before,
+        after,
+        'WatDatMean · See what changes',
+        { viewColumn: vscode.ViewColumn.One, preview: true, preserveFocus: true },
+      );
+      if (signal.aborted || selection !== this.selection || revision !== this.revision) return;
+      this.current();
+      this.preview = errors.length ? undefined : { replacement, revision };
+      this.send({ type: 'preview', errors, replacement });
+    } catch (error) {
+      this.virtual.delete(before.toString());
+      this.virtual.delete(after.toString());
+      throw error;
+    }
   }
 
-  private async apply(replacement: string) {
+  private async apply(replacement: string, signal: AbortSignal) {
     this.trusted();
     const selection = this.current();
     assertPreviewCurrent(this.preview, replacement, this.revision);
@@ -509,7 +574,7 @@ class Tutor implements vscode.Disposable {
       { modal: true },
       'Use this code',
     );
-    if (confirmed !== 'Use this code') return;
+    if (confirmed !== 'Use this code' || signal.aborted) return;
     this.current();
     if (selection !== this.selection || preview !== this.preview)
       throw new Error('The code changed. Choose “See what changes” again.');
