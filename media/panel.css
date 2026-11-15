@@ -110,7 +110,9 @@ button:disabled {
   border: 2px solid var(--line);
   border-radius: 12px;
   box-shadow: 2px 3px 0 var(--line);
-  font: 700 21px var(--mono);
+  font:
+    700 27px/1 'IBM Plex Sans',
+    sans-serif;
   rotate: -8deg;
 }
 .text-control {
@@ -867,7 +869,7 @@ footer p {
   .brand-mark {
     width: 31px;
     height: 31px;
-    font-size: 18px;
+    font-size: 23px;
     border-radius: 10px;
   }
   .text-control {

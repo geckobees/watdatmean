@@ -4,7 +4,7 @@
 
 ## Try it
 
-1. Install `watdatmean-0.1.21.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel to load the new version.
+1. Install `watdatmean-0.1.22.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel to load the new version.
 2. Open a `.ts` file. Hover over code for a short paragraph explaining what it does, with code names highlighted in context. Functions describe their inputs and return types; object creation explains the constructor and reference; simple nested calls explain the inner and outer calls in order. Open the learning panel for individual syntax pieces.
    Inside an interface or object type, hover a property or method to explain just that member. Its learning-panel link opens the same member. Hover the interface heading for the whole definition.
 3. Click **Open learning panel**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).

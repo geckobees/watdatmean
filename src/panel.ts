@@ -18,7 +18,7 @@ export function panelHtml(
       <body>
         <header class="app-header">
           <div class="brand">
-            <span class="brand-mark" aria-hidden="true">{}</span>
+            <span class="brand-mark" aria-hidden="true">?</span>
             <strong>watdatmean</strong>
           </div>
           <button
