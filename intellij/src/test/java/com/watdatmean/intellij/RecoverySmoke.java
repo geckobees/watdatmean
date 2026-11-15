@@ -61,11 +61,12 @@ final class RecoverySmoke {
               return true;
             }
           }, browser.getCefBrowser());
-          browser.getCefBrowser().executeJavaScript("console.log('wdm-recovery-probe:'+JSON.stringify({code:document.getElementById('source').textContent,pieces:document.getElementById('parts').textContent,buttons:document.querySelectorAll('#parts [role=button]').length}))", "", 0);
+          browser.getCefBrowser().executeJavaScript("console.log('wdm-recovery-probe:'+JSON.stringify({code:document.getElementById('source').textContent,pieces:document.getElementById('parts').textContent,line:document.getElementById('location').textContent,buttons:document.querySelectorAll('#parts [role=button]').length}))", "", 0);
         });
         var reply = replies.poll(20, TimeUnit.SECONDS);
         check(reply != null && reply.get("code").getAsString().equals(selected.code()), "Recovered panel receives the current selection");
         check(reply.get("pieces").getAsString().equals(selected.code()) && reply.get("buttons").getAsInt() > 0, "Native selection offsets keep pieces clickable after recovery");
+        check(reply.get("line").getAsString().endsWith(":" + (iteration + 2)), "Actual full-document line positions refresh after prefix edits");
       }
       System.out.println("PASS: repeated native panel recovery, browser disposal, saved range refresh, preview invalidation, and boxed source offsets");
     } finally {

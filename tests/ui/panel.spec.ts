@@ -46,7 +46,9 @@ test.beforeEach(async ({ page }) => {
     const host = window as unknown as { acquireVsCodeApi: () => unknown; messages: unknown[] };
     host.messages = [];
     host.acquireVsCodeApi = () => ({
-      postMessage: (m: unknown) => host.messages.push(m),
+      postMessage: (m: any) => {
+        if (m.type !== 'highlight') host.messages.push(m);
+      },
       getState: () => ({}),
       setState: () => {},
     });
@@ -215,7 +217,7 @@ test('lays out clickable interface pieces like the source and selects repeated p
     await page.locator('#syntax-section').screenshot({ path: 'work/panel-indented-pieces.png' });
 });
 
-test('preserves tabs, blank lines, comments, and multiline pieces as safe source text', async ({
+test('preserves tabs, blank lines, comments, and individual nested pieces as safe source text', async ({
   page,
 }) => {
   const code =
@@ -223,10 +225,10 @@ test('preserves tabs, blank lines, comments, and multiline pieces as safe source
   await send(page, { type: 'selection', ...inspect(code, 0), file: 'types.ts', line: 1 });
   expect(await page.locator('#parts').textContent()).toBe(code);
   await expect(page.locator('#parts img')).toHaveCount(0);
-  const multiline = page.locator('#parts .part').filter({ hasText: 'label:' });
-  await multiline.focus();
+  const nested = page.locator('#parts').getByRole('button', { name: 'label', exact: true });
+  await nested.focus();
   await page.keyboard.press('Enter');
-  await expect(multiline).toHaveAttribute('aria-pressed', 'true');
+  await expect(nested).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#part-detail')).toBeVisible();
   const aligned = await page.evaluate(() => {
     const source = document.getElementById('source')!.firstChild!;
@@ -236,7 +238,7 @@ test('preserves tabs, blank lines, comments, and multiline pieces as safe source
     start.setStart(source, 0);
     start.setEnd(source, 1);
     const sourceOrigin = start.getBoundingClientRect();
-    return ['token', 'detail'].map((name) => {
+    return ['token', 'detail', 'label'].map((name) => {
       const index = source.textContent!.indexOf(name + ':');
       const range = document.createRange();
       range.setStart(source, index);

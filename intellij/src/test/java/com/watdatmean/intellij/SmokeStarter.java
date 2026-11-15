@@ -9,7 +9,6 @@ import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileTypes.FileTypeManager;
 import com.intellij.testFramework.LightVirtualFile;
-import com.intellij.psi.PsiDocumentManager;
 import java.nio.file.*;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -21,10 +20,18 @@ public final class SmokeStarter implements ApplicationStarter {
   @Override public int getRequiredModality() { return NOT_IN_EDT; }
   @Override public void main(List<String> args) {
     try {
+      if (Boolean.getBoolean("watdatmean.test.live")) {
+        // Initialize and verify language plugins just as the full native suite does.
+        ApplicationManager.getApplication().invokeAndWait(this::editorChecks);
+        LiveWebSmoke.run();
+        System.exit(0);
+        return;
+      }
       ApplicationManager.getApplication().invokeAndWait(this::editorChecks);
       HoverSmoke.run();
       Settings.get().getState().nodePath = System.getProperty("watdatmean.node.path");
       RuntimeSmoke.run();
+      HistorySmoke.run();
       var bridge = new Bridge();
       try {
         var defaults = bridge.call("defaults", new JsonObject()).get(20, TimeUnit.SECONDS).getAsJsonObject();
@@ -74,10 +81,21 @@ public final class SmokeStarter implements ApplicationStarter {
         check(bridge.call("checkSyntax", python).get(20, TimeUnit.SECONDS).getAsJsonObject().getAsJsonArray("errors").isEmpty(), "Native Python checker accepts valid async code");
         System.out.println("PASS: native Python, JavaScript, and TSX inspection, import clues, and syntax previews");
         JavaTraceSmoke.run(bridge);
+        WebResearchSmoke.run(bridge);
         bridge.call("clearCache", new JsonObject()).get(5, TimeUnit.SECONDS);
       } finally { bridge.dispose(); }
       if (Boolean.getBoolean("watdatmean.test.ui")) {
-        try (var panel = new PanelSmoke()) { panel.run(); }
+        try (var panel = new PanelSmoke()) {
+          panel.run();
+          var directory = Files.createTempDirectory("watdatmean-live-replay-");
+          try (var stream = SmokeStarter.class.getResourceAsStream("/web-research-live.json")) {
+            var fixtures = com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonArray();
+            var bookmarks = new ResourceBookmarks(directory.resolve("bookmarks.json"));
+            for (var fixture : fixtures) panel.checkLiveResources(fixture.getAsJsonObject().getAsJsonObject("result"), bookmarks);
+          } finally {
+            Files.deleteIfExists(directory.resolve("bookmarks.json")); Files.deleteIfExists(directory);
+          }
+        }
         RecoverySmoke.run();
       }
       Files.writeString(Path.of(System.getProperty("watdatmean.test.result")), "PASS: plugin actions, native Java hover and documentation, edit confirmation/cancellation, Java method/selection capture, Java syntax checks, unsupported-language guard, document invalidation, Node runtime checks, cancellation, packaged Java/Node bridge"
@@ -90,6 +108,7 @@ public final class SmokeStarter implements ApplicationStarter {
     }
   }
   private void editorChecks() {
+    CodeColorsSmoke.run();
     var project = ProjectManager.getInstance().getDefaultProject();
     for (String action : List.of("Inspect", "ReopenPanel", "Configure", "RemoveKey", "ClearCache"))
       check(ActionManager.getInstance().getAction("WatDatMean." + action) != null, "Registered action " + action);

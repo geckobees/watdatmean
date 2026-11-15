@@ -189,18 +189,24 @@ describe('IDE-neutral learning bridge', () => {
   it('separates cache entries by language, guidance, and context, and clears them', async () => {
     const transport = vi.fn().mockImplementation(async () => response());
     const core = new BridgeCore(transport);
-    await core.dispatch(1, 'request', params());
-    expect(await core.dispatch(2, 'request', params())).toMatchObject({ cached: true });
-    await core.dispatch(3, 'request', params('Java'));
-    await core.dispatch(4, 'request', params('Python', { audience: 'experienced' }));
+    // Valid in both languages; language alone must still separate the cache entries.
+    const shared = { code: 'work();' };
+    await core.dispatch(1, 'request', params('Python', shared));
+    expect(await core.dispatch(2, 'request', params('Python', shared))).toMatchObject({
+      cached: true,
+    });
+    await core.dispatch(3, 'request', params('Java', shared));
+    await core.dispatch(4, 'request', params('Python', { ...shared, audience: 'experienced' }));
     await core.dispatch(
       5,
       'request',
-      params('Python', { mode: 'project', context: 'different', evidence: [] }),
+      params('Python', { ...shared, mode: 'project', context: 'different', evidence: [] }),
     );
     expect(transport).toHaveBeenCalledTimes(4);
     await core.dispatch(6, 'clearCache', {});
-    expect(await core.dispatch(7, 'request', params())).toMatchObject({ cached: false });
+    expect(await core.dispatch(7, 'request', params('Python', shared))).toMatchObject({
+      cached: false,
+    });
   });
   it('validates bounded inputs before contacting a provider', async () => {
     const transport = vi.fn();
@@ -247,7 +253,14 @@ describe('IDE-neutral learning bridge', () => {
     'keeps the compact example request language-aware for %s',
     async (language) => {
       const transport = vi.fn().mockImplementation(async () => response());
-      await new BridgeCore(transport).dispatch(1, 'request', params(language, { task: 'example' }));
+      await new BridgeCore(transport).dispatch(
+        1,
+        'request',
+        params(language, {
+          task: 'example',
+          ...(language === 'Java' ? { code: 'for (String x : items) System.out.println(x);' } : {}),
+        }),
+      );
       const body = JSON.parse(transport.mock.calls[0][1].body);
       expect(JSON.parse(body.input)).toMatchObject({ language, task: 'example' });
       expect(body.instructions).toContain('example in the requested language');

@@ -6,6 +6,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import java.util.Map;
+import java.util.HashSet;
 
 /** Local syntax and declaration origins from Java PSI, without project resolution, Node, or AI. */
 final class JavaParts {
@@ -89,6 +90,7 @@ final class JavaParts {
     if (!(file instanceof PsiJavaFile) || start < 0 || end > file.getTextLength() || end <= start) return result;
     int offset = start;
     var origins = new JavaOrigins();
+    var seen = new HashSet<String>();
     for (int visited = 0; offset < end && visited < 2000 && result.size() < 80; visited++) {
       ProgressManager.checkCanceled();
       var leaf = file.findElementAt(offset);
@@ -103,9 +105,12 @@ final class JavaParts {
         if (contained(piece, start, end)) {
           var description = describe(piece, origins);
           if (description != null) {
+            String detail = description[1] + JavaOrigins.importClue(piece);
+            String key = piece.getText() + "\u0000" + description[0] + "\u0000" + detail + identity(piece, origins);
+            if (!seen.add(key)) { offset = Math.max(next, piece.getTextRange().getEndOffset()); continue; }
             var item = new JsonObject();
             item.addProperty("token", compact(piece.getText()));
-            item.addProperty("brief", description[0]); item.addProperty("detail", description[1] + JavaOrigins.importClue(piece));
+            item.addProperty("brief", description[0]); item.addProperty("detail", detail);
             item.addProperty("start", piece.getTextRange().getStartOffset()); item.addProperty("end", piece.getTextRange().getEndOffset());
             result.add(item);
           }
@@ -115,6 +120,22 @@ final class JavaParts {
       offset = next;
     }
     return result;
+  }
+  // Keep distinct declarations, shadowed names and differently qualified calls distinct.
+  // Deduplication removes repeated teaching content, not source text or syntax colors.
+  private static String identity(PsiElement piece, JavaOrigins origins) {
+    if (!(piece instanceof PsiIdentifier)) return "";
+    var parent = piece.getParent();
+    if (parent instanceof PsiNameIdentifierOwner) return "@" + parent.getTextOffset();
+    if (parent instanceof PsiReferenceExpression reference) {
+      var variable = origins.find(reference);
+      if (variable != null) return "@" + variable.getTextOffset();
+      var scope = PsiTreeUtil.getParentOfType(reference, PsiMethod.class, PsiClass.class);
+      String call = reference.getParent() instanceof PsiMethodCallExpression method
+        ? method.getArgumentList().getText() : "";
+      return "@" + (scope == null ? 0 : scope.getTextOffset()) + ":" + reference.getText() + call;
+    }
+    return "";
   }
   private static boolean contained(PsiElement element, int start, int end) {
     var range = element.getTextRange();

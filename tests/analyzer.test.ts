@@ -216,8 +216,9 @@ describe('instant explanations throughout TypeScript', () => {
     expect(part('log(3);', ';').detail).toContain('where this instruction ends');
     const parts = inspect('for (let i = 0; i < 3; i++) { log(i); }', 0).parts;
     const separators = parts.filter((p) => p.token === ';');
-    expect(separators).toHaveLength(2);
-    for (const separator of separators) {
+    expect(separators).toHaveLength(3);
+    expect(separators[2].detail).toContain('where this instruction ends');
+    for (const separator of separators.slice(0, 2)) {
       expect(separator.detail).toContain('when to keep going');
       expect(separator.detail).not.toContain('instruction ends');
     }
@@ -364,16 +365,35 @@ describe('instant explanations throughout TypeScript', () => {
     expect(inspect(code, 0).parts.every((p) => p.brief && p.detail)).toBe(true);
   });
 
-  it('keeps function bodies compact while inspecting statements inside them', () => {
+  it('exposes individual pieces inside function bodies and still selects inner statements', () => {
     const code = 'function run() { board.addCompletedTasks(3); }';
     expect(inspect(code, 9).parts.map((p) => p.token)).toEqual([
       'function',
       'run',
       '(',
       ')',
-      '{ … }',
+      '{',
+      'board',
+      '.',
+      'addCompletedTasks',
+      '(',
+      '3',
+      ')',
+      ';',
+      '}',
     ]);
     expect(inspect(code, code.indexOf('board')).code).toBe('board.addCompletedTasks(3);');
+  });
+  it('keeps every nested loop body piece individually selectable, including the screenshot code', () => {
+    const source = readFileSync('src/edit.ts', 'utf8');
+    const start = source.indexOf('for (const change');
+    const snippet = inspect(source, start);
+    expect(snippet.parts.filter((p) => p.token === 'change').length).toBeGreaterThan(4);
+    expect(snippet.parts.some((p) => p.token === 'Math')).toBe(true);
+    for (const p of snippet.parts) {
+      expect(source.slice(p.start, p.end)).toBe(p.token);
+      expect(p.token).not.toMatch(/[\r\n]/);
+    }
   });
 
   it('accounts for spreads, assignments, shorthand properties, and bare returns', () => {

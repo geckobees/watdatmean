@@ -14,6 +14,7 @@ playwright-report/**
 playwright.config.ts
 demo/out/**
 dist/integration.cjs
+dist/gradle-import.cjs
 dist/*.map
 .vscode-test/**
 .vscode-dev/**

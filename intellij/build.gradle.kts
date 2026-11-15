@@ -4,18 +4,20 @@ plugins {
 }
 
 group = "com.watdatmean"
-version = "0.1.11"
+version = "0.1.27"
 
 repositories {
     mavenCentral()
 }
 intellij {
-    version.set("2022.3")
     type.set("IC")
     plugins.set(listOf("com.intellij.java"))
-    providers.gradleProperty("localIdePath").orNull?.let { localPath.set(it) }
+    val sdkPath = providers.gradleProperty("localIdePath").orNull
+    if (sdkPath == null) version.set("2022.3")
+    else localPath.set(sdkPath)
 }
 java {
+    toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
 }
@@ -32,6 +34,6 @@ val buildEngine by tasks.registering(Exec::class) {
 sourceSets.main { resources.srcDir(layout.buildDirectory.dir("generated")) }
 tasks.processResources { dependsOn(buildEngine) }
 tasks.prepareSandbox {
-    from("../LICENSE", "../THIRD_PARTY_NOTICES.md") { into("${project.name}") }
+    from(files("../LICENSE", "../THIRD_PARTY_NOTICES.md")) { into(project.name) }
     from("../licenses") { into("${project.name}/licenses") }
 }

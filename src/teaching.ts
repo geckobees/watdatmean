@@ -5,6 +5,8 @@ import { inspectCode, languageId } from './languages';
 import { pythonErrors } from './python-check';
 import type { LearningRequest, Lesson } from './types';
 import { uniqueConcepts } from './concepts';
+import { explainableFragment } from './selection-fragment';
+import { javaSyntaxHelp } from './java-syntax-help';
 
 type Practice = { code: string; explanation: string; question: string };
 export interface TeachingNotes {
@@ -13,6 +15,7 @@ export interface TeachingNotes {
   concepts: Lesson['concepts'];
   practice?: Practice;
   incomplete: boolean;
+  explainableFragment: boolean;
   unknownCall: boolean;
   topics: Set<string>;
   names: Set<string>;
@@ -588,6 +591,7 @@ export function teachingNotes(request: LearningRequest): TeachingNotes {
     connections: [],
     concepts: [],
     incomplete: false,
+    explainableFragment: false,
     unknownCall: false,
     topics: new Set(),
     names: new Set(),
@@ -633,7 +637,11 @@ export function teachingNotes(request: LearningRequest): TeachingNotes {
         );
     }
     notes.names = new Set(clean.match(/[A-Za-z_]\w*/g) ?? []);
-    if (language === 'python') {
+    if (language === 'java' && ['explain', 'walkthrough'].includes(request.task)) {
+      const syntax = javaSyntaxHelp(code);
+      notes.incomplete = !!syntax;
+      notes.explainableFragment = !!syntax?.partial;
+    } else if (language === 'python') {
       const cursor = pythonParser.parse(code).cursor();
       do {
         if (cursor.type.isError) {
@@ -660,6 +668,14 @@ export function teachingNotes(request: LearningRequest): TeachingNotes {
         invalid(`function __Wdm() { ${code}\n}`);
     }
     if (notes.incomplete) {
+      notes.explainableFragment ||= explainableFragment(code, language);
+      if (notes.explainableFragment) {
+        notes.unknownCall = true;
+        notes.facts.push(
+          'This selection contains complete visible operations but stops before closing punctuation. Explain how those operations work together. The surrounding file may supply the closing code; do not call the whole file broken, invent missing values, or claim a complete result.',
+        );
+        return notes;
+      }
       add(
         'incomplete',
         [
@@ -667,7 +683,7 @@ export function teachingNotes(request: LearningRequest): TeachingNotes {
           'Finish the missing syntax before predicting a result. This selection has not been run.',
         ],
         [],
-        language === 'python' ? samples.sum : samples.typescript,
+        language === 'python' ? samples.sum : language === 'java' ? undefined : samples.typescript,
       );
       return notes;
     }
@@ -885,7 +901,11 @@ export function localLesson(
         ? 'This code calls a helper whose full behavior is not shown. The exact result is unknown from this code.'
         : facts[0];
   return {
-    title: notes.incomplete ? 'Finish the selected code first' : 'Read the code one step at a time',
+    title: notes.explainableFragment
+      ? 'About this partial selection'
+      : notes.incomplete
+        ? 'Finish the selected code first'
+        : 'Read the code one step at a time',
     summary,
     steps: deep ? lessonSteps(notes).filter((step) => step !== summary) : [],
     concepts: deep ? notes.concepts : notes.concepts.slice(0, 2),
@@ -933,7 +953,7 @@ export function reviewLesson(
     ...lesson.concepts.filter((c) => !definition(c.term, language)).map((c) => c.explanation),
   ].join(' ');
   const reasons: string[] = [];
-  if (notes.incomplete) reasons.push('incomplete');
+  if (notes.incomplete && !notes.explainableFragment) reasons.push('incomplete');
   if (/\b(?:I (?:will )?guess|Invalid reasoning)\b/i.test(main)) reasons.push('guess');
   if (/\b(?:quiz|answer\s*:)/i.test(main)) reasons.push('unverified quiz');
   if (
@@ -983,6 +1003,7 @@ export function reviewLesson(
     reasons.push('import existence');
   if (
     notes.unknownCall &&
+    !notes.explainableFragment &&
     !/unknown|cannot (?:tell|know|determine)|not (?:shown|provided)|depends on|missing/i.test(main)
   )
     reasons.push('unknown result');
@@ -1060,6 +1081,12 @@ export function reviewLesson(
       : { code: '', explanation: '' };
     result.checks = notes.practice ? [notes.practice.question] : [];
   } else if (request.task !== 'impact') result.checks = [];
+  if (notes.explainableFragment && ['explain', 'walkthrough'].includes(request.task)) {
+    // Keep useful prose, but never promote a partial selection to a verified full result.
+    // The local syntax notice states the limitation once above the walkthrough.
+    result.output = { text: '', explanation: '' };
+    if (result.stepOutput) result.stepOutput = result.steps.map(() => null);
+  }
   if (request.task === 'example') {
     // A free-form example's output is not independently established. Use a reviewed practice case
     // when one matches, or explicitly describe the proposed example as unverified.

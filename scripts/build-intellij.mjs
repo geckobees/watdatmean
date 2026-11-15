@@ -23,14 +23,21 @@ const { panelHtml } = await import(
 const nonce = '__WDM_NONCE__';
 const css = await readFile('media/panel.css', 'utf8');
 const script = await readFile('media/panel.js', 'utf8');
+const colors = await readFile('media/code-colors.js', 'utf8');
 const html = panelHtml(
   { cspSource: `'nonce-${nonce}'`, css: 'panel.css', script: 'panel.js' },
   nonce,
 )
-  .replace('<link rel="stylesheet" href="panel.css" />', `<style nonce="${nonce}">${css}</style>`)
   .replace(
-    `<script nonce="${nonce}" src="panel.js"></script>`,
-    `<script nonce="${nonce}">/*__WDM_BRIDGE__*/\n${script}</script>`,
+    '<link rel="stylesheet" href="panel.css" />',
+    () => `<style nonce="${nonce}">${css}</style>`,
+  )
+  .replace(
+    /<script\b[^>]*\bsrc="(code-colors|panel)\.js"[^>]*>\s*<\/script>/g,
+    (_tag, name) =>
+      `<script nonce="${nonce}">${name === 'panel' ? '/*__WDM_BRIDGE__*/\n' + script : colors}</script>`,
   );
+if (/<script\b[^>]*\bsrc=/.test(html) || !html.includes('window.watdatmeanColors ='))
+  throw new Error('IntelliJ panel scripts were not embedded.');
 await writeFile('intellij/build/generated/web/panel.html', html);
 console.log('Built shared IntelliJ engine and learning panel.');

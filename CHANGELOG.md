@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.1.27
+
+- Keep native syntax colors on displayed snapshots after source edits; recover from temporary theme/grammar failures with one local retry. Keep live semantic highlighting limited to matching documents.
+- Add themed line gutters and syntax colors to Another Example (starting at 1), saved source snapshots (their recorded file lines), and saved drafts on both editors. Refresh with theme changes, virtualize long gutters, and discard obsolete color replies.
+- Break nested TypeScript/JavaScript bodies and object types into individual pieces instead of outlining whole blocks. Give pieces a subtle rectangular fill and a stronger selected border without changing code spacing.
+- Preserve IntelliJ 2022.3 / Java 17 support and document the intentional legacy native-documentation adapter. These display changes use no AI tokens.
+
+## 0.1.26
+
+- Replace uncontrolled provider browsing with bounded public search excerpts and one compact AI summary on both editors. Enforce 3,500 input-content bytes (including the response schema), 900 output tokens, no browser tools, low Groq reasoning within the completion cap, no automatic AI retries, and no overlapping lookups.
+- Preserve explanation settings, target versions, resource filters, bookmarks and cached History. Reject unrelated sources and missing fixed documentation editions before spending tokens.
+- Disclose Bing search and the DuckDuckGo fallback, bound local HTML/RSS parsing, and fetch excerpts only from allowlisted official reference hosts. Do not download PDFs or videos.
+- Correct IntelliJ's web-summary model label; retain IntelliJ 2022.3 / Java 17 compatibility.
+
+## 0.1.25
+
+- Test real Groq searches through the VS Code extension host and IntelliJ 2022.3 bridge, then replay public results in both panels without API calls.
+- Scope exact Java/Python documentation targets to official versioned pages and make repository/video searches explicit. Reuse reviewed Java collection and Java 8 API facts to reduce unsupported guarantees and newer-API examples.
+- Use Groq GPT-OSS 120B for the optional web supplement with low reasoning and a compact search-only task. Keep the selected explanation model unchanged; cache hits, filters and bookmarks remain local.
+- Recognize HTML books, preserve original source titles, hide opaque browser citation IDs without guessing links, exclude search-wrapper pages, and distinguish temporary provider errors from account-access failures.
+- Preserve IntelliJ 2022.3 / Java 17 compatibility. Add credential-free real-result regressions and an explicitly invoked live test harness.
+
+## 0.1.24
+
+- Add editable project version targets and resource filters to web resources in both editors. Detect bounded literal manifest declarations locally, preserve unknown versions, and separate search caches by target and resource choice.
+- Add explicit source bookmarks with local search/filtering, URL deduplication and removal. Keep up to 100 independently of recent History, without silent expiry or additional AI calls.
+- Preserve the existing search request/output limits, source provenance and IntelliJ 2022.3 / Java 17 compatibility.
+
+## 0.1.23
+
+- Add an optional, initially-off **Add web resources** switch to Part 1 in both editors. Search a public topic for compact explanations, illustrative code, practical uses and source links while preserving the normal code explanation and selected model.
+- Support Groq, OpenAI and Anthropic search APIs, with separate usage, bounded output, cancellation and a 24-hour in-memory cache. Send only the editable topic and guidance to web research, never project source context.
+- Require provider source metadata for clickable links, open sources on click in the external browser, and keep successful supplements with their lesson in project History. Preserve IntelliJ 2022.3 compatibility.
+
+## 0.1.22
+
+- Add local project history to VS Code and IntelliJ 2022.3+: one searchable History view for completed lessons, with repeated code grouped into one entry and up to 30 recent entries retained.
+- Preserve the current lesson and draft when reviewing saved code, explanations, examples and changes. History review uses no AI tokens and does not apply edits.
+- Add individual removal, confirmed clearing and paused saving. Bound storage, persist across reloads, and exclude failed, cancelled and stale responses from history.
+
 ## 0.1.2
 
 - Add shared zero-token Java arrays and exception handling for both editors: array creation, indexing, aliases/copies, multidimensional arrays, array fields/parameters/returns, covariance, try/catch/finally, multi-catch, checked throws, rethrows and common built-in failures. Preserve evaluation order and pending returns across finally; distinguish catchable Java failures from uncatchable reader limits. Keep explanations compact and model-backed requests unchanged, advance caches to version 12, and validate varied examples against Java 17 and both native IDE hosts.

@@ -524,15 +524,7 @@ export function statementParts(
   }
   function visit(node: ts.Node) {
     if (node.end <= node.getStart(source)) return;
-    // Keep headers readable; hovering inside a body selects its own statement.
-    if (node !== target && ts.isBlock(node)) {
-      add(
-        node,
-        explain('The body of this block. Hover inside to inspect its statements.'),
-        '{ … }',
-      );
-      return;
-    }
+    // A displayed body needs its own pieces too; one block-sized span boxes entire lines.
     if (ts.isTemplateExpression(node)) {
       add(node.head, explain('Starts template text; ${ introduces a value to insert.'));
       for (const span of node.templateSpans) {
@@ -544,7 +536,7 @@ export function statementParts(
       }
       return;
     }
-    if (ts.isTypeNode(node) && (ts.isTypeLiteralNode(node) || !node.getChildCount(source))) {
+    if (ts.isTypeNode(node) && !node.getChildCount(source)) {
       add(node, describe(node));
       return;
     }

@@ -82,6 +82,18 @@ final class JavaPartsSmoke {
     check(JavaParts.inspect(comments, 0, comments.getTextLength()).isEmpty(), "Comment-only selections have no pieces");
     var large = factory.createFileFromText("Large.java", javaType, "class Large { void run() {" + "use(1);".repeat(2000) + "} }");
     check(JavaParts.inspect(large, 0, large.getTextLength()).size() <= 80, "Large selections are bounded");
+    var repeated = factory.createFileFromText("Repeated.java", javaType,
+      "class Repeated { int value = 1; void run() {" + "System.out.println(value);".repeat(60) + "int afterLoops = 7; } }");
+    var unique = JavaParts.inspect(repeated, 0, repeated.getTextLength());
+    check(count(unique, "println") == 1 && count(unique, ";") == 1, "Repeated calls and punctuation are outlined once");
+    check(count(unique, "value") == 2, "Keep one declaration and one reference explanation");
+    check(contains(unique, "afterLoops"), "Duplicates do not consume the budget before later new names");
+    var distinct = factory.createFileFromText("Distinct.java", javaType,
+      "class Distinct { int value; void pick(int n) {} void pick(String n) {} void run(int value) { left.use(value); right.use(value); } }");
+    var different = JavaParts.inspect(distinct, 0, distinct.getTextLength());
+    check(count(different, "pick") == 2, "Overloaded method declarations stay distinct");
+    check(count(different, "value") >= 3, "Shadowed declarations and the parameter reference retain their origins");
+    check(count(different, "use") == 2, "Same method name on different receivers stays distinct");
     var longLiteral = factory.createFileFromText("Long.java", javaType, "class Long { String text = \"" + "x".repeat(200) + "\"; }");
     for (var part : JavaParts.inspect(longLiteral, 0, longLiteral.getTextLength()))
       check(part.getAsJsonObject().get("token").getAsString().length() <= 100, "Long labels stay compact");
@@ -95,11 +107,14 @@ final class JavaPartsSmoke {
     check(demoDocument != null && demoDocument.getText().equals(DemoAction.SOURCE), "Opening another demo preserves the first file");
     var demoPsi = PsiManager.getInstance(project).findFile(first);
     check(demoPsi instanceof PsiJavaFile && PsiTreeUtil.findChildOfType(demoPsi, PsiErrorElement.class) == null, "Demo is valid Java syntax");
-    System.out.println("PASS: Java syntax pieces, nested arguments, exact ranges, refreshed edits, incomplete code, bounded output, and fresh Java demo scratches");
+    System.out.println("PASS: Java syntax pieces, duplicate reduction, preserved declarations/shadowing/receivers, nested arguments, exact ranges, refreshed edits, incomplete code, bounded output, and fresh Java demo scratches");
   }
   private static boolean contains(JsonArray parts, String token) {
     for (var element : parts) if (element.getAsJsonObject().get("token").getAsString().equals(token)) return true;
     return false;
+  }
+  private static int count(JsonArray parts, String token) {
+    int count = 0; for (var part : parts) if (part.getAsJsonObject().get("token").getAsString().equals(token)) count++; return count;
   }
   private static String field(JsonArray parts, String token, String name) {
     for (var element : parts) {

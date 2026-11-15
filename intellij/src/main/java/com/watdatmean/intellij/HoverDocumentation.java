@@ -27,6 +27,8 @@ public final class HoverDocumentation extends AbstractDocumentationProvider impl
     return combine(nativeDoc, block);
   }
 
+  // Required by the 2022.3 documentation API; retain native docs alongside our learning section.
+  @SuppressWarnings("deprecation")
   private static String nativeDocumentation(PsiElement element, PsiElement original, boolean hover) {
     DELEGATING.set(true);
     try {

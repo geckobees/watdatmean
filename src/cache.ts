@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+export const LESSON_CACHE_VERSION = 17;
+
 export function fingerprint(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }

@@ -32,6 +32,14 @@ import org.jetbrains.annotations.NotNull;
 public final class Tutor implements Disposable {
   private final Project project;
   private final Bridge bridge = new Bridge();
+  private final LessonHistory history;
+  private final ResourceBookmarks bookmarks;
+  private volatile JsonObject latestResearch;
+  private final WebSources webSources = new WebSources();
+  private volatile boolean researchEnabled, researchRunning;
+  private record LastExplanation(SourceContext.Selection selection, JsonObject source, String task, JsonElement lesson) {}
+  private volatile LastExplanation lastExplanation;
+  private final ExecutorService historyWorker = AppExecutorUtil.createBoundedApplicationPoolExecutor("WatDatMean history", 1);
   private final AtomicLong revision = new AtomicLong();
   private final AtomicLong operation = new AtomicLong();
   private volatile SourceContext.Selection selection;
@@ -41,6 +49,8 @@ public final class Tutor implements Disposable {
   private PanelView panel;
   private final JPanel panelContainer = new JPanel(new BorderLayout());
   private long panelGeneration;
+  private long selectionId;
+  private final SourceLineHighlight lineHighlight = new SourceLineHighlight();
   private boolean ready;
   private boolean busy;
   private volatile boolean disposed;
@@ -48,8 +58,20 @@ public final class Tutor implements Disposable {
 
   public Tutor(Project project) {
     this.project = project;
+    this.history = new LessonHistory(project);
+    this.bookmarks = new ResourceBookmarks(project);
+    researchEnabled = com.intellij.ide.util.PropertiesComponent.getInstance(project).getBoolean("watdatmean.webResearch", false);
+    project.getMessageBus().connect(this).subscribe(com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.DAEMON_EVENT_TOPIC,
+      new com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.DaemonListener() {
+        @Override public void daemonFinished(@NotNull java.util.Collection<? extends FileEditor> editors) {
+          var selected = selection;
+          if (selected != null && selected.current() && editors.stream().anyMatch(editor -> selected.file().equals(editor.getFile())))
+            ui(() -> { if (selection == selected && ready) send(message("syntaxThemeChanged")); });
+        }
+      });
     EditorFactory.getInstance().getEventMulticaster().addDocumentListener(new DocumentListener() {
       @Override public void documentChanged(@NotNull DocumentEvent event) {
+        ui(lineHighlight::clear);
         revision.incrementAndGet(); preview = null; context = null;
         boolean stale = selection != null && selection.document() == event.getDocument();
         cancel();
@@ -130,6 +152,40 @@ public final class Tutor implements Disposable {
   }
   private JsonElement call(String method, JsonObject params) { return bridge.call(method, params).join(); }
 
+  @FunctionalInterface private interface HistoryWork { void run() throws Exception; }
+  private void historyWork(HistoryWork action) {
+    historyWorker.execute(() -> {
+      try {
+        action.run(); var m = history.snapshot(); webSources.history(m); m.addProperty("type", "history"); send(m);
+      } catch (Exception failure) {
+        var m = message("historyError");
+        m.addProperty("message", "History could not be saved or loaded. Your current lesson is still available; check local storage and try again."); send(m);
+      }
+    });
+  }
+  private void bookmarkWork(HistoryWork action) {
+    historyWorker.execute(() -> {
+      try {
+        action.run(); var m = bookmarks.snapshot(); webSources.bookmarks(m); m.addProperty("type", "bookmarks"); send(m);
+      } catch (Exception error) {
+        var m = message("bookmarkError"); m.addProperty("message", error.getMessage() != null && error.getMessage().startsWith("Your 100")
+          ? error.getMessage() : "Bookmarks could not be saved or loaded. Check local storage and try again."); send(m);
+      }
+    });
+  }
+  private void addBookmark(String url) throws Exception {
+    if (!WebSources.publicUrl(url)) return;
+    var results = new java.util.ArrayList<JsonObject>();
+    if (latestResearch != null) results.add(latestResearch);
+    for (var entry : history.snapshot().getAsJsonArray("entries"))
+      for (var saved : entry.getAsJsonObject().getAsJsonObject("results").entrySet()) {
+        var result = saved.getValue().getAsJsonObject().get("research");
+        if (result != null && result.isJsonObject()) results.add(result.getAsJsonObject());
+      }
+    for (var result : results) for (var source : result.getAsJsonArray("sources"))
+      if (url.equals(source.getAsJsonObject().get("url").getAsString())) { bookmarks.add(source.getAsJsonObject(), result); return; }
+  }
+
   void inspect(Editor editor) {
     cancel(); preview = null; context = null; selection = null;
     send(message("stale"));
@@ -167,13 +223,28 @@ public final class Tutor implements Disposable {
   private void sendSelection(boolean keepTab) {
     var selected = selection;
     if (selected == null) return;
+    lineHighlight.clear();
     var m = message("selection");
+    m.addProperty("selectionId", ++selectionId);
+    var editors = EditorFactory.getInstance().getEditors(selected.document(), project);
+    m.addProperty("tabSize", editors.length == 0 ? 4 : editors[0].getSettings().getTabSize(project));
     m.addProperty("keepTab", keepTab);
     m.addProperty("code", selected.code()); m.add("parts", selected.snippet().get("parts"));
     m.addProperty("start", selected.start());
     m.addProperty("language", selected.language()); m.addProperty("file", SourceContext.relative(project, selected.file()));
     m.addProperty("line", selected.document().getLineNumber(selected.start()) + 1);
     send(m); sendConfig();
+    long id = selectionId;
+    background(() -> {
+      try {
+        var args = new JsonObject(); args.addProperty("language", selected.language());
+        args.add("manifests", ResearchVersions.read(project.getBasePath(), selected.file().getPath()));
+        var hints = call("researchHints", args).getAsJsonObject();
+        ui(() -> { if (selection == selected && selectionId == id && selected.current()) {
+          hints.addProperty("type", "researchHints"); hints.addProperty("selectionId", id); send(hints);
+        } });
+      } catch (Exception ignored) { /* Version remains unknown. */ }
+    });
   }
   private void refreshSelection() { refreshSelection(false); }
   private void refreshSelection(boolean applied) {
@@ -205,6 +276,8 @@ public final class Tutor implements Disposable {
       var m = message("config"); m.addProperty("provider", state.provider);
       m.addProperty("model", state.model.isBlank() ? Settings.defaultModel(state.provider) : state.model);
       m.addProperty("audience", state.audience); m.addProperty("hasKey", Keys.get(state.provider) != null);
+      m.addProperty("webResearch", researchEnabled);
+      m.addProperty("webResearchModel", switch (state.provider) { case "groq" -> "openai/gpt-oss-120b"; case "anthropic" -> "claude-haiku-4-5"; default -> "gpt-4.1-mini"; });
       send(m);
     });
   }
@@ -218,19 +291,44 @@ public final class Tutor implements Disposable {
     if (!TrustedProjects.isTrusted(project)) throw new IllegalStateException("Trust this project in IntelliJ before sending code to AI or applying edits. Local explanations still work.");
   }
   private void cancel() {
+    researchRunning = false;
     operation.incrementAndGet(); bridge.cancel(); busy = false;
     var m = message("busy"); m.addProperty("value", false); send(m);
   }
   private void handle(JsonObject m) {
     try {
       switch (string(m, "type")) {
+        case "highlight" -> highlight(m);
         case "ready" -> {
           ready = true; sendSelection(); sendConfig();
+          historyWork(() -> {});
+          bookmarkWork(() -> {});
           if (selection != null && !selection.current()) send(message("stale"));
+        }
+        case "historyList" -> historyWork(() -> {});
+        case "bookmarkList" -> bookmarkWork(() -> {});
+        case "bookmarkAdd" -> bookmarkWork(() -> addBookmark(string(m, "url")));
+        case "bookmarkRemove" -> bookmarkWork(() -> bookmarks.remove(string(m, "url")));
+        case "researchToggle" -> {
+          if (!m.has("enabled") || !m.get("enabled").isJsonPrimitive() || !m.getAsJsonPrimitive("enabled").isBoolean()) return;
+          researchEnabled = m.get("enabled").getAsBoolean();
+          com.intellij.ide.util.PropertiesComponent.getInstance(project).setValue("watdatmean.webResearch", researchEnabled, false);
+          if (!researchEnabled && researchRunning) cancel();
+        }
+        case "openWebSource" -> {
+          String url = string(m, "url");
+          if (webSources.allows(url)) com.intellij.ide.BrowserUtil.browse(url);
+        }
+        case "historyRemove" -> historyWork(() -> history.remove(string(m, "id")));
+        case "historyClear" -> historyWork(history::clear);
+        case "historyEnabled" -> {
+          if (m.has("enabled") && m.get("enabled").isJsonPrimitive() && m.getAsJsonPrimitive("enabled").isBoolean())
+            historyWork(() -> history.enable(m.get("enabled").getAsBoolean()));
         }
         case "configure" -> configure();
         case "cancel" -> cancel();
         case "refresh" -> refreshSelection();
+        case "openSourceLine" -> openSourceLine(m);
         case "openEvidence" -> {
           var c = context;
           if (c == null) return;
@@ -238,35 +336,124 @@ public final class Tutor implements Disposable {
           if (location != null && location.file().isValid()) new OpenFileDescriptor(project, location.file(), location.offset()).navigate(true);
         }
         case "apply" -> apply(string(m, "replacement"));
-        case "request", "preview" -> run(m);
+        case "request", "preview", "research" -> run(m);
         default -> { }
       }
     } catch (Exception error) { error(error); }
   }
 
+  private final AtomicLong sourceColors = new AtomicLong(), draftColors = new AtomicLong();
+  private void openSourceLine(JsonObject request) {
+    long id = wholeNumber(request, "selectionId"), line = wholeNumber(request, "line");
+    if (id < 1 || id != selectionId || line < 1) return;
+    var selected = current();
+    var document = selected.document();
+    if (line < document.getLineNumber(selected.start()) + 1 ||
+        line > document.getLineNumber(selected.end()) + 1) return;
+    // Navigate only to the captured file, never to a path supplied by the webview.
+    var editor = FileEditorManager.getInstance(project).openTextEditor(
+      new OpenFileDescriptor(project, selected.file(), (int) line - 1, 0), true);
+    if (editor != null) lineHighlight.show(editor, (int) line - 1);
+  }
+  private static long wholeNumber(JsonObject request, String name) {
+    var value = request.get(name);
+    if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) return -1;
+    try { return value.getAsBigDecimal().longValueExact(); }
+    catch (NumberFormatException | ArithmeticException ignored) { return -1; }
+  }
+  private void highlight(JsonObject request) {
+    var selected = selection; var targetPanel = panel;
+    String target = string(request, "target"), code = string(request, "code");
+    if (target.matches("block-\\d{1,9}")) {
+      String language = string(request, "language");
+      if (wholeNumber(request, "id") < 1 || code.length() > 50000 || language.length() > 100) return;
+      long generation = panelGeneration;
+      AppExecutorUtil.getAppExecutorService().execute(() -> {
+        if (disposed) return;
+        var colors = CodeColors.snippet(project, language, code);
+        ui(() -> {
+          if (disposed || panel != targetPanel || panelGeneration != generation) return;
+          colors.addProperty("type", "highlight"); colors.addProperty("target", target);
+          colors.add("id", request.get("id")); colors.addProperty("code", code); send(colors);
+        });
+      });
+      return;
+    }
+    if (selected == null || code.length() > 50000 || !(target.equals("source") || target.equals("draft"))
+        || !request.has("id") || !request.get("id").isJsonPrimitive() || !request.getAsJsonPrimitive("id").isNumber()) return;
+    if (target.equals("source") && !code.equals(selected.code())) return;
+    var sequence = target.equals("source") ? sourceColors : draftColors;
+    long token = sequence.incrementAndGet();
+    AppExecutorUtil.getAppExecutorService().execute(() -> {
+      if (disposed || sequence.get() != token) return;
+      String text = selected.source().substring(0, selected.start()) + code + selected.source().substring(selected.end());
+      var colors = CodeColors.highlight(project, selected.file(), text, selected.start(), selected.start()+code.length());
+      ui(() -> {
+        if (selection != selected || panel != targetPanel || sequence.get() != token) return;
+        colors.addProperty("type", "highlight"); colors.addProperty("target", target); colors.add("id", request.get("id")); colors.addProperty("code", code);
+        send(colors);
+      });
+    });
+  }
+
   private void run(JsonObject input) {
     if (busy) return;
+    boolean web = string(input, "type").equals("research");
+    if (web && !researchEnabled) return;
     var selected = current();
     boolean diff = string(input, "type").equals("preview");
     if (diff) { preview = null; send(message("previewReset")); }
     if (!diff) trusted();
     if (selected.code().length() > 12000) throw new IllegalStateException("Select a smaller block of code (under 12,000 characters).");
     busy = true;
+    researchRunning = web;
     long token = operation.incrementAndGet(), version = revision.get();
     var busyMessage = message("busy"); busyMessage.addProperty("value", true); send(busyMessage);
     background(() -> {
       try {
         if (diff) makePreview(input, selected, token, version);
+        else if (web) research(input, selected, token, version);
         else request(input, selected, token, version);
       } catch (Exception failure) {
-        if (unchanged(selected, token, version)) error(failure);
+        if (unchanged(selected, token, version)) {
+          if (web) {
+            Throwable cause = failure; while (cause.getCause() != null) cause = cause.getCause();
+            var m = message("researchError"); m.addProperty("message", cause.getMessage() == null ? "Web research failed. Your explanation is unchanged." : cause.getMessage()); send(m);
+          } else error(failure);
+        }
       } finally {
-        ui(() -> { if (token == operation.get()) { busy = false; var m = message("busy"); m.addProperty("value", false); send(m); } });
+        ui(() -> { if (token == operation.get()) { busy = false; researchRunning = false; var m = message("busy"); m.addProperty("value", false); send(m); } });
       }
     });
   }
   private boolean unchanged(SourceContext.Selection selected, long token, long version) {
     return !disposed && selection == selected && selected.current() && operation.get() == token && revision.get() == version;
+  }
+  private void research(JsonObject input, SourceContext.Selection selected, long token, long version) {
+    String topic = string(input, "topic");
+    if (topic.isBlank() || topic.length() > 200 || topic.indexOf('\n') >= 0 || topic.indexOf('\r') >= 0)
+      throw new IllegalStateException("Enter a short public search topic (up to 200 characters), not a code block.");
+    var settings = Settings.get().getState(); String key = Keys.get(settings.provider);
+    if (key == null || key.isBlank()) throw new IllegalStateException("Connect a provider to search the web.");
+    if (!researchEnabled || !unchanged(selected, token, version)) return;
+    var previous = lastExplanation;
+    var params = new JsonObject(); params.addProperty("provider", settings.provider); params.addProperty("key", key);
+    params.addProperty("enabled", true); params.addProperty("topic", topic); params.addProperty("audience", string(input, "audience"));
+    if (input.has("options")) params.add("options", input.get("options"));
+    CompletableFuture<JsonElement> pending;
+    synchronized (bridge) {
+      if (!researchEnabled || !unchanged(selected, token, version)) return;
+      pending = bridge.call("research", params);
+    }
+    var result = pending.join().getAsJsonObject();
+    ui(() -> {
+      if (!researchEnabled || !unchanged(selected, token, version)) return;
+      webSources.current(result);
+      latestResearch = result;
+      var m = message("research"); m.add("result", result); send(m);
+      if (previous != null && previous.selection() == selected)
+        historyWork(() -> history.attachResearch(previous.source(), previous.task(), previous.lesson(), result));
+    });
   }
   private static String replacement(JsonObject input, SourceContext.Selection selected) {
     if (!input.has("replacement") || !input.get("replacement").isJsonPrimitive() || !input.getAsJsonPrimitive("replacement").isString())
@@ -314,6 +501,18 @@ public final class Tutor implements Disposable {
       result.addProperty("type", "lesson"); result.addProperty("task", task);
       if (request.has("concept")) result.add("concept", request.get("concept"));
       send(result);
+      if (!task.equals("concept")) {
+        var source = new JsonObject();
+        for (String field : java.util.List.of("code", "language", "mode", "audience")) source.add(field, request.get(field));
+        source.addProperty("file", SourceContext.relative(project, selected.file()));
+        source.addProperty("line", selected.document().getLineNumber(selected.start()) + 1);
+        var saved = new JsonObject();
+        for (String field : java.util.List.of("lesson", "provider", "model")) saved.add(field, result.get(field));
+        for (String field : java.util.List.of("mode", "audience")) saved.add(field, request.get(field));
+        if (task.equals("impact")) saved.add("replacement", request.get("replacement"));
+        if (task.equals("explain") || task.equals("walkthrough")) lastExplanation = new LastExplanation(selected, source, task, result.get("lesson"));
+        historyWork(() -> history.add(source, task, saved));
+      }
     });
   }
   private void makePreview(JsonObject input, SourceContext.Selection selected, long token, long version) {
@@ -404,5 +603,5 @@ public final class Tutor implements Disposable {
     cancel(); bridge.stop();
     Messages.showInfoMessage(project, "Explanation cache cleared.", "WatDatMean");
   }
-  @Override public void dispose() { disposed = true; operation.incrementAndGet(); if (selectedRange != null) selectedRange.dispose(); bridge.dispose(); }
+  @Override public void dispose() { disposed = true; historyWorker.shutdown(); lineHighlight.dispose(); operation.incrementAndGet(); if (selectedRange != null) selectedRange.dispose(); bridge.dispose(); }
 }

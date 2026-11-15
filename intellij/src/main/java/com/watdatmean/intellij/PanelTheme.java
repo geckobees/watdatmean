@@ -1,6 +1,7 @@
 package com.watdatmean.intellij;
 
 import com.intellij.openapi.editor.colors.EditorColorsManager;
+import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.ui.ColorUtil;
 import com.intellij.util.ui.UIUtil;
 import java.awt.Color;
@@ -33,6 +34,13 @@ final class PanelTheme {
       + property("--vscode-inputValidation-errorBorder", hex(error))
       + property("--vscode-font-family", family(font.getFamily()) + ",sans-serif")
       + property("--vscode-editor-font-family", family(scheme.getEditorFontName()) + ",monospace")
+      + property("--vscode-editor-font-size", scheme.getEditorFontSize() + "px")
+      + property("--code-background", hex(scheme.getDefaultBackground()))
+      + property("--code-foreground", hex(scheme.getDefaultForeground()))
+      + property("--vscode-editorLineNumber-foreground", hex(fallback(scheme.getColor(EditorColors.LINE_NUMBERS_COLOR), UIUtil.getContextHelpForeground())))
+      + property("--vscode-editorLineNumber-activeForeground", hex(fallback(scheme.getColor(EditorColors.LINE_NUMBER_ON_CARET_ROW_COLOR), scheme.getDefaultForeground())))
+      + property("--vscode-editorGutter-background", hex(fallback(scheme.getColor(EditorColors.GUTTER_BACKGROUND), scheme.getDefaultBackground())))
+      + property("--vscode-editor-selectionBackground", hex(scheme.getColor(EditorColors.SELECTION_BACKGROUND_COLOR) == null ? link : scheme.getColor(EditorColors.SELECTION_BACKGROUND_COLOR)))
       + property("--accent", hex(link)) + "}"
       + "body {font-size:" + font.getSize() + "px;}"
       + "pre,textarea {background:" + hex(scheme.getDefaultBackground()) + ";color:" + hex(scheme.getDefaultForeground()) + ";}"
@@ -46,6 +54,7 @@ final class PanelTheme {
     return value == null ? fallback : value;
   }
   private static String hex(Color color) { return "#" + ColorUtil.toHex(color); }
+  private static Color fallback(Color value, Color other) { return value == null ? other : value; }
   private static String property(String name, String value) { return name + ":" + value + ";"; }
   // Hex escapes keep user-configured font names safe in both CSS strings and the initial HTML style tag.
   private static String family(String name) {

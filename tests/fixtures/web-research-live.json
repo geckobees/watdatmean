@@ -1,0 +1,395 @@
+[
+  {
+    "id": "java17-compact",
+    "editor": "vscode",
+    "result": {
+      "topic": "Java Stream collecting elements into a list",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794747467584,
+      "blocks": [
+        {
+          "text": "Collectors.toList() gathers the elements that flow through a stream and returns a `List`. The contract says the collector keeps the encounter order of the stream when the stream is ordered, but it does **not** promise any particular implementation class, mutability, thread‑safety, or ordering guarantees beyond what the stream already provides【0†L4-L5】. If you need a mutable list you can ask for one explicitly with `Collectors.toCollection(ArrayList::new)`. For an unmodifiable list the API provides `Collectors.toUnmodifiableList()` (Java 10+) and `Stream.toList()` (Java 16+) which return a list that cannot be changed, though the elements themselves may still be mutable【0†L4-L5】.  \n\n**Example (illustrative, not compiled)**  \n\n```java\nList<String> mutable = Stream.of(\"a\",\"b\",\"c\")\n    .collect(Collectors.toCollection(ArrayList::new));\nList<String> readOnly = Stream.of(\"x\",\"y\")\n    .collect(Collectors.toUnmodifiableList());\n```\n\n**Real‑world use**  \nA web service that builds a response payload often streams database rows and collects them into a list to serialize as JSON. Using `Collectors.toUnmodifiableList()` guarantees the response list cannot be altered after creation, preventing accidental changes before it is sent to the client.  \n\nThe official JDK 17 documentation for `Collectors` describes these behaviors, but the exact version‑specific guarantees (e.g., whether the returned list is an `ArrayList`) are not stated, so you must request the desired characteristics explicitly if they matter.",
+          "sourceUrls": []
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collectors.html",
+          "title": "Collectors (Java SE 17 & JDK 17)",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://stackoverflow.com/questions/77701470/why-does-collectors-tolist-not-guarantee-mutability",
+          "title": "Why does Collectors.toList() not guarantee mutability - Stack Overflow",
+          "kind": "Website"
+        },
+        {
+          "url": "https://github.com/openjdk/jdk/blob/jdk-17+35/src/java.base/share/classes/java/util/stream/Collectors.java",
+          "title": "src/java.base/share/classes/java/util/stream/Collectors.java",
+          "kind": "Source code"
+        },
+        {
+          "url": "https://stackoverflow.com/questions/65969919/differences-of-java-16s-stream-tolist-and-stream-collectcollectors-tolist",
+          "title": "Differences of Java 16's Stream.toList() and Stream.collect(Collectors.toList())?",
+          "kind": "Website"
+        },
+        {
+          "url": "https://bugs.openjdk.org/browse/JDK-8256441",
+          "title": "Loading...",
+          "kind": "Website"
+        },
+        {
+          "url": "https://www.baeldung.com/java-stream-immutable-collection",
+          "title": "Collect a Java Stream to an Immutable Collection | Baeldung",
+          "kind": "Website"
+        }
+      ],
+      "searches": 2,
+      "usage": {
+        "input": 3530,
+        "output": 582,
+        "total": 4112
+      },
+      "cached": false,
+      "options": {
+        "version": "Java 17",
+        "filter": "docs"
+      }
+    }
+  },
+  {
+    "id": "java8-docs-native-final",
+    "editor": "intellij-2022.3",
+    "result": {
+      "topic": "Java Stream collecting elements into a list",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794747719635,
+      "blocks": [
+        {
+          "text": "Collectors.toList() gathers the elements of a Stream into a List, but the Java 8 specification says it makes no promises about the concrete List implementation, its mutability, thread‑safety, or ordering beyond preserving the encounter order of the source Stream. The collector’s contract is simply “return a List containing all stream elements”. If a mutable `ArrayList` is required, the API offers `Collectors.toCollection(ArrayList::new)`, which explicitly creates that type. Unmodifiable results can be obtained only with later APIs such as `Collectors.toUnmodifiableList()` (Java 10+) or `Stream.toList()` (Java 16+); those are not part of Java 8.\n\n```java\nList<String> words = Stream.of(\"apple\",\"banana\",\"cherry\")\n    .filter(s -> s.length() > 5)\n    .collect(Collectors.toList());   // Java 8\n```\n\n*Illustrative*: this code streams three fruit names, keeps the ones longer than five letters, and puts them into a List. The exact List class is unspecified, so code that relies on `ArrayList` methods should request it explicitly.\n\n**Real‑world use**: a web service that receives a JSON array of IDs can stream the parsed values, filter out invalid entries, and collect the remaining IDs into a List to pass to a database batch‑insert method. The collector guarantees that all valid IDs are present and in the same order they appeared in the request. Compatibility for `Collectors.toList()` is documented for Java 8【0†L5-L7】. Unverified aspects such as deep immutability of the resulting list are not guaranteed.",
+          "sourceUrls": []
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://docs.oracle.com/javase/8/docs/api/java/util/stream/Collectors.html",
+          "title": "Collectors (Java Platform SE 8 )",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://docs.oracle.com/javase/8/docs/api/java/util/stream/Stream.html",
+          "title": "Stream (Java Platform SE 8 )",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://docs.oracle.com/javase/8/docs/api/java/util/stream/class-use/Collector.html",
+          "title": "Uses of Interface java.util.stream.Collector (Java Platform SE 8 )",
+          "kind": "Documentation"
+        }
+      ],
+      "searches": 1,
+      "usage": {
+        "input": 2424,
+        "output": 414,
+        "total": 2838
+      },
+      "cached": false,
+      "options": {
+        "version": "Java 8",
+        "filter": "docs"
+      }
+    }
+  },
+  {
+    "id": "ts-code-verified",
+    "editor": "vscode",
+    "result": {
+      "topic": "TypeScript generics example source code",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794747519046,
+      "blocks": [
+        {
+          "text": "TypeScript 5.9 lets you write reusable code with **generics**, where a function or class works with any type that a caller supplies. The generic type is written inside angle brackets `<T>` and the compiler checks that the implementation uses `T` consistently, preserving type safety while avoiding duplication. The contract of the generic function is that it returns a value of exactly the same type it receives, without any hidden conversions.\n\n```ts\nfunction identity<T>(value: T): T {\n  return value;\n}\nconst num = identity(42);          // num is number\nconst txt = identity('hello');     // txt is string\n```\n\nThe code above follows the TypeScript 5.9 API contract: the function `identity` takes a parameter `value` of generic type `T` and returns a value of the same type `T`. No assumptions are made about mutability, ordering, or thread‑safety, as those concepts do not apply to the language’s type system.\n\n**Real‑world use** – a data‑processing library can expose a `mapArray<T, U>(arr: T[], fn: (x: T) => U): U[]` function that transforms arrays of any element type while guaranteeing the output array contains exactly the type produced by `fn`. This lets developers compose pipelines without losing type information.\n\n*Sources* – the generic example appears in a README on GitHub【0†L5-L7】 and in the Microsoft TypeScript Handbook’s Generics page【2†L5-L8】. Compatibility with TypeScript 5.9 is not explicitly confirmed in these snippets.",
+          "sourceUrls": []
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://github.com/PaulAtkins88/typescript_generics/blob/refs/heads/main/README.md",
+          "title": "heads/main/README.md",
+          "kind": "Source code"
+        },
+        {
+          "url": "https://github.com/spillwavesolutions/mastering-typescript-skill/blob/HEAD/mastering-typescript/SKILL.md",
+          "title": "mastering-typescript/SKILL.md",
+          "kind": "Source code"
+        },
+        {
+          "url": "https://github.com/Microsoft/TypeScript-Handbook/blob/master/pages/Generics.md",
+          "title": "pages/Generics.md at master · microsoft/TypeScript-Handbook",
+          "kind": "Source code"
+        }
+      ],
+      "searches": 1,
+      "usage": {
+        "input": 2040,
+        "output": 414,
+        "total": 2454
+      },
+      "cached": false,
+      "options": {
+        "version": "TypeScript 5.9",
+        "filter": "code"
+      }
+    }
+  },
+  {
+    "id": "python-videos-verified",
+    "editor": "vscode",
+    "result": {
+      "topic": "Python list comprehension beginner tutorial",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794747542798,
+      "blocks": [
+        {
+          "text": "Python list comprehensions let you build a new list by describing how each element should be created, all in a single, readable line. The core idea is that a `for` loop and an optional `if` filter are placed inside square brackets, so the language itself handles the iteration and collection. The official contract of the syntax (as defined in Python 3.11) states that the expression before the first `for` is evaluated for every item that passes any `if` tests, and the results are appended to the new list in the order they are produced【0†L5-L8】. No guarantee is given about mutability of the elements themselves; if you need the items to stay unchanged you must copy them or use immutable types explicitly.\n\n```python\n# illustrative only\nsquares = [x*x for x in range(1, 6) if x % 2 == 1]\nprint(squares)   # [1, 9, 25]\n```\n\nA real‑world use is filtering and transforming data read from a CSV file: `clean_rows = [row.strip().split(',') for row in raw if row]` quickly produces a list of tokenised rows while discarding empty lines.\n\nHelpful free video lessons that cover this topic (Python 3.11 compatible syntax, though the exact version isn’t confirmed in the snippets) include:\n- “Python Tutorial: Comprehensions - How they work and why you should be using them” (YouTube)【0†L5-L7】\n- “Python List Comprehension (FULL Guide) If, If‑Else, Syntax, Examples & Dictionary” (YouTube)【0†L7-L9】\n- “Python Lists, Dicts and Comprehensions for AI Data” (YouTube)【0†L9-L10】\n\nThese resources explain the syntax, show examples, and demonstrate practical applications without requiring prior knowledge of advanced Python features.",
+          "sourceUrls": []
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://www.youtube.com/watch?v=3dt4OGnU5sM",
+          "title": "Python Tutorial: Comprehensions - How they work and why you should be using them",
+          "kind": "Video"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=zAQDAtArygQ",
+          "title": "Python List Comprehension (FULL Guide) 🔥 If, If-Else, Syntax, Examples & Dictionary",
+          "kind": "Video"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=r_1DD5Y--CA",
+          "title": "Python Lists, Dicts and Comprehensions for AI Data",
+          "kind": "Video"
+        }
+      ],
+      "searches": 1,
+      "usage": {
+        "input": 2057,
+        "output": 465,
+        "total": 2522
+      },
+      "cached": false,
+      "options": {
+        "version": "Python 3.11",
+        "filter": "videos"
+      }
+    }
+  },
+  {
+    "id": "python-books-verified",
+    "editor": "vscode",
+    "result": {
+      "topic": "Python beginner free book from its author or publisher",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794747529298,
+      "blocks": [
+        {
+          "text": "Python 3.11 beginner books that are freely available from the author or publisher let new learners explore the language without paying. The core idea shown by the resources is that the authors host a complete, downloadable PDF/HTML version of the entire book on their own domain, giving unrestricted access and clear licensing. This means you can read, print, or share the text while respecting the author’s stated terms, rather than relying on third‑party aggregators.\n\n**Example (illustrative, not run):**\n```python\n# simple greeting program from a beginner book\nname = input(\"What is your name? \")\nprint(\"Hello, \" + name + \"!\")\n```\n\n**Real‑world use:** Such free beginner books are often recommended by coding bootcamps and university intro courses as the first reading material because they cover basics like variables, control flow, and functions, all of which are essential before students start building larger projects such as data‑analysis scripts or web apps.\n\n**Resources**\n- “A Byte of Python” – hosted at python.swaroopch.com, author‑maintained free book (compatibility with Python 3.11 not explicitly stated)【0†L4-L5】\n- “The Python Handbook” – free PDF/EPUB from Flavio Copes’ site (no version claim)【1†L5-L6】\n- “Think Python” – Green Tea Press provides free HTML and PDF copies (no explicit 3.11 guarantee)【2†L6-L7】\n\nThese pages give the exact URLs where the books can be downloaded, and each site lists its licensing terms. If you need a guarantee that the content uses only Python 3.11 features, you would have to check the book’s revision notes or ask the author directly, as the available snippets do not confirm version‑specific compatibility.",
+          "sourceUrls": []
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://python.swaroopch.com/",
+          "title": "Introduction · A Byte of Python",
+          "kind": "Book / PDF"
+        },
+        {
+          "url": "https://flaviocopes.com/ebooks/python-handbook/",
+          "title": "The Python Handbook: free PDF and EPUB | Flavio Copes",
+          "kind": "Book / PDF"
+        },
+        {
+          "url": "https://greenteapress.com/wp/think-python-3rd-edition/",
+          "title": "Think Python – Green Tea Press",
+          "kind": "Book / PDF"
+        }
+      ],
+      "searches": 1,
+      "usage": {
+        "input": 2029,
+        "output": 438,
+        "total": 2467
+      },
+      "cached": false,
+      "options": {
+        "version": "Python 3.11",
+        "filter": "books"
+      }
+    }
+  },
+  {
+    "id": "python-books-native-final",
+    "editor": "intellij-2022.3",
+    "result": {
+      "topic": "Python beginner free book from its author or publisher",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794747739432,
+      "blocks": [
+        {
+          "text": "The free book *Invent with Python* is hosted on the author’s own site (inventwithpython.com).  It is written for Python 3 and the site lists the current release as compatible with Python 3.11, though the text does not call out a specific version‑specific feature set; therefore full 3.11 compatibility is assumed but not explicitly verified.\n\nThe core idea of the book is to teach programming concepts through small, self‑contained projects such as games or utilities.  Each chapter introduces a concept (variables, loops, functions, etc.) and then shows how to apply it in a concrete program, letting beginners see immediate results and build confidence.\n\n```python\n# simple “guess the number” game – 8 lines\nimport random\nsecret = random.randint(1, 20)\nwhile (guess := int(input(\"Your guess: \"))) != secret:\n    print(\"Higher!\" if guess < secret else \"Lower!\")\nprint(\"You win!\")\n```\n\nA real‑world use of this approach is in introductory coding camps where learners create a playable game in a single session, reinforcing logic and problem‑solving while producing something they can share with friends.  The book’s structure lets instructors focus on concepts rather than setup, because all code runs on any standard Python 3 interpreter.  Compatibility with Python 3.11 is not explicitly guaranteed in the text, so if exact version behavior matters, the reader should test the code on a 3.11 interpreter or request a version‑specific errata from the author.",
+          "sourceUrls": []
+        }
+      ],
+      "sources": [
+        {
+          "url": "http://knihy.pecinovsky.cz/71_Python311/index.html",
+          "title": "Python – Kompletní příručka jazyka pro verzi 3.11",
+          "kind": "Website"
+        },
+        {
+          "url": "https://inventwithpython.com/",
+          "title": "Invent with Python: Learn to program. For free.",
+          "kind": "Book / PDF"
+        },
+        {
+          "url": "https://root-11.github.io/intro-book-python/",
+          "title": "Introduction - An Introduction to Programming, using ECS & EBP in Python",
+          "kind": "Book / PDF"
+        }
+      ],
+      "searches": 1,
+      "usage": {
+        "input": 2092,
+        "output": 428,
+        "total": 2520
+      },
+      "cached": false,
+      "options": {
+        "version": "Python 3.11",
+        "filter": "books"
+      }
+    }
+  },
+  {
+    "id": "bounded-vscode-java17",
+    "editor": "vscode",
+    "result": {
+      "topic": "Java Stream collecting elements into a list",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794757762631,
+      "blocks": [
+        {
+          "text": "When you turn a Stream into a List you need to decide what kind of list you want. The built‑in Collectors.toList() (available since Java 8) simply gathers the elements and returns a List, but the documentation says it gives no guarantees about the concrete type, whether the list can be changed, or if it is thread‑safe. If you need a mutable ArrayList you can tell the collector which list to create by using toCollection(ArrayList::new). This supplies a fresh ArrayList that you can add to or modify after collection. The order of elements is kept as long as the stream has an encounter order. Remember that even an unmodifiable list only prevents adding or removing items; the objects inside can still be changed if they are mutable.\n\n```java\nList<String> result = stream\n    .filter(s -> s.length() > 3)\n    .collect(Collectors.toCollection(ArrayList::new));\n```\n\nCollecting filtered user names into a mutable list for later batch processing; key caveat: the list is mutable but the objects inside may still be mutable, so changes to those objects affect the list contents.",
+          "sourceUrls": [
+            "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collectors.html",
+            "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collector.html"
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collectors.html",
+          "title": "Collectors (Java SE 17 & JDK 17) - Oracle",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collector.html",
+          "title": "Collector (Java SE 17 & JDK 17) - Oracle",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html",
+          "title": "Stream (Java SE 17 & JDK 17) - Oracle",
+          "kind": "Documentation"
+        }
+      ],
+      "usage": {
+        "input": 823,
+        "output": 327,
+        "total": 1150
+      },
+      "searches": 1,
+      "cached": false,
+      "budget": {
+        "inputBytes": 3472,
+        "maxInputBytes": 3500,
+        "maxOutputTokens": 900,
+        "aiRequests": 1
+      },
+      "retrieval": {
+        "provider": "Bing",
+        "requests": 3
+      },
+      "options": {
+        "version": "Java 17",
+        "filter": "docs"
+      }
+    }
+  },
+  {
+    "id": "bounded-intellij-java17",
+    "editor": "intellij-2022.3",
+    "result": {
+      "topic": "Java Stream collecting elements into a list",
+      "provider": "groq",
+      "model": "openai/gpt-oss-120b",
+      "checkedAt": 1794757963987,
+      "blocks": [
+        {
+          "text": "When you call Stream.collect(Collectors.toList()) the stream gathers every element into a fresh List object. The collector does not promise a specific List implementation, nor does it guarantee that the list can be changed or used safely by many threads at once. In practice the result is usually an ArrayList, but you should treat it as an opaque list unless you need more control. If you need a mutable ArrayList you can use collect(toCollection(ArrayList::new)). The list keeps the encounter order of the stream when the source is ordered. Unmodifiable views can be created later with Collections.unmodifiableList, but the objects inside the list may still be mutable. This behavior is defined in Java 8 and later, and the same rules apply in Java 17.\n\n```java\nList<String> names = Stream.of(\"Alice\", \"Bob\", \"Carol\")\n    .collect(Collectors.toList());\n// names is a list with the three strings in order.\n// To guarantee a mutable ArrayList:\nList<String> mutable = Stream.of(\"Alice\", \"Bob\")\n    .collect(Collectors.toCollection(ArrayList::new));\n```\n\nCollecting database query results into a list for further processing, while remembering that the list may be unmodifiable and its elements can still change if they are mutable objects.",
+          "sourceUrls": [
+            "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collectors.html",
+            "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collector.html"
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collectors.html",
+          "title": "Collectors (Java SE 17 & JDK 17) - Oracle",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Collector.html",
+          "title": "Collector (Java SE 17 & JDK 17) - Oracle",
+          "kind": "Documentation"
+        },
+        {
+          "url": "https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html",
+          "title": "Stream (Java SE 17 & JDK 17) - Oracle",
+          "kind": "Documentation"
+        }
+      ],
+      "usage": {
+        "input": 825,
+        "output": 358,
+        "total": 1183
+      },
+      "searches": 1,
+      "cached": false,
+      "budget": {
+        "inputBytes": 3479,
+        "maxInputBytes": 3500,
+        "maxOutputTokens": 900,
+        "aiRequests": 1
+      },
+      "retrieval": {
+        "provider": "Bing",
+        "requests": 3
+      },
+      "options": {
+        "version": "Java 17",
+        "filter": "docs"
+      }
+    }
+  }
+]

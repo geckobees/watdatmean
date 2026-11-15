@@ -1,7 +1,10 @@
 import { inspectCode, checkSyntax, languageId, learningContext } from '../languages';
-import { Cache, fingerprint } from '../cache';
+import { Cache, fingerprint, LESSON_CACHE_VERSION } from '../cache';
 import { defaults, generate } from '../provider';
 import type { LearningRequest, Lesson, Provider } from '../types';
+import { WebResearchService, researchOptions } from '../web-research';
+import { retrieveSources } from '../web-retrieval';
+import { detectResearchVersions, type VersionManifest } from '../research-versions';
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -18,8 +21,14 @@ function text(value: unknown, max: number): string {
 export class BridgeCore {
   private cache = new Cache<Lesson>();
   private active = new Map<number, AbortController>();
+  private research: WebResearchService;
 
-  constructor(private readonly transport: typeof fetch = fetch) {}
+  constructor(
+    private readonly transport: typeof fetch = fetch,
+    retrieve: typeof retrieveSources = retrieveSources,
+  ) {
+    this.research = new WebResearchService(transport, retrieve);
+  }
 
   cancel() {
     this.active.forEach((controller) => controller.abort());
@@ -30,10 +39,22 @@ export class BridgeCore {
     const p = object(value);
     if (method === 'cancel' || method === 'clearCache') {
       this.cancel();
-      if (method === 'clearCache') this.cache.clear();
+      if (method === 'clearCache') {
+        this.cache.clear();
+        this.research.clear();
+      }
       return {};
     }
     if (method === 'defaults') return defaults;
+    if (method === 'researchHints') {
+      if (!Array.isArray(p.manifests) || p.manifests.length > 32)
+        throw new Error('Invalid version hints.');
+      const manifests: VersionManifest[] = p.manifests.map((value) => {
+        const m = object(value);
+        return { name: text(m.name, 40), text: text(m.text, 65536) };
+      });
+      return { hints: detectResearchVersions(text(p.language, 100), manifests) };
+    }
     if (method === 'inspect') {
       const code = text(p.code, 500000);
       const start = Number(p.start);
@@ -57,12 +78,29 @@ export class BridgeCore {
       );
       return method === 'syntax' ? checked.errors : checked;
     }
-    if (method !== 'request') throw new Error('Unknown bridge method.');
+    if (method !== 'request' && method !== 'research') throw new Error('Unknown bridge method.');
     const provider = text(p.provider, 30) as Provider;
     if (!Object.hasOwn(defaults, provider)) throw new Error('Unsupported AI provider.');
-    const model = text(p.model, 200).trim() || defaults[provider];
     const key = text(p.key, 2000);
     if (!key.trim() || /\s/.test(key)) throw new Error('Configure an API key first.');
+    if (method === 'research') {
+      if (p.enabled !== true) throw new Error('Turn on web resources first.');
+      const controller = new AbortController();
+      this.active.set(id, controller);
+      try {
+        return await this.research.search(
+          provider,
+          key,
+          text(p.topic, 200),
+          p.audience === 'experienced' ? 'experienced' : 'beginner',
+          controller.signal,
+          researchOptions(p.options),
+        );
+      } finally {
+        this.active.delete(id);
+      }
+    }
+    const model = text(p.model, 200).trim() || defaults[provider];
     const input = object(p.request);
     const task = input.task as LearningRequest['task'];
     if (!['explain', 'walkthrough', 'example', 'concept', 'impact'].includes(task))
@@ -99,7 +137,7 @@ export class BridgeCore {
         };
       });
     }
-    const cacheKey = fingerprint({ version: 15, provider, model, request });
+    const cacheKey = fingerprint({ version: LESSON_CACHE_VERSION, provider, model, request });
     const cached = this.cache.get(cacheKey);
     if (cached) return { lesson: cached, cached: true, provider, model };
     const controller = new AbortController();

@@ -2,7 +2,7 @@
   "name": "watdatmean",
   "displayName": "WatDatMean — Learn in Your Code",
   "description": "Understand code, explore examples, and preview edits in TypeScript, JavaScript, Python, and other languages.",
-  "version": "0.1.11",
+  "version": "0.1.27",
   "publisher": "watdatmean",
   "repository": {
     "type": "git",
@@ -25,6 +25,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onStartupFinished",
     "onLanguage:typescript",
     "onLanguage:typescriptreact",
     "onLanguage:javascript",
@@ -45,11 +46,19 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Local explanations work; AI requests and edits require a trusted workspace."
+      "description": "Local explanations work; AI requests, edits, and Java runtime checks require a trusted workspace."
     }
   },
   "contributes": {
     "commands": [
+      {
+        "command": "watdatmean.checkJavaRuntime",
+        "title": "WatDatMean: Check Java Setup"
+      },
+      {
+        "command": "watdatmean.restoreJavaRuntime",
+        "title": "WatDatMean: Restore Previous Java Setup"
+      },
       {
         "command": "watdatmean.inspect",
         "title": "WatDatMean: Explain Selection or Code at Cursor"
@@ -95,6 +104,12 @@
     "configuration": {
       "title": "WatDatMean",
       "properties": {
+        "watdatmean.autoConfigureJavaRuntime": {
+          "type": "boolean",
+          "default": true,
+          "scope": "machine",
+          "description": "Check Oracle Java's server runtime in trusted workspaces. Keep compatible older JDKs; use a verified installed JDK when the server path is missing or incompatible, preserving the project JDK. Does not change shared workspace settings or download a JDK automatically."
+        },
         "watdatmean.provider": {
           "type": "string",
           "enum": [
@@ -125,6 +140,9 @@
     }
   },
   "scripts": {
+    "postinstall": "node scripts/setup-intellij.mjs",
+    "setup:intellij": "node scripts/setup-intellij.mjs",
+    "gradle:intellij": "node scripts/gradle-intellij.mjs",
     "dev": "node scripts/dev.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -137,13 +155,19 @@
     "package": "vsce package --no-dependencies --allow-missing-repository",
     "test:ui": "node scripts/build-intellij.mjs && playwright test",
     "test:integration": "node scripts/integration.mjs",
+    "test:gradle-import": "node scripts/test-gradle-import.mjs",
     "build:intellij": "node scripts/build-intellij.mjs",
     "package:intellij": "node scripts/package-intellij.mjs",
     "test:intellij": "node scripts/test-intellij.mjs"
   },
   "dependencies": {
+    "@lezer/java": "1.1.5",
     "@lezer/python": "1.1.19",
-    "typescript": "^5.9.3"
+    "jsonc-parser": "3.3.1",
+    "parse5": "8.1.1",
+    "typescript": "^5.9.3",
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.3.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

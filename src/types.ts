@@ -44,6 +44,7 @@ export interface TokenUsage {
   total: number;
 }
 export interface Lesson {
+  syntax?: { issues: string[]; corrected?: string; explanation: string; partial: boolean };
   notice?: string;
   local?: boolean;
   usage?: TokenUsage;

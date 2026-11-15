@@ -3,6 +3,8 @@ dist/
 *.vsix
 .vscode-test/
 .vscode-dev/
+# Generated checkout-local Java paths; launch/tasks remain shared.
+.vscode/settings.json
 coverage/
 work/
 test-results/
@@ -12,6 +14,8 @@ demo/out/
 !.env.example
 
 intellij/build/
+intellij/bin/
 intellij/.gradle/
+intellij/gradle.properties
 intellij/.intellijPlatform/
 .idea/

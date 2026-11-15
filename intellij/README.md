@@ -13,7 +13,7 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 2. Node.js **22.12+** is detected automatically. If it is absent or too old, WatDatMean
    downloads a private runtime when the learning engine is first needed. The worker
    runs the same engine as VS Code over private pipes, with no server or listening port.
-3. Install `dist/intellij/watdatmean-intellij-0.1.11.zip` through
+3. Install `dist/intellij/watdatmean-intellij-0.1.27.zip` through
    **Settings → Plugins → ⚙ → Install Plugin from Disk**, then restart the IDE.
 4. Open a text source file. Select code, or place the cursor on a Java declaration or
    statement. Right-click → **WatDatMean: Explain Selection or Code at Cursor**,
@@ -31,10 +31,29 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 Use **Find Action** to run **WatDatMean: Remove API Key** or
 **WatDatMean: Clear Explanation Cache**. The provider configuration is also in **Tools**.
 
+Java explanations include local syntax warnings and conservative punctuation fixes.
+Expand **Suggested correction**, then choose **Try corrected version** to preview it
+in your draft before applying. The notice explains each fix; missing values, text,
+array sizes and exception handlers stay unresolved rather than being invented.
+Partial blocks are labeled as standalone completions. This uses the same local
+parser as VS Code and works on IntelliJ 2022.3 without an additional compiler setup.
+
 If the panel stops loading or responding, use **Tools → WatDatMean: Reopen Learning Panel**
 or find the action by name. It refreshes the saved selection, cancels pending work, and
 recreates the browser with your current theme. The displayed lesson and unapplied draft
 reset; your source file stays intact.
+
+### Code colors in the learning panel
+
+The original code, clickable small pieces and editable **Your version** follow the IDE's editor color scheme. Installed language highlighters provide syntax colors locally, with no Node/AI request for coloring. Completed native semantic colors are reused, including language-plugin symbol colors; file-local Java role colors are also available before analysis finishes and for edited drafts. Theme changes preserve the draft, selected piece and lesson. Missing language highlighters use readable plain text. The plugin retains its IntelliJ 2022.3 baseline; inspection decorations and stale document highlighting are not copied.
+
+Java's small pieces omit repeated explanations so punctuation and repeated names do not fill the list early. Distinct declarations, shadowed variables, overload declarations and differently qualified calls stay separate; all source text remains visible and colored.
+
+The original code, small pieces and editable draft have line-number gutters using your editor scheme. Numbering starts at the selection's real line in the full document, includes blank lines, and stays visible when scrolling sideways. Each piece's detail shows its file and line range. Draft numbers update as you type and describe where the edited lines would land if applied; **Use latest code** refreshes the original positions. This works locally in IntelliJ 2022.3 and newer, without AI tokens.
+
+Click a gutter number to open that numbered line in the original file. Tab, Up/Down, Home/End and Enter/Space also work. Draft clicks use original file positions; extra rows beyond the original selection become available after applying the draft. Navigation waits for **Use latest code** when the source has changed, and preserves the draft and lesson. The native navigation API supports IntelliJ 2022.3.
+
+The destination line receives a soft highlight from your editor scheme for about 1.2 seconds. Repeated clicks move it, and it clears automatically. The panel's gutters leave more space before the code, and tab indentation uses the original editor's tab width.
 
 ### Compact Java hover
 
@@ -175,6 +194,26 @@ shared learning tool window for deeper help.
 
 Open a `.py` file and use **WatDatMean: Explain Selection or Code at Cursor**. In **Try it yourself**, edit your draft and choose **See what changes**. The shared checker checks the proposed whole file, reports lines needing attention, and blocks Apply when it finds a problem. It catches common indentation/tab mistakes, incomplete syntax, invalid assignment targets, parameter errors, and misplaced control-flow/async statements. It runs locally through the bundled Node worker, including in Community Edition without a Python language plugin or Python interpreter. Semantic references still require suitable IDE language support. This does not replace a Python compiler, type checker, or project tests.
 
+## Optional web resources
+
+In **01 / Understand**, enable **Add web resources**, review the **Public search topic**, and choose **Explain this code** or **More detail**. The normal explanation arrives first and a collapsible web supplement follows. **Find web resources · AI** also works independently. The switch starts off, remembers your choice per project, and stops pending web work when turned off. No web search happens just from selecting code or reopening the panel.
+
+The lookup sends only the topic, target version, resource choice and guidance level, not selected code or project snippets. It asks for a compact explanation, an original illustrative example, a real application, and relevant docs, code repositories, videos or author/publisher-hosted books/PDFs. The initial topic is suggested locally; edit it to add a library or version. Links come from public search results and open in your browser on click. The plugin does not download PDFs or execute web examples. Search failures leave your code explanation and draft intact.
+
+Search sends only the public topic, version and filter to Bing (DuckDuckGo fallback). Short excerpts then go to your connected provider: Groq openai/gpt-oss-120b, OpenAI gpt-4.1-mini, or Anthropic claude-haiku-4-5. The shared engine caps input content, including the response schema, at **3,500 UTF-8 bytes**, output at **900 tokens**, and AI calls at **one per lookup**. Browser tools are disabled and Groq reasoning is low within the same completion cap; there are no automatic AI retries. This leaves the normal explanation model unchanged. Token usage is separate; cached lookups, History, filtering and bookmarks use no new tokens. See the [shared web-resource guide](../README.md#optional-web-resources-for-the-explanation) for retrieval limits and privacy. IntelliJ 2022.3 / Java 17 remain supported.
+
+**Target version** suggests declarations from nearby project manifests without running a build. Edit it or choose a detected library target; unknown versions remain blank. **Resources** filters existing links locally and directs the next explicit search toward Docs, Videos, Code or Books / PDFs. Matching is requested, not a guarantee of source compatibility.
+
+Use **Save** beside a source and **Bookmarks** in the header to keep up to 100 sources independently of History. Search and filter them locally; remove individual links when finished. Bookmarks live outside the project in the IDE configuration directory under `watdatmean/bookmarks`, survive history/cache clearing, and are not synced across editors. Detection, filtering and bookmarks use zero AI tokens. Search sends only the displayed topic, target, resource choice and guidance, with the same request/output limits and a cache separated by version/filter. See [version targets, filters and bookmarks](../README.md#version-targets-resource-filters-and-bookmarks) for supported declarations and limits. All controls work on IntelliJ 2022.3.
+
+## Recent entries
+
+Choose **History** in the panel header to search completed lessons by code, file, language, explanation, or saved change. Saving is automatic and local to this project. Opening a saved entry preserves your current lesson and draft, and costs no AI tokens. Use **Back to current code** to return.
+
+Repeated code in the same file stays in one entry, with the latest explanation, more detailed walkthrough, example, and change explanation grouped under **Saved view**. Selections, typing, cancellations, and concept expansions do not add entries. Up to 30 entries are retained within 2 MB; the oldest expire first. Use **×** or **Clear history** for cleanup, or uncheck **Save completed lessons** to pause saving. History starts with this release; earlier sessions cannot be recovered.
+
+These are saved snapshots, not verified runs. File contents may have changed. Review does not apply fixes or follow old evidence links. The history file is stored outside the project in the IDE configuration directory under `watdatmean/history`. It contains selected code, saved replacements and lessons, but not API keys or the extra project-context source snippets. It is separate from the explanation cache and is not synced with VS Code. The implementation supports IntelliJ 2022.3 and Java 17.
+
 ## Privacy and edits
 
 - API keys use IntelliJ Password Safe, accessed off the UI thread. They never enter
@@ -201,7 +240,7 @@ Open a `.py` file and use **WatDatMean: Explain Selection or Code at Cursor**. I
 
 ## Build from this repository
 
-Install the root's locked Node dependencies first:
+Install Node.js 22.12+ and the root's locked dependencies first:
 
 ```sh
 npm ci
@@ -209,7 +248,49 @@ npm run check
 npm test
 ```
 
-The build uses an IntelliJ IDEA **2022.3** SDK and a JDK **17+**:
+`npm ci` automatically finds a stable Java 17 JDK or downloads a private Microsoft
+OpenJDK 17 archive, verifies its SHA-256 checksum, and configures this checkout.
+It needs no administrator access or system `JAVA_HOME` change. Existing JDKs are
+reused; subsequent setup works offline. First-time downloads need an internet
+connection. The private runtime lives in `intellij/.gradle/java-home`; the generated
+`intellij/gradle.properties` and `.vscode/settings.json` stay out of Git. Explicit developer JVM overrides are
+preserved. Run `npm run setup:intellij` to repeat setup after moving a checkout.
+
+Open the repository in VS Code or the `intellij` directory in IntelliJ. VS Code's
+build JVM uses a local absolute path generated by setup, separate from its Java language
+server. Some Gradle extensions do not expand `${workspaceFolder}` in this setting;
+setup resolves the path on each machine without hardcoding a user's directories.
+It preserves comments, unrelated settings and custom Java paths, and updates its
+own generated paths when you move the checkout and rerun setup.
+Generated test/build folders are excluded from Red Hat Java import. Import-test
+projects live in the OS temporary directory so Oracle does not discover them as
+checkout projects. IntelliJ reads the generated Gradle JVM setting using APIs
+already supported by 2022.3. Both use the checked-in Gradle **8.14.6 wrapper**; it
+downloads its distribution on demand and verifies the pinned SHA-256 checksum.
+
+For Oracle Java in VS Code, the checkout also sets `jdk.project.jdkhome` and generates
+its Gradle runtime hint from the canonical Java 17 path. This prevents Oracle's
+Java 25 language-server runtime from taking over the legacy Kotlin/Gradle build.
+Oracle may ask you to trust the checkout's Java settings; its trust decision remains
+yours. Reload an already-open VS Code window after updating these settings.
+The yellow deprecation warnings on the plugin's older IntelliJ documentation APIs
+are compatibility warnings, not a conflict between installed WatDatMean plugins.
+Installed users do not need to import or build this source checkout.
+
+To build or launch the plugin without selecting Java or Gradle paths:
+
+```sh
+npm run gradle:intellij -- buildPlugin
+npm run gradle:intellij -- runIde
+```
+
+These commands repeat setup automatically and use the current Node executable.
+Gradle downloads the IntelliJ **2022.3** SDK when needed and writes its plugin ZIP
+under `intellij/build/distributions`. Compiled classes remain Java 17, with the
+existing 2022.3 compatibility baseline. The legacy IntelliJ build plugin requires
+Gradle 8; upgrading just the wrapper to Gradle 9 is incompatible.
+
+For packaging against an SDK you already have, the direct packaging path is also available:
 
 ```sh
 npm run package:intellij -- --ide-home "/path/to/idea" --java-home "/path/to/jdk"
@@ -218,16 +299,14 @@ npm run package:intellij -- --ide-home "/path/to/idea" --java-home "/path/to/jdk
 On Windows, quote paths containing spaces. `INTELLIJ_HOME` and `JAVA_HOME` can be
 used instead of command-line options. The command compiles Java against the IDE SDK,
 bundles the shared engine/panel, and produces
-`dist/intellij/watdatmean-intellij-0.1.11.zip`. IntelliJ SDK libraries and Node are not
+`dist/intellij/watdatmean-intellij-0.1.27.zip`. IntelliJ SDK libraries and Node are not
 inside the plugin ZIP; Node is downloaded on demand when necessary. `npm run build`
 and `npm run package` still build the VS Code extension.
 
-For Gradle development, open this `intellij` directory as a Gradle project with
-Gradle 8.x and JDK 17. The build uses the legacy official Gradle IntelliJ plugin 1.17.4
-to compile against the 2022.3 baseline.
-After root `npm ci`, run `gradle runIde` or `gradle buildPlugin`. Optionally supply
-`-PlocalIdePath=/path/to/idea` and `-PnodeExecutable=/absolute/path/to/node`.
-The local SDK packaging command above is the verified build path in this checkout.
+Neither installed editor plugin needs Gradle or this development JDK. IntelliJ uses
+its bundled Java runtime; VS Code runs WatDatMean in its extension host. This setup
+applies to building/importing WatDatMean's source checkout and makes no AI requests.
+Java download endpoints are documented by [Microsoft](https://learn.microsoft.com/en-us/java/openjdk/download-major-urls).
 
 ## Verification
 

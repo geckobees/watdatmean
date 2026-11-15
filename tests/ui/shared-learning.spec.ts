@@ -6,6 +6,7 @@ import { javaStreamCases } from '../quality/java-stream-cases';
 import { javaMethodOptionalCases } from '../quality/java-method-optional-cases';
 import { javaGenericInterfaceCases } from '../quality/java-generic-interface-cases';
 import { wombRequest } from '../quality/depth-cases';
+import { generate } from '../../src/provider';
 
 async function send(page: Page, data: unknown) {
   await page.evaluate((data) => window.dispatchEvent(new MessageEvent('message', { data })), data);
@@ -16,7 +17,9 @@ for (const editor of ['VS Code', 'IntelliJ']) {
       await page.addInitScript(() => {
         (window as any).messages = [];
         (window as any).watdatmeanHost = {
-          postMessage: (m: unknown) => (window as any).messages.push(m),
+          postMessage: (m: any) => {
+            if (m.type !== 'highlight') (window as any).messages.push(m);
+          },
           getState: () => ({}),
           setState: () => {},
         };
@@ -59,6 +62,81 @@ for (const editor of ['VS Code', 'IntelliJ']) {
         start: 0,
         parts: [],
       });
+    });
+    for (const [language, code, corrected] of [
+      ['TypeScript', 'const total = (1 + 2;', 'const total = (1 + 2);'],
+      [
+        'Java',
+        'int total = 3\nSystem.out.println(total);',
+        'int total = 3;\nSystem.out.println(total);',
+      ],
+      ['Java', 'System.out.println(3;', 'System.out.println(3);'],
+    ])
+      test(`${language}: previews the correction without applying it: ${code}`, async ({
+        page,
+      }) => {
+        await send(page, {
+          type: 'selection',
+          code,
+          language,
+          file: 'test.ts',
+          line: 4,
+          start: 0,
+          parts: [],
+        });
+        const lesson = await generate(
+          'groq',
+          'test',
+          'key',
+          { code, language, task: 'explain', mode: 'standalone', audience: 'beginner' },
+          undefined,
+          async () => {
+            throw new Error('This local arithmetic correction must not call AI');
+          },
+        );
+        await send(page, {
+          type: 'lesson',
+          task: 'explain',
+          provider: 'groq',
+          model: 'test',
+          lesson,
+        });
+        await expect(page.locator('.syntax-help')).toContainText('Syntax needs attention');
+        await expect(page.locator('.syntax-help')).toContainText('Selection line 1');
+        await page.locator('.syntax-help summary').click();
+        await expect(page.locator('.syntax-help pre code')).toHaveText(corrected);
+        await page.getByRole('button', { name: 'Try corrected version' }).click();
+        await expect(page.locator('#replacement')).toHaveValue(corrected);
+        await expect(page.locator('#apply')).toBeDisabled();
+        expect(
+          await page.evaluate(() =>
+            (window as any).messages.filter((m: any) => m.type === 'apply'),
+          ),
+        ).toEqual([]);
+        await expect(page.locator('#source')).toHaveText(code);
+      });
+    test('Java: warns about a missing value without inventing a correction', async ({ page }) => {
+      const code = 'int score = ;';
+      const lesson = await generate(
+        'groq',
+        'test',
+        'unused',
+        { code, language: 'Java', task: 'explain', mode: 'standalone', audience: 'beginner' },
+        undefined,
+        async () => {
+          throw new Error('An ambiguous repair must not call AI');
+        },
+      );
+      await send(page, {
+        type: 'lesson',
+        task: 'explain',
+        provider: 'groq',
+        model: 'test',
+        lesson,
+      });
+      await expect(page.locator('.syntax-help')).toContainText('missing a value');
+      await expect(page.getByRole('button', { name: 'Try corrected version' })).toHaveCount(0);
+      await expect(page.locator('#explanation')).toContainText('0 tokens');
     });
     test('repairs repeated terms in an older cached lesson and keeps concept actions intact', async ({
       page,

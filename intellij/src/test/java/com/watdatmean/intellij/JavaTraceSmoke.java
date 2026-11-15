@@ -42,6 +42,24 @@ final class JavaTraceSmoke {
         || !lesson.getAsJsonArray("steps").get(3).getAsString().contains("x.s → A.s=\"A\""))
       throw new AssertionError("Native Java trace must preserve field ownership and exact constructor output");
     System.out.println("PASS: native packaged Java constructor/hidden-field trace and full output (zero API tokens)");
+    for (String[] fixture : new String[][] {
+        {"int n = 2\nSystem.out.println(n);", "int n = 2;\nSystem.out.println(n);", "2\n"},
+        {"System.out.println(3;", "System.out.println(3);", "3\n"}
+    }) {
+      request.addProperty("code", fixture[0]);
+      var fixed = bridge.call("request", params).get(10, TimeUnit.SECONDS).getAsJsonObject().getAsJsonObject("lesson");
+      if (!fixed.getAsJsonObject("syntax").get("corrected").getAsString().equals(fixture[1])
+          || !fixed.getAsJsonObject("output").get("text").getAsString().equals(fixture[2])
+          || fixed.getAsJsonObject("usage").get("total").getAsInt() != 0)
+        throw new AssertionError("Native Java correction must explain the checked code locally");
+    }
+    request.addProperty("code", "int n = ;");
+    var missing = bridge.call("request", params).get(10, TimeUnit.SECONDS).getAsJsonObject().getAsJsonObject("lesson");
+    if (missing.getAsJsonObject("syntax").has("corrected")
+        || !missing.getAsJsonObject("syntax").getAsJsonArray("issues").toString().contains("missing a value")
+        || missing.getAsJsonObject("usage").get("total").getAsInt() != 0)
+      throw new AssertionError("Native Java syntax help must never invent a missing value");
+    System.out.println("PASS: native 2022.3 Java syntax warnings, rechecked repairs, corrected explanations, missing-value guard, zero tokens");
     try (var stream = JavaTraceSmoke.class.getResourceAsStream("/java-general-fixtures.json")) {
       if (stream == null) throw new AssertionError("General Java fixtures are required");
       var fixtures = com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonArray();

@@ -9,6 +9,7 @@ import com.intellij.psi.util.PsiTreeUtil;
 /** Bounded, file-local declaration lookup. Never resolves imports, base classes, or runtime values. */
 final class JavaOrigins {
   private int remaining = 4096;
+  private final java.util.Map<PsiReferenceExpression, PsiVariable> cache = new java.util.IdentityHashMap<>();
 
   String describe(PsiReferenceExpression reference) {
     var variable = find(reference);
@@ -20,7 +21,11 @@ final class JavaOrigins {
     return --remaining >= 0;
   }
 
-  private PsiVariable find(PsiReferenceExpression reference) {
+  PsiVariable find(PsiReferenceExpression reference) {
+    if (cache.containsKey(reference)) return cache.get(reference);
+    var value = lookup(reference); cache.put(reference, value); return value;
+  }
+  private PsiVariable lookup(PsiReferenceExpression reference) {
     String name = reference.getReferenceName();
     if (name == null) return null;
     var qualifier = reference.getQualifierExpression();

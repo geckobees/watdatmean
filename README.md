@@ -8,7 +8,7 @@ For IntelliJ installation, automatic Node.js setup, language capabilities, and b
 
 ### Visual Studio Code
 
-1. Install `watdatmean-0.1.11.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel.
+1. Install `watdatmean-0.1.27.vsix` using **Extensions → … → Install from VSIX** in VS Code 1.95 or newer. After upgrading, run **Developer: Reload Window** and reopen the learning panel.
 2. Open a TypeScript, JavaScript, JSX, or Python file. Open the learning panel for individual syntax pieces and local variable origins. TypeScript/JavaScript also have short hover paragraphs with code names highlighted. Java, C#, Go, Rust, and other text languages can use selected-code AI help; the extension does not supply local pieces for every language.
    Inside an interface or object type, hover a property or method to explain just that member. Its panel link opens the same member.
 3. Click **Wat Dat Mean? →**, right-click → **WatDatMean: Explain Selection or Code at Cursor**, or press **Ctrl+Alt+E** (Mac: **Cmd+Alt+E**).
@@ -20,6 +20,92 @@ API keys are stored in **VS Code SecretStorage**, never in project settings or t
 
 Run **WatDatMean: Open Demo Project** for a small rewards-system example. [The demo walkthrough](demo/README.md) demonstrates the complete flow in three minutes.
 In IntelliJ, **Tools → WatDatMean: Open Java Demo** opens an editable Java scratch file and its learning panel. See the [feature comparison](intellij/README.md#comparison-with-vs-code) for editor-specific behavior.
+
+### Optional web resources for the explanation
+
+In **01 / Understand**, turn on **Add web resources**. It is off by default and remembers your choice for this project. Review or edit the **Public search topic** (for example, `Java 17 streams`), then choose **Explain this code** or **More detail**. Your normal explanation appears first; a separate, collapsible **From the web** supplement follows. **Find web resources · AI** searches without regenerating the explanation. Turning the switch off cancels a pending lookup.
+
+The supplement asks for a short, original example, a concrete real-world use case, and up to three useful resources, favoring official docs and maintainer examples. YouTube lessons, source repositories, and author/publisher-hosted free books or PDFs are included when relevant results are found; missing categories are not filled with invented links. Links show their host and resource type, and open in your browser only when clicked. PDFs are not fetched by the extension and examples are not executed or applied to your file.
+
+Web lookup sends the editable public topic, target version and resource choice to **Bing**, with **DuckDuckGo** as a fallback. It does not send selected code, file paths or project snippets. Up to three source titles and short excerpts then go to your connected AI provider for one compact walkthrough, one illustrative example and one practical use. At most two allowlisted official reference pages are read locally for focused excerpts; whole pages are never sent to the model. PDFs and videos are not downloaded.
+
+The shared VS Code/IntelliJ engine enforces **3,500 UTF-8 bytes of input content (including the response schema), 900 output tokens and one AI request per lookup**. It disables browser tools and keeps Groq reasoning low within the same 900-token completion cap, never retries an AI request automatically, and rejects overlapping requests. The input cap is a byte bound, not a claim that bytes equal billed tokens; provider message framing is additional. Summary models are Groq openai/gpt-oss-120b, OpenAI gpt-4.1-mini, and Anthropic claude-haiku-4-5. Your normal code explanation and its selected model are unchanged.
+
+**AI summaries still use provider tokens**, shown separately in the panel. Public search itself uses no AI tokens or provider search tools. Up to 40 matching lookups are cached in memory for 24 hours; cache hits, filters and bookmarks cost no tokens. Turning the switch off cancels pending work. **Clear Explanation Cache** clears the web cache too. If retrieval fails or needs browser verification, no AI request is sent. Provider failures, rate limits and incomplete summaries leave the code explanation intact, without an automatic retry.
+
+Source URLs come from search results, never model-written links. This records where links came from; it does not prove every claim or resource is correct. Exact known Java/Python editions are prioritized and known conflicting editions excluded. Other compatibility remains unverified. Successful supplements remain with their explanation in **History**, including their retrieval date; reviewing them is free of new AI requests.
+
+### Version targets, resource filters and bookmarks
+
+Inside the web options, **Target version** suggests a literal declaration from nearby project manifests, such as `Java 17`, `TypeScript ~5.9.3`, or `Python >=3.11,<3.13`. The field shows where the declaration came from and is editable; its suggestions can include recognized public libraries such as React. A declaration or range is not proof of an installed version. Unknown/dynamic versions stay blank. Enter any other library/version yourself, or clear the field for an unspecified target. Search asks for matching documentation and example APIs, and must acknowledge uncertain compatibility.
+
+Detection reads only a bounded set of local `pom.xml`, `build.gradle(.kts)`, `package.json`, `pyproject.toml`, `.python-version`, `go.mod` and `Cargo.toml` files between the selected file and project root. It does not run builds, resolve dependency trees, read outside the project or send manifests to AI. Only the displayed target, topic, resource choice and guidance are sent during a requested lookup. Build profiles, computed properties, lockfile resolution and installed interpreter/compiler versions are not inferred.
+
+Choose **All resources**, **Docs**, **Videos**, **Code** or **Books / PDFs**. Changing this filters existing source links locally; citations remain visible with the explanation. **Find web resources** explicitly searches for that type. If no matching links were found, the panel says so. Resource types are identified from URL/domain patterns and may be incomplete for unusual sites.
+
+Choose **Save** beside a source, then open **Bookmarks** in the header. Search by title, topic, version or website, or filter by resource type. Bookmarks are local to this editor/project, deduplicated by URL, and kept until individually removed—even after History expires or its cache is cleared. Up to 100 are kept; the limit asks you to remove one rather than silently discarding saved links. Bookmarks store source metadata, target and retrieval date, not selected code or API keys. IntelliJ stores them outside the project under its configuration directory's `watdatmean/bookmarks`; VS Code uses workspace storage. They are not synced between editors.
+
+Detection, link filtering and bookmark actions use **0 AI tokens**. A new lookup uses the same bounded summary request; version and filter are compact fields, not additional AI calls. The 24-hour cache separates results by target version and resource choice to avoid reusing a mismatched search.
+
+### Find a previous entry
+
+Use **History** next to the provider settings in either editor. Completed explanations save automatically for this project, including their selected code and file/line. Search by code, file, language, explanation, or a saved change. Open an entry to review it, then choose **Back to current code** to return to your lesson and draft unchanged. Reading history uses no AI tokens.
+
+Repeated requests for the same code in the same file update one entry. Its explanation, more detailed walkthrough, example, and change explanation are grouped under **Saved view**, keeping the latest result for each action. Selections, keystrokes, cancelled requests, and concept expansions do not create entries. History holds up to 30 recent entries within 2 MB; older entries expire as needed. It starts saving with this release and does not recover earlier sessions.
+
+Remove individual entries with **×**, use **Clear history** to remove all, or uncheck **Save completed lessons** to pause saving without removing existing entries. History is a local snapshot, not proof that the code ran successfully; the original file may since have changed. Review does not apply edits or follow old evidence links.
+
+Saved code and lessons stay in VS Code's workspace storage or IntelliJ's configuration directory under `watdatmean/history`, outside the repository. They are not synced between editors or sent to AI when reviewed. History does not store provider keys or the additional source snippets collected for project context. It is separate from **Clear Explanation Cache**; use **Clear history** to remove saved entries.
+
+### Code colors that follow your editor
+
+The original code, **The small pieces**, **Your version**, **Another example**, and saved snapshots use local syntax colors from your editor. Changing themes refreshes the colors without clearing the lesson, selected piece, or draft. Individual pieces have subtly filled rectangular boxes and stronger selected/focus borders, including inside nested TypeScript/JavaScript bodies. The practice area preserves normal typing, selection and undo. Coloring makes no AI requests and uses **zero API tokens**.
+
+**Another example** starts numbering at 1. History shows the recorded file line numbers beside saved source and drafts; examples inside saved lessons also start at 1. These gutters are read-only because examples and old snapshots may not match a current file. Long snippets scroll without creating thousands of gutter elements.
+
+All three areas also show line numbers using the editor's gutter colors. Numbers start at the selection's actual line in the complete file and cover every displayed line, including blank lines and lines without boxed pieces. Scroll sideways and the gutter stays visible; open a piece to see its file and line. **Your version** numbers update while you type and show the lines the draft would occupy if applied. **Use latest code** refreshes positions after changes elsewhere in the file. Numbering is entirely local and uses no AI tokens.
+
+Click a line number to focus that line in the original file. Keyboard users can Tab into a gutter, choose a line with Up/Down or Home/End, and press Enter or Space. Draft clicks open the original numbered line; extra rows beyond the original selection become available after applying the draft. If the source changes, choose **Use latest code** before navigating so the positions are current. Jumping preserves your draft and lesson and makes no AI request.
+
+The destination line receives a brief theme-colored highlight (about 1.2 seconds), which clears automatically and moves to the latest click. Wider gutter spacing separates numbers from code, and tab indentation follows the original editor's tab width in all three code areas.
+
+VS Code uses installed TextMate language grammars, active theme rules, and token/foreground color customizations. IntelliJ uses its installed language highlighters and editor color scheme, including on **2022.3**. Selections retain the lexical context before them, so a fragment inside a multiline comment or string stays colored correctly. Embedded languages follow the installed grammar/highlighter. Unsupported languages, missing themes, oversized input or highlighting limits fall back to readable plain text.
+
+When semantic highlighting is enabled, VS Code also uses the installed language provider's symbol roles and the theme's semantic colors, including user overrides. IntelliJ reuses completed native semantic colors and supplies file-local Java role colors while analysis loads. Edited drafts keep their own syntax context; IntelliJ can also identify Java roles locally, while VS Code avoids borrowing semantic positions from a different document. Missing or slow providers leave syntax colors available. Inspection decorations are not copied. The editable layer keeps regular font weight/style so its glyphs align with the native text input; original code and pieces retain supported bold/italic styles. High-contrast system mode uses the native visible text input.
+
+### Automatic Java setup
+
+When **Oracle Java** is installed in VS Code, WatDatMean checks its Java server runtime in trusted workspaces. A working older JDK stays selected. If the path is missing or incompatible, it looks for an installed JDK on Windows, macOS, or Linux, checks it against the installed Oracle extension's requirements, and repairs the machine's server setting. Your existing project JDK is kept separately, so fixing the editor does not silently upgrade that project's Java version. Nothing is written to shared workspace settings.
+
+If no compatible JDK is found, **Open Java Setup** opens Oracle's installation/selection flow. If Oracle already failed during startup, choose **Reload Window** after the repair. The check cannot control which extension starts first. Local WatDatMean explanations work without Oracle Java and this check uses no AI tokens.
+
+Run **WatDatMean: Check Java Setup** to check again. **WatDatMean: Restore Previous Java Setup** undoes the latest adjustment if those settings have not subsequently been edited, and switches automatic setup off. You can also turn off **WatDatMean → Auto Configure Java Runtime** in Settings. Explicit workspace server settings, unknown extension requirements and custom Java options that cannot be checked safely are preserved for manual setup. This does not change `JAVA_HOME` or download a JDK automatically.
+
+IntelliJ uses its IDE runtime and retains compatibility with **2022.3–2025.2.x**; this Oracle-specific repair is for VS Code. IntelliJ's existing automatic Node.js setup remains available in the [IntelliJ guide](intellij/README.md).
+
+### Syntax help and partial selections
+
+Both editors show a local syntax warning before the walkthrough. For supported
+TypeScript/JavaScript punctuation mistakes, Java missing semicolons or closing
+parentheses/brackets/braces, and Python block headers missing a colon,
+WatDatMean offers a **Suggested correction**, checks it again, and explains the corrected
+version. **Try corrected version** puts it in **Your version**; compare it before choosing
+**Use this code**. Syntax checking and repair use no AI tokens and never execute your code.
+Ambiguous mistakes need more context; WatDatMean does not invent missing expressions.
+
+A selection ending before a closing brace can still be explained. It is labeled
+**Partial selection**, with the missing punctuation offered as a standalone completion.
+The full file may already contain it. Exact results remain unknown, and applying a
+draft still checks the whole file. Other languages retain their existing editor checks;
+automatic syntax repair is not a general compiler or runtime checker.
+
+Java warnings explain the punctuation's purpose and show its position in the
+selection. Names, expressions, valid methods and constructors can be selected on
+their own. A closing brace offered at the selection boundary is a **standalone
+completion**, since the rest may already exist in your file. Missing values, array
+sizes, exception handlers and unfinished text are reported without inventing code.
+These checks run locally in both editors, without requiring a JDK or Java extension
+for the syntax-help step. Your editor/compiler still handles full Java validation.
 
 ### Checking Python code
 
@@ -113,7 +199,7 @@ npm run test:stress
 npm run build
 ```
 
-IntelliJ users do not need to install Node separately: the plugin detects a compatible runtime or downloads a private, checksum-verified copy. Building from source still requires Node and npm. IntelliJ build outputs are ignored by Git; commit its `src/`, build configuration, and shared bridge sources.
+IntelliJ users do not need to install Node separately: the plugin detects a compatible runtime or downloads a private, checksum-verified copy. Building from source still requires Node and npm. `npm ci` now also prepares a private Java 17 build runtime automatically, reusing an installed JDK or verifying and downloading one. `npm run gradle:intellij -- buildPlugin` uses that runtime and the pinned Gradle wrapper without configuring Java/Gradle paths. VS Code and IntelliJ use the same checkout setup; generated scratch projects are excluded from VS Code's Java import. The first download needs internet access. See [automatic build setup](intellij/README.md#build-from-this-repository). Installed plugins do not require Gradle. IntelliJ build outputs and local runtime settings are ignored by Git; commit its `src/`, build configuration, and shared bridge sources.
 
 Run `npm run dev` to build and open a persistent development window with the demo workspace.
 It uses an isolated profile in `.vscode-dev` and bypasses the JavaScript debugger, so you

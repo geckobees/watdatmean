@@ -1,6 +1,581 @@
 # WatDatMean teaching fixes and testing — November 15, 2026
 
-## Current revision: Java generics and interfaces (0.1.11)
+## 0.1.27: native colors, numbered examples/history, individual boxes
+
+The screenshot's whole-line boxes came from the TypeScript analyzer representing nested bodies as one `{ … }` piece. Bodies and object type literals now expose their leaf pieces while preserving exact source offsets, indentation, comments and keyboard controls. Shared styling adds subtle rectangular fills and a stronger selected border using editor theme colors.
+
+VS Code's displayed snapshot now retains its original source context after an edit, so a late color reply or theme refresh is not discarded just because the live file changed. Live semantic information still requires matching document text. Failed engine initialization is recoverable; empty highlighting results receive at most one delayed local retry. Unknown languages and size/time limits still fall back to readable text.
+
+Another Example starts at line 1. Saved source and saved drafts use their recorded file line, and examples inside saved lessons start at 1. Both hosts highlight these independent blocks in their saved language, without borrowing semantic ranges from the active file. Gutters virtualize long code, remain outside copied code, and are read-only for snapshots/examples. Theme changes refresh colors; removing a block releases observers and palette entries, and late replies cannot color a replacement block.
+
+Validation:
+
+- TypeScript compilation and JavaScript syntax checks passed. The screenshot's undefined `changes`, `start`, and `end` errors are not present in saved `src/edit.ts`; its `trackRange` function has those parameters/bindings. Unsaved editor buffers were not overwritten. The intentional legacy IntelliJ documentation adapter has a narrow deprecation suppression to preserve 2022.3 support.
+- All 1,414 unit tests passed; the 118 targeted analyzer, color-engine and host tests also passed after the final color-engine lifecycle changes.
+- All 166 shared panel cases passed after updating the former whole-type-box expectation to the requested individual nested pieces (165 in the full run, the revised case in a targeted rerun). Tests cover blank/trailing CRLF lines, source offsets, 1,800-line examples, theme updates, saved-language isolation, stale replies, retry bounds, exact text, keyboard selection, IME and existing web/filter/bookmark behavior.
+- The real VS Code host passed native default/dark/light/high-contrast grammars for TypeScript, Python, Java and HTML; TypeScript semantic roles and overrides; source navigation; Java syntax help; 297 independent Java examples; and extension activation/hover/panel/evidence checks.
+- Native IntelliJ 2022.3 / Java 17 passed compilation and the full isolated bridge/JCEF suite, including actual example/snapshot coloring and gutters, native scheme changes, semantic colors, history, Java teaching, resource filters/bookmarks, navigation and panel recovery. Earlier concurrent runs hit the existing 150 ms native color budget during startup. The completed run passed with competing tests stopped. The daemon polling now tolerates a transient empty color result within its existing deadline, and the launcher requires a fresh PASS result so early IDE exits cannot masquerade as success.
+- No AI API calls or screen capture were needed. Web regression fixtures replay previously retrieved results locally; there was no new live web/model benchmark in this task.
+
+Release artifacts: `watdatmean-0.1.27.vsix` and `dist/intellij/watdatmean-intellij-0.1.27.zip`.
+
+## 0.1.26: bounded web usage on both editors
+
+The shared web engine now retrieves public search results locally (Bing RSS, with one DuckDuckGo HTML fallback) and sends only short excerpts to one AI summary request. It never gives the model browser tools. Limits are enforced before the request: **3,500 UTF-8 bytes of input content, including the response schema**, and **900 completion tokens**. The Groq summary remains GPT-OSS 120B with low reasoning, included in the same completion allowance. Provider message framing is additional; this is not a claim that bytes equal billed tokens. The selected code-explanation model/path is unchanged.
+
+Retrieval allows at most two search requests (160 KB each), two allowlisted official references (500 KB each), and three displayed sources. Parsers bound traversal, reject unsafe URLs and XML entity declarations, do not execute page scripts, and never fetch PDFs/videos. The API key goes only to its provider. Version/type/relevance checks stop unusable results before any AI request. AI retries and overlapping lookups are blocked; cache hits, filtering, History and bookmarks remain local.
+
+| Live Groq check, same public Java 17 streams topic | Input | Completion, including reasoning | Total |
+| --- | ---: | ---: | ---: |
+| 0.1.25 repeat with provider browsing | 32,558 | 449 | 33,007 |
+| Bounded VS Code host | 823 | 327 | **1,150** |
+| Bounded IntelliJ 2022.3 bridge/JCEF | 825 | 358 | **1,183** |
+
+The bounded successes used about **96% fewer tokens** than the observed spike. The VS Code response reported 52 reasoning tokens, already included in completion usage. Both reused their second request from cache and verified actual-source bookmark deduplication, reload and removal. Native JCEF also checked all resource filters on the live result. Only the already configured Groq key was used; for native tests it traveled over a private stdin pipe, not files, environment or command arguments. This tests the production native bridge with that account, not native PasswordSafe retrieval.
+
+Quality review kept the distinction between Collectors.toList() (unspecified type/mutability/thread safety), explicitly requesting a mutable ArrayList, conditional encounter order, and unmodifiable containers versus mutable contents. A trial with Qwen reasoning disabled produced an incorrect mutability claim and was rejected; it is **not** the shipped web model. Structured output keeps code separate from the walkthrough; incomplete prose and invalid source IDs are rejected without a correction call. HTTP 400 JSON-generation failures now explain the formatting budget instead of incorrectly blaming account access.
+
+The final native example has concrete initialized inputs and was compiled with Java 17 and standard imports; examples are never executed by the feature. The earlier VS Code sample was a fragment requiring a stream input; the final prompt explicitly requires initialized inputs. Neither sample predicts private project values.
+
+Validation:
+
+- **1,410 unit tests**, TypeScript type checking, the full **152-test headless panel suite**, and the real VS Code integration suite passed.
+- The full IntelliJ 2022.3 suite passed, including Java/Node integration, hover, syntax, edits, themes/colors, line navigation, History, filters/bookmarks and panel recovery. The final live run also passed its native panel assertions. Cold Java PSI was warmed in test setup before exact color assertions; production highlighting limits were not changed.
+- Bounds tests cover huge Unicode excerpts and pages, schema bytes, malformed output, partial sentences, invalid citations, redirects, credentials, search failure, mismatched editions, wrong resource types, cancellation, overlapping requests and cache expiry.
+- Public live-result fixtures preserve the older results for History compatibility and include both bounded successes. Additional paired UI replay verifies these fixtures without API calls.
+
+Limitations: public search availability is external. Some probes returned generic, unrelated pages or a browser challenge. A later fresh VS Code query was correctly stopped with **zero AI calls**; it did not fall back to uncapped provider browsing. New Java 8/repository/video/book retrieval could not be claimed successful during those outages. Their matching/filter/bookmark behavior was tested with synthetic inputs and previously captured real results. Live API verification covered Groq; OpenAI/Anthropic request limits and parsing were tested offline. AI summaries remain illustrative, not a guarantee about every linked resource or arbitrary program.
+
+The installers are watdatmean-0.1.26.vsix and dist/intellij/watdatmean-intellij-0.1.26.zip. The IntelliJ minimum remains build 223 (2022.3) and compiled Java bytecode targets Java 17. API controls follow [Groq's API reference](https://console.groq.com/docs/api-reference) and [reasoning documentation](https://console.groq.com/docs/reasoning).
+
+## 0.1.25: real Groq web lookup checks
+
+Used the configured Groq credential from VS Code SecretStorage in a separate
+extension host. For the IntelliJ live checks the same credential traveled only
+through a private stdin pipe to an isolated IntelliJ 2022.3 test profile, then
+through the production Java/Node bridge. It was not placed in command arguments,
+environment variables, files, source control or reports. This checks that bridge
+with the configured account; it does not test reading the user's IntelliJ
+PasswordSafe entry. No desktop capture, screenshots, video or Playwright traces
+were used.
+
+Live public synthetic topics covered Java 17 and Java 8 stream collection,
+TypeScript 5.9 generics repositories, and Python 3.11 video lessons and free books.
+Versioned Oracle pages were returned after adding explicit documentation scopes.
+Videos, books and unversioned repositories do not establish exact target support;
+the task asks for unknown compatibility to be stated. Resource provenance is
+checked, not the factual correctness of every sentence generated by a model.
+
+| Case                                    | Path                            | Reported total tokens |
+| --------------------------------------- | ------------------------------- | --------------------: |
+| Original Java 17 lookup, GPT-OSS 20B    | VS Code host                    |                26,257 |
+| Compact Java 17 lookup, GPT-OSS 120B    | VS Code host                    |                 4,112 |
+| Final Java 17 repeat, GPT-OSS 120B      | VS Code host                    |            **33,007** |
+| Java 8, explicit official version scope | IntelliJ 2022.3 bridge and JCEF |                 2,838 |
+| TypeScript repository lookup            | VS Code host                    |                 2,454 |
+| Python video lookup                     | VS Code host                    |                 2,522 |
+| Python book lookup                      | VS Code host                    |                 2,467 |
+| Additional Python book lookup           | IntelliJ bridge                 |                 2,520 |
+
+**Low new-query usage is not reliably solved by prompting.** Several compact
+lookups were much smaller, but the final Java repeat opened a full reference page
+despite the instructions. Groq Chat rejected `max_tool_calls` with HTTP 400
+(`property 'max_tool_calls' is unsupported`). A separate Responses API probe
+accepted the cap but returned an incomplete response and omitted the exact source
+URLs needed by the current provenance checks. Neither experimental option is in
+production. Low reasoning, compact instructions, one HTTP request, no automatic
+retry, and the 24-hour cache remain in place. These measurements include a model
+change, so they are not an isolated prompt-only benchmark. The Qwen explanation
+model is unchanged.
+
+Issues fixed:
+
+- Explicit repository/video queries and exact official Java/Python documentation
+  hints, including the older Java 8–10 URL layout. Version ranges remain ranges.
+- Reviewed Java list contracts and Java 8 API guidance in relevant requests;
+  no assumption that `Collectors.toList()` guarantees a mutable ArrayList.
+- HTML books on author/publisher sites and book-named paths now appear in the
+  Books filter. The additional native book request exposed this categorization
+  failure; its real response was replayed through the corrected parser and JCEF.
+  Categorization remains best effort and does not certify licensing or access.
+- Original source titles survive duplicate browser-open metadata. Search wrapper
+  pages are excluded. Opaque Groq citation markers are hidden without guessing URL
+  mappings; retrieved links remain visible and code examples remain verbatim.
+- A real HTTP 500 is now described as a temporary provider problem, not an
+  account/key failure. No failed request was automatically retried.
+
+Validation:
+
+- **1,388 unit tests passed**; final Java 9/10 query additions passed the 55 focused
+  resource tests and TypeScript checking.
+- **150 browser tests passed**, including all six recorded real-response cases in
+  both panel layouts, target labels, every filter, save/remove messages and no AI
+  requests during local actions.
+- Full **IntelliJ IDEA 2022.3 / Java 17 native suite passed**, including JCEF replay
+  of all six real responses, real bookmark-file persistence, existing Java hover,
+  themes, line navigation, syntax checks and panel recovery.
+- Actual **VS Code extension integration suite passed**. Live repeated lookups
+  returned cache hits without another HTTP request; bookmark duplicate/reload/
+  remove checks passed, including a persisted-file round trip in the final host.
+- Six illustrative snippets passed local checks without execution: Java snippets
+  compiled with `--release 8` or `--release 17`, TypeScript type-checked with the
+  installed compiler, and Python used the local parser. An actual Python 3.11
+  runtime was not available for this web-resource test.
+
+Reproducible public fixtures are in `tests/fixtures/web-research-live.json`;
+they contain no credentials or retrieved full-page bodies. Ordinary tests use
+no live provider calls. `scripts/test-web-live.mjs` is explicitly invoked only;
+it requires `VSCODE_EXECUTABLE` pointing to the installation holding the key.
+For native live tests, first prepare with `node scripts/test-intellij.mjs
+--ide-home <2022.3-sdk> --java-home <jdk-17> --ui --live-web --prepare-only`, then
+run the live harness with `--editor intellij --case java8-docs --ide-home <sdk>`.
+Use unique `--report work/<name>.json` paths and run live cases sequentially.
+
+The final packages are `watdatmean-0.1.25.vsix` and
+`dist/intellij/watdatmean-intellij-0.1.25.zip`. The plugin retains `since-build=223`
+and Java 17 bytecode; tests and credential-bearing harness code are excluded from
+the production packages. AI supplements can still contain imprecise prose and
+should be checked against the linked source before relying on an API guarantee.
+
+## 0.1.24: version targets, resource filters and bookmarks
+
+Both editors now suggest bounded literal version declarations from nearby project
+manifests, allow an editable target, and label declarations/ranges as distinct from
+installed versions. Computed or unknown targets remain absent. Recognized public
+library suggestions use a fixed list; private package names and manifest contents
+are not sent for research. No build tool or dependency resolver is executed.
+
+The resource selector filters existing links locally and scopes the next explicit
+web search. Citations remain with their claims. Results are cached separately by
+version and resource choice. Source types use URL patterns, so classification can
+be incomplete for unusual sites. Matching sources are requested from the provider;
+compatibility is not independently certified by the extension.
+
+Explicit source bookmarks are local to each editor/project, deduplicated by URL,
+and searchable/filterable without AI. They retain topic, target and retrieval date,
+survive normal history/cache clearing, and have no automatic expiry. At 100 entries,
+saving reports a limit instead of silently removing an existing bookmark. Only
+sources already known to the host can be saved or opened. Storage errors remain
+visible in both History and the learning view; reviewing preserves the draft.
+
+Validation:
+
+- TypeScript checking and both production builds passed.
+- Full unit suite: **1,383 passed**. A final computed-version regression case and
+  related fixes then passed with **92 focused tests** (1,384 current unit tests).
+  Coverage includes Java/Maven/Gradle, TypeScript/JavaScript, Python, Go and Rust,
+  nearest declarations, dynamic versions, bounded reads, private-name exclusion,
+  bookmark reload/duplicates/limits/storage failures, URL guards and cache keys.
+- Full browser suite: **134 passed** using Edge. After the final bookmark feedback
+  and stale-version checks, all **24 focused paired History/web tests passed**
+  (136 current browser tests), including 360 px layout and keyboard focus.
+  Desktop capture was not used; browser screenshots, video and traces were off.
+- Real isolated **VS Code** integration passed: activation, native/semantic colors,
+  hover/panel, source navigation, syntax fixes, project context and 297 Java cases.
+  The first command-launcher attempt resolved its executable incorrectly; using
+  the installed executable directly completed successfully without user settings
+  changes. Adapter tests verify version/filter forwarding and bookmark provenance.
+- Real **IntelliJ 2022.3** tests passed on the final shared panel and engine:
+  version manifests through the packaged bridge, persistent/deduplicated bookmarks,
+  the 100-entry limit, saved-source access after history clearing, and native JCEF
+  target/filter/save/review/error controls. Existing editor and Java checks passed.
+  Java 17 bytecode and build 223 compatibility are retained; existing SDK startup
+  and deprecation warnings did not fail the suite.
+- Version detection, filtering, saving, reviewing and removing bookmarks make
+  **zero AI requests**. Across all three provider request formats, the representative
+  `Java 17` / `docs` options add fewer than 100 serialized characters, preserve
+  completion/tool limits and do not add requests. This measures request size, not
+  live provider token billing. Research prompt wording was shortened to accommodate
+  the options. The regular explanation prompt/model are unchanged.
+
+No live provider call was made. Web access and matching quality were tested with
+fixtures and still depend on actual provider results, model access and page content.
+
+## 0.1.23: optional web resources
+
+Both editors provide an initially-off **Add web resources** switch in Part 1.
+The normal explanation appears first. A separate lookup receives only the editable
+public topic and guidance level, then adds a compact, collapsible supplement with
+examples, practical uses and provider-sourced links. The switch is remembered per
+project; disabling it cancels a pending lookup. Research uses a separate search
+model and displays its usage, retrieval date and potential search charges.
+
+Links must be present in provider search metadata and pass public HTTP(S) URL
+validation in the host. Inline citation positions are retained when supplied.
+Web content renders as text and illustrative code, never executable HTML. Sources
+open externally only on click. Successful supplements attach to the matching
+saved explanation; late responses cannot recreate cleared or paused history.
+Research has bounded requests, output and cache storage, with no automatic retry.
+
+Validation:
+
+- Full unit suite: **1,360 tests passed**. After adding an inline-citation case,
+  all **93 focused provider, bridge, extension and history tests passed** (1,361
+  current unit tests). TypeScript checking passed.
+- All **130 browser tests passed** using installed Edge. The 18 history/web tests
+  passed again after citation rendering changes, and all 10 paired web tests
+  passed after restoring the remembered switch's enabled search button. Coverage
+  includes opt-in, topic-only requests, cancellation, stale responses, source
+  provenance, safe rendering, failures, cache usage, history and narrow layouts.
+- Real isolated **VS Code** integration passed: activation, panel, native and
+  semantic colors, hover, navigation highlights, syntax fixes and 297 Java cases.
+  Adapter tests exercise the new provider request and history paths with fixtures.
+- Real **IntelliJ 2022.3** checks passed: native source URL/provenance guards,
+  persistence of web supplements, history-clear race protection, packaged bridge
+  opt-in, and JCEF switch/topic/source/usage interactions with the draft preserved.
+  Existing native themes, navigation, Java examples, hover, syntax help and guarded
+  edits also passed. Plugin sources compile for Java 17 against build 223.
+- Both panel layouts and a 360 px viewport were visually checked. Source links
+  use the editor's theme link colors and support visible keyboard focus.
+
+Provider tests use synthetic Groq, OpenAI and Anthropic response fixtures. **No
+live provider search was charged or verified** in this run. Actual account/model
+access, live search quality and external page availability still depend on the
+provider. Failed, incomplete or source-less responses leave the core lesson intact.
+Search availability and request formats were checked against official provider
+documentation. Existing IntelliJ startup/deprecation warnings remain non-fatal.
+
+## 0.1.22: local project history
+
+Both editors now save completed explanation, walkthrough, example and impact results
+behind one **History** button. Identical selected code in the same file updates one
+entry, with the latest result for each action grouped together. History is bounded
+to 30 entries / 2 MB, with a 256 KB per-entry limit. It stores selected code,
+file/line, lesson and optional replacement, not API keys or extra project-context
+source. Selecting code, typing, concept expansion, failures, cancellation and stale
+responses do not create entries. Pausing saving retains existing entries.
+
+VS Code uses project workspace storage; IntelliJ writes atomically to the IDE
+configuration directory on a serial background worker. History review is read-only:
+current lessons/drafts remain intact and old correction/evidence actions are not
+attached to the current file. Reviewing, searching and removing history uses no
+AI tokens. Saved explanations are snapshots, not verified executions.
+
+Validation:
+
+- TypeScript check and both production builds passed.
+- Full unit suite: 1,324 tests passed; two additional cancellation/stale-response
+  adapter tests then passed with all 35 extension tests (1,326 current unit tests).
+- All 120 browser UI tests passed using installed Edge, including eight paired
+  VS Code/IntelliJ history tests covering search, grouped results, saved changes,
+  text-only rendering, no AI/edit/evidence requests, draft preservation, cleanup,
+  paused saving, failures, keyboard focus and 360 px layout.
+- Native IntelliJ **2022.3** suite passed: history persistence/reload, duplicate
+  grouping, pause, deletion, clear, corruption recovery, UTF-8 byte limits and
+  oversized-save rejection. Real JCEF history review preserved the active draft
+  and made no AI requests. Existing Java examples, themes, navigation, hover,
+  panel recovery and guarded edits also passed. Compiled for Java 17 / build 223.
+- Isolated real VS Code integration passed: activation, native/semantic colors,
+  hover, panel, navigation highlights, syntax fixes and 297 Java examples.
+- History list/detail screenshots were visually reviewed. No real provider was
+  called; lesson fixtures and local explanations were used throughout.
+
+The default Playwright browser was absent on this machine. Browser tests were run
+successfully with the installed Microsoft Edge instead. Existing IntelliJ test
+startup/deprecation warnings did not fail the native checks. History starts with
+this version; earlier transient sessions are not recovered or synced across IDEs.
+
+## Checkout follow-up: resolved Java paths and stale imports
+
+The installed Gradle for Java 3.19.0 extension rejected the literal
+`${workspaceFolder}/intellij/.gradle/java-home` setting. Earlier fresh-profile
+checks covered the Java language servers without this task importer. The user's
+existing Red Hat project also retained Java 25.0.4.1 in its Buildship cache, and
+Oracle discovered two retired test projects below `work`.
+
+Checkout setup now generates resolved Java 17 paths in the ignored
+`.vscode/settings.json`, preserving JSONC comments, unrelated preferences and
+explicit runtime overrides. It migrates the old placeholder and remembers its own
+generated path so rerunning setup after moving a checkout updates it. The Gradle
+task importer is scoped to `intellij` by default. Import fixtures use the OS temp
+directory and their own generated configuration. Existing retired fixtures were
+moved out of this checkout, and its Java importer cache was backed up before
+requesting the standard rebuild. Global Java settings and source files were not
+changed by that cache repair.
+
+Validation:
+
+- **26 setup tests pass**, including path migration, spaces, idempotence, preserved
+  custom paths/comments and rejection of malformed settings; TypeScript checks pass.
+- **Real VS Code + Red Hat Java 1.58 + Gradle for Java 3.19** passes with a Java 25
+  language server: the build runs on Java 17.0.21.0.2, IntelliJ SDK types resolve,
+  Java source/target remain 17, plugin tasks are discovered, scratch projects are
+  excluded, and there are no error diagnostics.
+- **Gradle 8.14.6 `help compileJava` passes against IntelliJ 2022.3**, using the
+  generated Java 17 runtime. Existing SDK deprecation warnings remain.
+- **Oracle Java 27.0.0** also passes the isolated import with a Java 25 server,
+  Java 17 build evaluation, resolved IntelliJ SDK types and no error diagnostics.
+  Its importer still discovers the deliberately nested scratch fixture; the
+  Red Hat/Gradle exclusion assertions do not claim Oracle supports those settings.
+- The user's **actual VS Code profile**, with both Java extensions installed,
+  was reopened after backing up/rebuilding the stale Java cache. It now reports
+  **Java: Ready, zero errors**, with seven deprecation warnings and two information
+  diagnostics. Gradle configures successfully and discovers 75 tasks. The obsolete
+  `wrapper-bootstrap` project is absent from the rebuilt Java project cache.
+
+This changes source-checkout tooling, not installed plugin behavior or explanation
+prompts. The 0.1.21 installers do not need replacement for this fix; it makes no AI
+requests and retains the IntelliJ 2022.3 baseline.
+
+## Current revision: shared Java syntax help (0.1.21)
+
+Both editor paths now use the bundled Lezer Java 1.1.5 parser for local warnings
+and bounded punctuation repairs. Suggestions cover semicolons, closing parentheses,
+array brackets and closing blocks. Every proposed completion is reparsed; warnings
+use original selection positions, including CRLF/lone-CR files and multiple insertions.
+Comments and literal content are preserved. The shared cache version is now 17.
+
+Missing values, array sizes, handlers, ambiguous commas/operators, unfinished text
+and empty unfinished bodies are not invented. A partial block gets a labeled
+standalone completion and can use the usual explanation request, with unverified
+output removed. Complete fixes are explained using the corrected code. Known local
+examples stay at zero tokens; no extra repair/review AI request is introduced.
+Names, expressions, methods, constructors and handler clauses remain valid selections.
+
+Scope: this is an editor grammar with conservative repair rules, not a Java compiler
+or type checker. Unicode escape preprocessing and switch-expression/pattern syntax
+are deferred to the existing native checker rather than generating false warnings.
+Compilation, library availability, and project-specific type rules remain outside
+these local repairs. Existing whole-file preview and Apply checks are unchanged.
+
+Validation on Windows x64:
+
+- **1,307 unit/adapter tests pass** and TypeScript type-checking passes. The new
+  Java cases cover valid modern declarations, literals/comments, ambiguous errors,
+  exact corrected source, cached results and parity between provider and BridgeCore.
+- **12 proposed fixes independently parse with the real Java 17 compiler**, using
+  parse-only fixtures and disabled annotation processing; no user code is executed.
+- **44 shared panel tests pass**, covering both VS Code and generated IntelliJ HTML:
+  clear warning text, suggested code, draft transfer, unchanged original source,
+  Apply gating and no correction button for a missing value.
+- **IntelliJ 2022.3's native editor/JCEF suite passes**, including new packaged-engine
+  repair/warning checks and the existing 297 Java teaching examples at zero tokens.
+  Initial test-only archive assembly exited early; reassembling that archive and
+  launching the same fresh test plugin passed. Production packaging was successful.
+- **VS Code's real extension host passes** the new Java correction/unknown-value
+  checks, existing 297 Java cases, semantic colors, navigation and editor workflows.
+
+The single-request partial-selection AI test uses a mocked response and reported
+usage. No live-provider quality benchmark or measured model-token reduction is
+claimed; repair operations themselves are local and consume zero AI tokens.
+
+## Previous revision: syntax help and VS Code Java imports (0.1.20)
+
+The shared engine now distinguishes explainable TypeScript/JavaScript selections
+that stop at closing punctuation from broken expressions. The reported declaration
+loop reaches the normal explanation request, preserves the submitted code, and
+withholds invented output. Both editor caches use version 16 to discard the old
+generic incomplete-selection response.
+
+Local syntax help reports selection-relative positions, proposes bounded punctuation
+repairs and Python block-header colons, and rechecks the result. Complete repairs
+are explained using the corrected text; partial selections remain labeled as such.
+The shared panel offers **Suggested correction → Try corrected version** without
+editing the file. Existing whole-file preview and Apply checks still run. Valid
+class/function-body selections are not misreported as broken standalone programs.
+Repairs don't execute code or make another AI request; unknown expressions are not
+filled in. This is deliberately limited to the supported local parsers and repair
+rules, not arbitrary correction in every language.
+
+Oracle Java uses a separate Gradle runtime selection from Red Hat Java. Checkout
+setup now supplies Oracle's project Java 17 pointer and a generated NetBeans runtime
+hint using the canonical JDK path, including symlinks/junctions. The Java language
+server can remain on Java 25. Generated properties remain ignored and preserve
+explicit overrides. Oracle's own workspace-settings trust prompt remains intact.
+Removed the unused PsiDocumentManager import; older documentation APIs remain to
+support IntelliJ 2022.3 rather than changing the compatibility baseline.
+
+Validation on Windows x64:
+
+- **1,245 unit/adapter tests pass** and TypeScript type-checking passes. The reported
+  loop is tested through both the VS Code provider path and IntelliJ's BridgeCore,
+  including one-request usage, cached replies, exact input preservation, no invented
+  output, valid partial bodies, ambiguous syntax and rechecked repairs.
+- **38 shared browser tests pass** for the VS Code and generated IntelliJ panels,
+  including correction warnings, preview text, moving the correction into the draft,
+  keeping Apply disabled until comparison and preserving the original source.
+- Real isolated **Oracle Java 27.0.0 / server JDK 25.0.5** imports evaluate the
+  Kotlin/Gradle build on **Java 17**, resolve the IntelliJ SDK type and report no
+  error diagnostics. Tested from a checkout with spaces, using the actual setup
+  function. Oracle may log an initial runtime-registration warning while creating
+  its JDK record; generated Gradle JVM settings allow import to complete.
+- Real isolated **Red Hat Java 1.58 / server JDK 25.0.4.1** imports retain Java 17
+  source/target, SDK classpath, scratch-directory exclusion and no import errors.
+- **VS Code's real extension host** and **IntelliJ 2022.3 native editor/JCEF** suites
+  pass, including 297 Java examples per host, semantic colors, source-line jumps,
+  edit previews, themes and recovery. The 0.1.20 Java plugin compiles against SDK 223.
+- Both **0.1.20 installers** pass asset/bytecode verification: current engine and
+  panel files, 40 production Java classes targeting Java 17, no smoke-test classes
+  or test fixtures shipped.
+
+AI responses in the new partial-selection tests are mocked; no live provider bill
+or new model-quality benchmark is claimed. Syntax checking and repair use zero AI
+tokens, and ordinary AI explanations retain their existing token limits.
+
+## Previous revision: portable Java and Gradle setup (0.1.19)
+
+The normal `npm ci` lifecycle now prepares Java 17 for this source checkout. It reuses
+a discovered stable JDK or downloads Microsoft OpenJDK through its official HTTPS
+endpoint, verifies SHA-256 before extraction, checks the installed runtime, and keeps
+it in the ignored `intellij/.gradle/java-home` directory. No system environment or
+global editor settings change. Restricted accounts can use a private copy when
+creating a link is unavailable. Generated Gradle properties preserve unrelated
+settings and explicit developer JVM overrides.
+
+VS Code uses `${workspaceFolder}/intellij/.gradle/java-home`; IntelliJ reads the
+generated local Gradle JVM property. The wrapper remains Gradle 8.14.6, with Java 17
+compilation and the SDK 223 baseline. Java import excludes temporary/build directories,
+including the `wrapper-bootstrap` project shown in the user's warning. The new
+`npm run gradle:intellij -- buildPlugin` entry point repeats setup and starts the
+wrapper directly with the correct Java and Node executables.
+
+Gradle daemon JVM criteria alone were insufficient: the real VS Code importer still
+launched its daemon on Java 25, and first-time Gradle provisioning from Java 25 hit a
+Windows directory-move failure. The final setup provisions before import and provides
+both editors with an explicit, automatically resolved Java 17 build runtime.
+
+Validation on Windows x64:
+
+- **1,228 unit/adapter tests pass**, including missing Java, Java 25 only, existing
+  Java 17, paths with spaces, cached/offline reuse, incorrect runtime versions,
+  corrupted downloads, unsafe archive paths, property preservation and Unicode paths.
+- A real **first-time Microsoft Java 17 download/install** passed checksum and runtime
+  verification. A subsequent normal **`npm ci` completed**, invoking setup automatically.
+- The new Gradle entry point passed **`help compileJava` with `JAVA_HOME` unset**,
+  using the real IntelliJ 2022.3 SDK and the automatically provisioned compiler.
+- A real isolated **VS Code + Red Hat Java 1.58** imported the IntelliJ project with
+  its language server still on Java 25, compiler/source target 17, the IntelliJ SDK
+  classpath, no import errors, and no `wrapper-bootstrap` project.
+  A second real import passed from `work/Checkout With Spaces`; exclusions match
+  the generated directory itself so a parent named `work` does not hide the checkout.
+- **IntelliJ 2022.3's bundled Tooling API and JBR 17** imported the project and
+  verified Gradle 8.14.6, the generated Java 17 JVM setting and language level 17.
+- Both running editor regression suites passed: **VS Code's extension host** and
+  **IntelliJ 2022.3's native editor/JCEF panel**, including all 297 general Java
+  learning examples, colors, line navigation/highlights, edit previews and recovery.
+- Both **0.1.19 installers** were rebuilt and byte-checked against current assets.
+  All 40 production Java classes target Java 17; no test code, build JDK or Gradle
+  distribution is included in the installers.
+
+Download URL selection covers Windows, macOS and Linux on x64/ARM64. Native execution
+in this revision was tested on Windows; macOS/Linux behavior has unit coverage only.
+Initial uncached downloads require internet access. Neither installed plugin includes
+or requires the development JDK or Gradle, and setup makes no AI requests.
+
+## Previous revision: destination highlights, gutter spacing and Gradle import repair (0.1.18)
+
+Clicking a gutter number now briefly highlights the destination in the original editor for 1.2 seconds. VS Code uses a theme-colored whole-line decoration; IntelliJ uses native per-editor line markup with a soft blend of the scheme's search color. Repeated clicks replace the previous highlight and restart its timer. Cleanup runs on expiry, source refresh/change and extension disposal. No selection, code, draft or AI request is changed by the highlight.
+
+The gutter is 12 pixels wider and leaves a 20-pixel inset before code. Number positions remain stable; the draft's text and color layers keep identical spacing. All three code areas use the original editor's tab width, with a bounded four-column fallback. Scrolling, copying, keyboard access and narrow layouts remain covered.
+
+The VS Code Java import error came from applying the legacy IntelliJ build plugin with Gradle 9. The repository now includes a checksum-verified **Gradle 8.14.6 wrapper** and distribution checksum. The existing workspace setting was preserved; wrapper use is enabled, and this machine's installed JDK 24 is selected for Gradle instead of the Java importer's bundled JDK 25. This machine-specific JDK path is in the pre-existing untracked `.vscode/settings.json`, not either installer. The compatible build exposed two additional script issues, now fixed: the license-copy task's Kotlin DSL overload, and simultaneously selecting a local and downloaded IntelliJ SDK.
+
+Gradle's [runtime compatibility matrix](https://docs.gradle.org/current/userguide/compatibility.html) and JetBrains' [current build-plugin requirements](https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html#requirements) explain why upgrading the IntelliJ build plugin would conflict with the 2022.3 target. The Gradle wrapper remains a development tool; neither editor's installer bundles it or requires Gradle.
+
+Validation:
+
+- **1,211 unit/adapter tests pass**, including destination decoration, replacement/timer restart, edit/disposal cleanup, and original-editor tab width.
+- **104 browser tests pass** across both panels, including wider spacing, eight/two-column tab widths, invalid-width fallback, exact source/draft text, layer alignment, keyboard navigation, scrolling and existing learning features.
+- **Native IntelliJ 2022.3** passes the real editor highlight tests for light/dark colors, blank lines, repeated clicks, Swing timer expiry and disposal, plus existing navigation, JCEF, Java/Python/TypeScript, learning, color and recovery tests.
+- **The isolated VS Code host** exercises the real decoration API for blank lines, repeated jumps, expiry and disposal while preserving text and caret, alongside the existing integration tests.
+- **Gradle wrapper `help compileJava` passes** with JDK 24 and the local IntelliJ 2022.3 SDK. Java bytecode remains targeted to release 17. Official wrapper SHA-256: `ad16bca46cb71bb5887c546860d93992aeee35c1fdaf4a242b0a612375d937e0`; distribution SHA-256: `7988ed071b2a07900e2ec715fca15c6ab72bce6db433af301fa7fa7e9407bd24`.
+
+Version 0.1.18 packages retain the SDK 223 baseline and existing compatibility metadata. The Gradle importer in the user's already-open VS Code window may need **Java: Reload Projects** to discard its cached failed import; tests used isolated editor profiles and the project wrapper.
+
+## Previous revision: clickable source-line navigation (0.1.17)
+
+The original-code, small-pieces and draft gutters now open the corresponding numbered line in the captured source file. VS Code reuses its visible editor column and reveals the caret; IntelliJ uses the native `OpenFileDescriptor` API available in 2022.3. Navigation preserves the lesson, draft and pending edit preview, and sends no AI request. Draft rows beyond the original selection are disabled until applied; other draft rows refer to original file numbers, not a guessed mapping of changed code.
+
+Each selection carries a navigation identifier. Both hosts validate the identifier, whole-number line, selected source bounds and current document before navigating. VS Code checks the source again after the asynchronous editor-open call. Paths supplied by a panel message cannot redirect navigation. Changed files require **Use latest code**; old selection links remain invalid after refresh.
+
+Gutters support clicks and one keyboard tab stop per area, Up/Down, Home/End, and Enter/Space. Virtualized rows remain navigable across long selections. Updating the draft's caret highlight changes button classes in place so textarea blur cannot swallow a gutter click. Disabled buttons retain distinct file/line accessible names, with the reason in their tooltip.
+
+Validation:
+
+- **1,208 unit/adapter tests pass**, including exact CRLF/Unicode source positions, switching back from another editor, invalid/outside/stale selection links, and a document changing while VS Code opens its editor.
+- **102 browser tests pass** across both editor panels, including all three gutter clicks, keyboard navigation through 2,000 lines, draft/detail preservation, disabled extra draft rows, stale/refresh behavior, and all earlier coloring/editing/learning checks.
+- **Native IntelliJ 2022.3** verifies original-file reopening, exact caret position, malformed/outside/stale requests, refreshed links, and preserved pending edits. The real JCEF panel verifies click messages from all three gutters. Existing native color, semantic, learning, editing and recovery checks pass.
+- **The isolated VS Code host** passes the existing activation, grammar/semantic-color, hover, panel, context and Java learning regression checks. Navigation routing and races are covered by adapter tests; gutter interactions are covered by the shared browser tests.
+
+Both 0.1.17 installers include the current panel and host code. IntelliJ remains compiled against SDK 223 with Java 17 bytecode, without test-only classes or fixtures.
+
+## Previous revision: source-file line numbers in both panels (0.1.16)
+
+Original code, **The small pieces**, and **Your version** now have fixed left gutters using each editor's native line-number and gutter colors. Original and piece numbers start at the selection's actual line in the full document, rather than at 1. Every displayed line is numbered, independently of the outlined-piece limit. Piece details include the source file and exact line/range. Draft numbers update on edits and reset, indicating the lines the proposed replacement would occupy. Refreshing a selection after changes above it updates the original positions.
+
+The shared renderer preserves the source text, UTF-16 offsets, keyboard controls, syntax/semantic colors, typing and undo. Gutters do not enter copied code or host/provider messages. Only visible number labels are rendered for large selections. The renderer measures actual line-box height to prevent accumulated rounding drift, follows font/size changes, and schedules resize work outside the observer callback for IntelliJ 2022.3's older JCEF runtime. No AI requests or tokens are used. Existing file and AI-selection bounds remain unchanged.
+
+Validation:
+
+- **1,203 unit/adapter tests pass**, including exact full-document positions after a distant CRLF prefix, position refresh after prefix edits, and complete whole-file selection text beyond the small-piece limit.
+- **96 browser tests pass** across both editor panels. New cases cover CRLF/LF/CR, Unicode offsets, blank/trailing lines, line ranges, draft edits/reset, native gutter colors, font changes, resizing, narrow/high-contrast layouts, and copying without numbers. A 2,000-line selection verifies bounded gutter rendering, fixed horizontal positioning, and less than one pixel of line alignment error at the end of the file.
+- The **native IntelliJ 2022.3 host** passes the real JCEF gutter, complete-selection scrolling, draft numbering and theme-color tests without resize-observer warnings. Native document recovery verifies line positions after edits before the selection. Existing semantic colors, Java origins, bridge, learning, editing, hover and recovery checks pass.
+- The **actual isolated VS Code host** passes its existing integration, real grammar/semantic-color, editor-action and Java learning checks. New source-line metadata checks run through the VS Code adapter; both panels' line-number interactions are tested in the browser suite.
+
+Both 0.1.16 installers contain the current shared panel assets. IntelliJ is built against SDK 223 (2022.3), with Java 17 bytecode; test classes and fixtures are excluded.
+
+## Previous revision: native semantic colors and fewer duplicate Java pieces (0.1.15)
+
+IntelliJ's Java analyzer now outlines repeated teaching pieces once, preserving different declarations, shadowed variable origins, overload declarations, receivers and call arguments. This leaves more of the existing 80-piece budget for later code without removing any source text. Declaration lookup is reused within each analysis. The existing bounded scan and local-only explanations remain.
+
+VS Code shows syntax colors first, then overlays available native semantic tokens using the active theme's inherited semantic rules, user/language settings, subtype and modifier precedence, and TextMate fallback scopes. The scope matcher is MIT-licensed VS Code code, included with its attribution. Range providers are preferred, with document-provider fallback. Semantic requests have a timeout and concurrency limit; failures retain syntax colors. Pending requests are shared, but completed semantic results are not retained after a provider may have reindexed. Edited drafts never reuse semantic offsets from a different source snapshot.
+
+IntelliJ uses the open editor's scheme and file-local Java roles, plus completed native semantic highlighting where available. Java's separate symbol highlighting category is included, while error/warning styling is excluded. Class references, constructor calls, and static calls retain their distinct native roles. Analysis completion refreshes panel colors without resetting the lesson. Changed drafts use their own PSI and never borrow markup from the original document. All code paths remain local and make no AI request.
+
+Validation:
+
+- **1,201 unit/adapter tests pass**, including semantic theme inheritance, specificity and explicit font resets, subtype/scope fallback, malformed token data, UTF-16/CRLF offsets, opt-out, provider failure/timeouts, draft/version/theme guards and progressive panel messages.
+- **84 browser-panel tests pass** across both editors, including a later semantic update in all three code areas without losing source text, piece details or the editable draft.
+- The **actual isolated VS Code host** passes real TypeScript semantic-provider checks for class, method, variable, parameter and property declarations/references, custom colors, disabled semantics and changed drafts. Existing real grammar/theme checks (TypeScript, Python, Java and HTML), the exact earlier TypeScript screenshot selection, editor actions and 297 Java examples plus Womb also pass.
+- The **native IntelliJ 2022.3 host** passes duplicate reduction and preserved-distinction tests, role colors under light/dark schemes, edited Java drafts, and real completed-daemon markup for class references, constructor calls and static calls using a custom editor scheme. Existing origins, hover, edit/recovery, Python/JavaScript/TSX, bridge and Java output tests pass. The real JCEF panel retains its color/theme, draft-preservation and narrow-layout checks.
+
+Scope: semantic support depends on the installed language provider and editor settings. VS Code uses syntax colors for modified drafts until they become document text; IntelliJ additionally handles file-local Java draft roles. Diagnostic decorations are excluded. Newer IntelliJ versions were not rerun; production classes are compiled against 2022.3 with Java 17 bytecode. No live AI calls were made, and explanation prompts/token limits are unchanged.
+
+Native rules were checked against the [VS Code semantic highlighting guide](https://code.visualstudio.com/api/language-extensions/semantic-highlight-guide) and [IntelliJ highlighting documentation](https://plugins.jetbrains.com/docs/intellij/syntax-highlighting-and-error-highlighting.html), with the actual 2022.3 SDK verifying compatibility.
+
+## Previous revision: TypeScript color recovery (0.1.14)
+
+Reproduced the missing colors using the exact `const pad = ...` selection from line 13 of `src/hover-explanation.ts` in the actual VS Code host. A later line could exhaust its 15 ms allowance while TextMate compiled new regexes, discarding all selected colors. The adapter then cached that plain result.
+
+All lines now share the available 750 ms highlighting budget. One short 250 ms local warm-up retry can recover any timed-out line using its original lexical state. Processing yields between expensive lines, existing size/range limits remain, and incomplete highlighting still falls back to plain text. Empty or failed results are no longer retained in the selection cache; successful and concurrent requests still reuse their work. No prompts, explanation features or provider requests change.
+
+Validation:
+
+- **1,178 unit/adapter tests pass**, including seven new regressions for later-line compilation, original-state retries, bounded repeated timeouts, cache recovery after empty/error results, concurrent requests and stale theme requests.
+- The **actual isolated VS Code host** now colors the exact screenshot selection with distinct colors under dark, light and high-contrast themes. Installed TypeScript, Python, Java and HTML grammars, theme overrides, partial-comment context and existing editor checks pass, including 297 Java examples plus Womb at zero API tokens.
+- **12 focused browser color tests pass** across both VS Code and embedded IntelliJ panels: original code, small pieces, draft, theme updates, selection/undo, scrolling, IME, forced colors and invalid-payload handling.
+- TypeScript checking and both production builds pass. Matching 0.1.14 installers preserve IntelliJ 2022.3 compatibility and Java 17 bytecode. The IntelliJ native color engine is unchanged; its native UI suite was not rerun for this VS Code-only correction (the prior native 2022.3 results are below).
+
+## Previous revision: native syntax colors (0.1.13)
+
+The original code, clickable small pieces and editable draft now share local syntax highlighting. VS Code reads installed TextMate grammars, the active theme (including inherited/JSONC/plist rules), and token/foreground customizations. IntelliJ uses its native highlighter and editor color scheme through APIs available in 2022.3. The source before a selection is retained for lexical context. UI messages carry bounded ranges and validated color/style values; source content is always rendered as text.
+
+The editable area keeps its textarea, with a synchronized, non-interactive color layer. Theme changes preserve the lesson, draft, focus, selection and piece details. Editable glyphs retain regular weight/style for caret alignment; read-only areas support theme bold/italic. IME composition and system forced-colors mode retain visible native input. The highlighter has size/time limits, bounded caching and one local first-line warm-up retry; unavailable highlighting falls back to plain text. None of this invokes a provider, changes prompts or uses API tokens.
+
+Validation:
+
+- **1,171 unit/adapter tests pass**, including 13 focused grammar/theme tests for exact offsets, multiline context, Unicode/CRLF, malformed/oversized input, theme inheritance, plist themes, include cycles/bounds, and custom-rule precedence.
+- **82 browser tests pass** across VS Code assets and the embedded IntelliJ panel. Twelve new cases cover all three color surfaces, live themes, local piece clicks, draft/selection preservation, late-response rejection, undo/reset, scrolling/font alignment, narrow layouts, IME, high contrast and unsafe style/range rejection.
+- The **actual isolated VS Code host** checks installed TypeScript, Python, Java and HTML grammars under dark, light and high-contrast themes, custom keyword and foreground colors, and partial-comment selections. Existing editor tests and 297 Java examples plus Womb still pass at zero tokens.
+- The **native IntelliJ 2022.3 host** checks native Java colors, custom keyword colors, light/dark schemes, partial selections and limits. Its actual JCEF panel verifies colors in all three areas and live changes without losing the draft or lesson. Existing hover/origin, edit, recovery, bridge and Java examples remain checked. Newer IntelliJ versions were not rerun for this change.
+- TypeScript checking and both production builds pass. The IntelliJ build embeds both panel scripts regardless of HTML formatting and fails if a script is left external. Packages retain Java 17 bytecode and exclude test fixtures/classes; VS Code bundles the local regex runtime and required notices.
+
+Scope: syntax colors are reused; language-server semantic overrides, inspection decorations and uninstalled language support are not reproduced. The Java compiler reference suite was not rerun because the learning interpreter is unchanged. No live AI calls were made for this feature.
+
+## Previous revision: portable Java runtime setup (0.1.12)
+
+VS Code now checks the installed Oracle Java extension's runtime requirements in trusted workspaces. It retains a compatible older JDK, finds an installed replacement when needed, and checks the relevant JVM compatibility flags before updating the machine's server setting. A working previous project JDK is pinned separately when it inherited the server choice. Explicit workspace server settings and unknown/custom requirements are left for manual setup. Settings are backed up for the restore command; restoring disables automatic setup. No project code is executed, no JDK is automatically downloaded, and no provider request is made.
+
+Validation for this revision:
+
+- **1,158 unit/adapter tests pass**, including **53 new runtime tests**. These cover Windows/macOS/Linux discovery with simulated filesystems, older JDK retention, the JDK 24 compact-header failure, JDK 21 fallback, missing/stale paths, environment and PATH precedence, macOS bundles, real-path resolution, project preservation across workspaces, explicit/null workspace overrides, trust, cancellation, concurrent setting edits, repair rollback and restore.
+- A **read-only check with real Windows JDKs** and installed **Oracle Java 27.0.0** reproduced failure on **24.0.2** with its compact-header flags. Discovery selected **25.0.5**, which passed. The proposed repair preserved the old project JDK; a second check returned healthy. No editor settings were written by this verification. macOS/Linux and older JDK cases were unit-tested, not run on native machines.
+- The **actual isolated VS Code host** passes activation, registration of both setup commands, existing hover/panel/reference tests and the existing local Java examples. Oracle Java is absent in that isolated profile; repair behavior is covered by the adapter tests plus the real JVM probes, not a live Oracle server restart.
+- TypeScript checking and both production builds pass. The IntelliJ package is compiled against **2022.3** with Java 17 bytecode; its native runtime code is unchanged. IntelliJ UI, browser-panel and Java compiler reference suites were not rerun for this VS Code setup change; their previous results are below.
+
+The check reads installed extension metadata and uses bounded `java -version` probes. It does not certify every Oracle version, JVM option, vendor or extension startup order. If Oracle already failed before WatDatMean's repair, the notification offers **Reload Window**. If no compatible installation is found, **Open Java Setup** opens Oracle's setup action. The learning engine, explanation prompts and token limits are unchanged.
+
+## Previous revision: Java generics and interfaces (0.1.11)
 
 Both editors share bounded local support for user-defined generic classes, multiple/nested arguments, diamond inference, generic static/instance methods, and single upper bounds (including `Number` and modeled interfaces). Class views substitute signatures while preserving the original generic body and its compile-time bindings. This prevents a `String` argument from silently changing an overload selected using an `Object` or `Number` bound, or a subclass overload from replacing the selected generic instance method. Type arguments remain invariant and are described as compile-time checks, not separate runtime classes.
 

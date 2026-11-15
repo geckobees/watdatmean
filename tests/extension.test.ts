@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { activate } from '../src/extension';
+import * as provider from '../src/provider';
+import type { Lesson } from '../src/types';
+import { WebResearchService, RESEARCH_ENABLED_KEY, type WebResearch } from '../src/web-research';
+import { VSCodeCodeColors } from '../src/vscode-code-colors';
+import type { CodeColors } from '../src/code-colors';
+import { BOOKMARKS_KEY } from '../src/resource-bookmarks';
+vi.mock('../src/java-runtime-setup', () => ({ registerJavaRuntimeSetup: vi.fn() }));
 
 const host = vi.hoisted(() => ({
   commands: new Map<string, (...args: any[]) => unknown>(),
@@ -14,8 +21,18 @@ const host = vi.hoisted(() => ({
   text: '',
   version: 1,
   confirm: vi.fn(),
+  showDocument: vi.fn(),
+  revealRange: vi.fn(),
+  decorations: vi.fn(),
+  decorationDispose: vi.fn(),
+  createDecoration: vi.fn(),
   context: vi.fn(),
   readyOnLoad: false,
+  history: undefined as unknown,
+  bookmarks: undefined as unknown,
+  webEnabled: false,
+  openExternal: vi.fn(),
+  key: undefined as string | undefined,
   subscriptions: [] as vscode.Disposable[],
   panels: [] as {
     disposed: boolean;
@@ -37,6 +54,8 @@ vi.mock('vscode', () => {
     toString: () => value,
   });
   return {
+    env: { openExternal: host.openExternal },
+    extensions: { all: [], onDidChange: disposable },
     Uri: {
       parse: uri,
       joinPath: (base: vscode.Uri, ...parts: string[]) =>
@@ -47,6 +66,23 @@ vi.mock('vscode', () => {
         public start: vscode.Position,
         public end: vscode.Position,
       ) {}
+    },
+    Position: class {
+      constructor(
+        public line: number,
+        public character: number,
+      ) {}
+    },
+    Selection: class {
+      constructor(
+        public start: vscode.Position,
+        public end: vscode.Position,
+      ) {}
+    },
+    TextEditorRevealType: { InCenterIfOutsideViewport: 2 },
+    DecorationRangeBehavior: { ClosedClosed: 1 },
+    ThemeColor: class {
+      constructor(public id: string) {}
     },
     MarkdownString: class {
       value = '';
@@ -138,14 +174,19 @@ vi.mock('vscode', () => {
       },
     },
     window: {
+      createTextEditorDecorationType: host.createDecoration,
+      onDidChangeActiveColorTheme: disposable,
       get activeTextEditor() {
         return host.editor;
+      },
+      get visibleTextEditors() {
+        return [host.editor];
       },
       createStatusBarItem: () => ({ ...disposable(), show() {}, hide() {} }),
       onDidChangeActiveTextEditor: disposable,
       showWarningMessage: host.confirm,
       showInformationMessage: vi.fn(),
-      showTextDocument: async () => host.editor,
+      showTextDocument: host.showDocument,
       createWebviewPanel: () => {
         const state: (typeof host.panels)[number] = { disposed: false, html: '' };
         host.panels.push(state);
@@ -216,15 +257,32 @@ async function start(
   } as vscode.TextDocument;
   host.editor = {
     document,
+    viewColumn: 3,
+    options: { tabSize: 4 },
+    revealRange: host.revealRange,
+    setDecorations: host.decorations,
     selection: {
       start: document.positionAt(selection?.[0] ?? code.indexOf('score')),
       end: document.positionAt(selection?.[1] ?? code.indexOf('score')),
     },
-  } as vscode.TextEditor;
+  } as unknown as vscode.TextEditor;
   activate({
     extensionUri: vscode.Uri.parse('file:/extension'),
     subscriptions: host.subscriptions,
-    secrets: { get: async () => undefined },
+    secrets: { get: async () => host.key },
+    workspaceState: {
+      get: (key: string) =>
+        key === RESEARCH_ENABLED_KEY
+          ? host.webEnabled
+          : key === BOOKMARKS_KEY
+            ? host.bookmarks
+            : host.history,
+      update: async (key: string, value: unknown) => {
+        if (key === RESEARCH_ENABLED_KEY) host.webEnabled = value === true;
+        else if (key === BOOKMARKS_KEY) host.bookmarks = value;
+        else host.history = value;
+      },
+    },
   } as unknown as vscode.ExtensionContext);
   await host.commands.get('watdatmean.inspect')!();
   if (ready) await message({ type: 'ready' });
@@ -249,16 +307,263 @@ beforeEach(() => {
   host.comparisons.length = 0;
   host.version = 1;
   host.confirm.mockReset().mockResolvedValue('Use this code');
+  host.showDocument.mockReset().mockImplementation(async () => host.editor);
+  host.revealRange.mockReset();
+  host.decorations.mockReset();
+  host.decorationDispose.mockReset();
+  host.createDecoration
+    .mockReset()
+    .mockReturnValue({ key: 'source-line', dispose: host.decorationDispose });
   host.context
     .mockReset()
     .mockResolvedValue({ context: '', evidence: [], locations: new Map(), note: '' });
   host.panels.length = 0;
   host.readyOnLoad = false;
+  host.history = undefined;
+  host.webEnabled = false;
+  host.openExternal.mockReset().mockResolvedValue(true);
+  host.key = undefined;
+});
+
+describe('project history adapter', () => {
+  it.each(['cancel', 'edit'])(
+    'does not save an explanation that finishes after %s',
+    async (action) => {
+      host.key = 'test-key';
+      await start('const score = 2;', [0, 16]);
+      let finish!: (lesson: Lesson) => void;
+      const generated = vi.spyOn(provider, 'generate').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const pending = message({ type: 'request', task: 'explain' });
+      await vi.waitFor(() => expect(generated).toHaveBeenCalled());
+      if (action === 'cancel') await message({ type: 'cancel' });
+      else await externalEdit(14, 15, '3');
+      finish({
+        title: 'Old result',
+        summary: 'A previous request.',
+        steps: [],
+        concepts: [],
+        example: { code: '', explanation: '' },
+        predictions: [],
+        checks: [],
+      });
+      await pending;
+      expect(last('history').entries).toEqual([]);
+      expect(host.messages.filter((m) => m.type === 'lesson')).toEqual([]);
+    },
+  );
+  it('stores a completed local lesson, updates it on repeat, and reloads it after panel recovery', async () => {
+    host.key = 'test-key';
+    await start('const score = 2;', [0, 16]);
+    await message({ type: 'request', task: 'explain', mode: 'standalone', audience: 'beginner' });
+    await vi.waitFor(() => expect(last('history').entries).toHaveLength(1));
+    expect(last('history').entries[0].results.explain.lesson.local).toBe(true);
+    await message({ type: 'request', task: 'explain', mode: 'standalone', audience: 'beginner' });
+    await host.commands.get('watdatmean.reopenPanel')!();
+    await message({ type: 'ready' });
+    expect(last('history').entries).toHaveLength(1);
+    const snapshot = last('history').entries[0];
+    await message({ type: 'historyList' });
+    expect(last('selection').code).toBe('const score = 2;');
+    await message({ type: 'historyRemove', id: snapshot.id });
+    expect(last('history').entries).toEqual([]);
+  });
+  it('does not save failed requests or selection changes and can pause saving', async () => {
+    await start();
+    await message({ type: 'request', task: 'explain' });
+    expect(last('history').entries).toEqual([]);
+    await message({ type: 'historyEnabled', enabled: false });
+    expect(last('history').enabled).toBe(false);
+  });
+});
+
+const webFixture: WebResearch = {
+  topic: 'TypeScript variables',
+  provider: 'openai',
+  model: 'gpt-5-mini',
+  checkedAt: 1,
+  blocks: [
+    { text: 'A variable names a value.', sourceUrls: ['https://www.typescriptlang.org/docs/'] },
+  ],
+  sources: [
+    {
+      url: 'https://www.typescriptlang.org/docs/',
+      title: 'TypeScript docs',
+      kind: 'Documentation',
+    },
+  ],
+  searches: 1,
+  cached: false,
+  usage: { input: 20, output: 10, total: 30 },
+};
+describe('VS Code optional web adapter', () => {
+  it('forwards version/filter, saves only retrieved sources, and retains bookmarks after history clearing', async () => {
+    host.bookmarks = undefined;
+    host.key = 'test-key';
+    await start('const score = 2;', [0, 16]);
+    const options = { version: 'TypeScript 5.9', filter: 'docs' as const };
+    const search = vi
+      .spyOn(WebResearchService.prototype, 'search')
+      .mockResolvedValue({ ...webFixture, options });
+    await message({ type: 'researchToggle', enabled: true });
+    await message({ type: 'research', topic: 'TypeScript variables', options });
+    expect(search.mock.calls[0][5]).toEqual(options);
+    await message({ type: 'bookmarkAdd', url: 'https://invented.example.com/' });
+    expect(last('bookmarks').entries).toEqual([]);
+    await message({ type: 'bookmarkAdd', url: webFixture.sources[0].url, title: 'Spoofed title' });
+    expect(last('bookmarks').entries[0]).toMatchObject({
+      ...webFixture.sources[0],
+      version: 'TypeScript 5.9',
+    });
+    await message({ type: 'historyClear' });
+    await message({ type: 'bookmarkList' });
+    expect(last('bookmarks').entries).toHaveLength(1);
+    await message({ type: 'bookmarkRemove', url: webFixture.sources[0].url });
+    expect(last('bookmarks').entries).toHaveLength(0);
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+  it('stays off by default, saves a supplement with its lesson, and only opens known public sources', async () => {
+    host.key = 'test-key';
+    await start('const score = 2;', [0, 16]);
+    const search = vi.spyOn(WebResearchService.prototype, 'search').mockResolvedValue(webFixture);
+    await message({ type: 'research', topic: 'TypeScript variables' });
+    expect(search).not.toHaveBeenCalled();
+    await message({ type: 'request', task: 'explain' });
+    await message({ type: 'researchToggle', enabled: true });
+    await message({ type: 'research', topic: 'TypeScript variables', audience: 'beginner' });
+    expect(last('research').result).toEqual(webFixture);
+    await vi.waitFor(() =>
+      expect(last('history').entries[0].results.explain.research).toEqual(webFixture),
+    );
+    expect(last('lesson').lesson.local).toBe(true);
+    await message({ type: 'openWebSource', url: 'command:run' });
+    await message({ type: 'openWebSource', url: 'https://invented.example.com/' });
+    expect(host.openExternal).not.toHaveBeenCalled();
+    await message({ type: 'openWebSource', url: webFixture.sources[0].url });
+    expect(host.openExternal).toHaveBeenCalledTimes(1);
+    expect(host.webEnabled).toBe(true);
+  });
+  it('keeps a completed lesson when research fails', async () => {
+    host.key = 'test-key';
+    await start('const score = 2;', [0, 16]);
+    await message({ type: 'request', task: 'explain' });
+    await message({ type: 'researchToggle', enabled: true });
+    vi.spyOn(WebResearchService.prototype, 'search').mockRejectedValue(
+      new Error('Web research is unavailable.'),
+    );
+    await message({ type: 'research', topic: 'TypeScript variables' });
+    expect(last('researchError').message).toContain('unavailable');
+    expect(last('lesson').lesson.local).toBe(true);
+    expect(host.messages.filter((m) => m.type === 'error')).toEqual([]);
+  });
+  it.each(['off', 'edit', 'cancel'])('drops late web results after %s', async (action) => {
+    host.key = 'test-key';
+    await start('const score = 2;', [0, 16]);
+    await message({ type: 'request', task: 'explain' });
+    await message({ type: 'researchToggle', enabled: true });
+    let finish!: (r: WebResearch) => void;
+    const search = vi.spyOn(WebResearchService.prototype, 'search').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const pending = message({ type: 'research', topic: 'TypeScript variables' });
+    await vi.waitFor(() => expect(search).toHaveBeenCalled());
+    if (action === 'off') await message({ type: 'researchToggle', enabled: false });
+    else if (action === 'edit') await externalEdit(14, 15, '3');
+    else await message({ type: 'cancel' });
+    finish(webFixture);
+    await pending;
+    expect(host.messages.filter((m) => m.type === 'research')).toEqual([]);
+    expect(last('history').entries[0].results.explain.research).toBeUndefined();
+  });
 });
 
 afterEach(() => {
   host.subscriptions.splice(0).forEach((subscription) => subscription.dispose());
   vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('progressive native colors', () => {
+  it('colors the displayed snapshot after a file edit while keeping live semantic data out', async () => {
+    await start();
+    const code = last('selection').code;
+    const colorize = vi
+      .spyOn(VSCodeCodeColors.prototype, 'colorize')
+      .mockResolvedValue({ runs: [[0, 5, 0]], styles: [{ color: '#112233', font: 0 }] });
+    vi.spyOn(VSCodeCodeColors.prototype, 'withSemantic').mockImplementation(async (base) => base);
+    await externalEdit(0, 0, '// added after snapshot\n');
+    await message({ type: 'highlight', id: 19, target: 'source', code });
+    expect(last('highlight')).toMatchObject({ id: 19, code });
+    expect(colorize.mock.calls[0][0]).not.toContain('// added after snapshot');
+  });
+  it('colors independent snapshots in their own language without active-file semantic results', async () => {
+    await start();
+    const colorize = vi
+      .spyOn(VSCodeCodeColors.prototype, 'colorize')
+      .mockResolvedValue({ runs: [], styles: [] });
+    const semantic = vi.spyOn(VSCodeCodeColors.prototype, 'withSemantic');
+    const code = 'int saved = 2;';
+    await message({ type: 'highlight', id: 20, target: 'block-20', code, language: 'Java' });
+    expect(colorize).toHaveBeenCalledWith(code, 'java', 0, code.length);
+    expect(semantic).not.toHaveBeenCalled();
+    expect(last('highlight')).toMatchObject({ id: 20, target: 'block-20', code });
+    await message({
+      type: 'highlight',
+      id: 21,
+      target: 'block-21',
+      code: 'x'.repeat(50001),
+      language: 'Java',
+    });
+    expect(colorize).toHaveBeenCalledTimes(1);
+  });
+  it('sends syntax immediately and then semantic colors using the same request identity', async () => {
+    await start();
+    const base: CodeColors = { runs: [[0, 5, 0]], styles: [{ color: '#112233', font: 0 }] };
+    const enhanced: CodeColors = { runs: [[0, 5, 0]], styles: [{ color: '#445566', font: 0 }] };
+    vi.spyOn(VSCodeCodeColors.prototype, 'colorize').mockResolvedValue(base);
+    let complete!: (value: CodeColors) => void;
+    vi.spyOn(VSCodeCodeColors.prototype, 'withSemantic').mockReturnValue(
+      new Promise((resolve) => (complete = resolve)),
+    );
+    const code = last('selection').code;
+    const pending = message({ type: 'highlight', id: 7, target: 'source', code });
+    await vi.waitFor(() =>
+      expect(last('highlight')).toMatchObject({ id: 7, code, styles: base.styles }),
+    );
+    complete(enhanced);
+    await pending;
+    expect(host.messages.filter((m) => m.type === 'highlight')).toEqual([
+      { type: 'highlight', id: 7, target: 'source', code, ...base },
+      { type: 'highlight', id: 7, target: 'source', code, ...enhanced },
+    ]);
+  });
+  it('does not send delayed semantic colors after the selected document changes', async () => {
+    await start();
+    const base: CodeColors = { runs: [[0, 5, 0]], styles: [{ color: '#112233', font: 0 }] };
+    vi.spyOn(VSCodeCodeColors.prototype, 'colorize').mockResolvedValue(base);
+    let complete!: (value: CodeColors) => void;
+    vi.spyOn(VSCodeCodeColors.prototype, 'withSemantic').mockReturnValue(
+      new Promise((resolve) => (complete = resolve)),
+    );
+    const pending = message({
+      type: 'highlight',
+      id: 8,
+      target: 'source',
+      code: last('selection').code,
+    });
+    await vi.waitFor(() => expect(last('highlight')).toMatchObject({ id: 8 }));
+    await externalEdit(0, 0, '// new context\n');
+    complete({ ...base, styles: [{ color: '#445566', font: 0 }] });
+    await pending;
+    expect(host.messages.filter((m) => m.type === 'highlight')).toHaveLength(1);
+  });
 });
 
 describe('learning panel startup and recovery', () => {
@@ -507,10 +812,12 @@ describe('repeatable code experiments in the extension host', () => {
     const startOffset = code.indexOf('const score');
     const endOffset = code.indexOf('\nconst untouched');
     await start(code, [startOffset, endOffset]);
+    expect(last('selection').line).toBe(2);
     await externalEdit(0, 0, '// added before the selection\n');
     await message({ type: 'refresh' });
     expect(last('selection')).toMatchObject({
       code: 'const score = 0;\nconsole.log(score);',
+      line: 3,
       keepTab: true,
     });
     await message({ type: 'preview', replacement: 'const score = 10;' });
@@ -519,6 +826,151 @@ describe('repeatable code experiments in the extension host', () => {
       '// added before the selection\nconst before = 1;\nconst score = 10;\nconst untouched = 9;',
     );
     expect(host.messages.filter((m) => m.type === 'error')).toEqual([]);
+  });
+
+  it('gets selection line numbers from the complete CRLF document, including distant prefixes', async () => {
+    const prefix = '// earlier code\r\n'.repeat(1600);
+    const selected = 'const score = 1;\r\nconsole.log(score);';
+    await start(prefix + selected + '\r\n// later code', [
+      prefix.length,
+      prefix.length + selected.length,
+    ]);
+    expect(last('selection')).toMatchObject({ code: selected, start: prefix.length, line: 1601 });
+    await externalEdit(0, 0, '// new first line\r\n');
+    await message({ type: 'refresh' });
+    expect(last('selection')).toMatchObject({ code: selected, line: 1602 });
+  });
+
+  it('keeps the complete selected file available for line numbering beyond the part limit', async () => {
+    const code = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`).join('\n');
+    await start(code, [0, code.length]);
+    expect(last('selection')).toMatchObject({ code, start: 0, line: 1 });
+    expect(last('selection').parts.length).toBeLessThan(400);
+  });
+
+  it('opens the captured source at the clicked line and reuses its editor column without editing', async () => {
+    const prefix = '// before\r\n// 😀\r\n';
+    const selected = 'const score = 1;\r\nconsole.log(score);';
+    await start(prefix + selected + '\r\n// after', [
+      prefix.length,
+      prefix.length + selected.length,
+    ]);
+    const before = host.text;
+    await message({
+      type: 'openSourceLine',
+      selectionId: last('selection').selectionId,
+      line: 4,
+      uri: 'file:/unrelated.ts',
+    });
+    expect(host.showDocument).toHaveBeenCalledWith(host.editor.document, {
+      viewColumn: 3,
+      preserveFocus: false,
+    });
+    expect(host.editor.selection).toMatchObject({
+      start: { line: 3, character: 0 },
+      end: { line: 3, character: 0 },
+    });
+    expect(host.revealRange).toHaveBeenCalledWith(
+      expect.objectContaining({ start: { line: 3, character: 0 } }),
+      vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+    );
+    expect(host.text).toBe(before);
+    expect(host.context).not.toHaveBeenCalled();
+  });
+
+  it('briefly highlights the destination, restarts on another click, and preserves the code', async () => {
+    const code = 'const score = 1;\nconsole.log(score);';
+    await start(code, [0, code.length]);
+    vi.useFakeTimers();
+    const selectionId = last('selection').selectionId;
+    await message({ type: 'openSourceLine', selectionId, line: 1 });
+    expect(host.createDecoration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isWholeLine: true,
+        backgroundColor: { id: 'editor.findMatchHighlightBackground' },
+        rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+      }),
+    );
+    expect(host.decorations.mock.calls.at(-1)![1][0].start).toEqual({ line: 0, character: 0 });
+    await vi.advanceTimersByTimeAsync(800);
+    await message({ type: 'openSourceLine', selectionId, line: 2 });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(host.decorations.mock.calls.at(-1)![1][0].start).toEqual({ line: 1, character: 0 });
+    await vi.advanceTimersByTimeAsync(800);
+    expect(host.decorations.mock.calls.at(-1)![1]).toEqual([]);
+    expect(host.text).toBe(code);
+    expect(host.createDecoration).toHaveBeenCalledOnce();
+  });
+
+  it('clears destination highlighting on source edits and disposes its decoration', async () => {
+    await start();
+    await message({ type: 'openSourceLine', selectionId: last('selection').selectionId, line: 1 });
+    await externalEdit(0, 0, '// changed\n');
+    expect(host.decorations.mock.calls.at(-1)![1]).toEqual([]);
+    host.subscriptions.splice(0).forEach((item) => item.dispose());
+    expect(host.decorationDispose).toHaveBeenCalledOnce();
+  });
+
+  it('uses the original editor tab width in the panel selection', async () => {
+    await start();
+    expect(last('selection').tabSize).toBe(4);
+    host.editor.options.tabSize = 8;
+    await message({ type: 'refresh' });
+    expect(last('selection').tabSize).toBe(8);
+  });
+
+  it('navigates back to the original file even when another editor is active', async () => {
+    await start('const score = 1;', [0, 16]);
+    const original = host.editor;
+    host.editor = {
+      ...original,
+      document: { ...original.document, uri: vscode.Uri.parse('file:/other.ts') },
+    } as vscode.TextEditor;
+    host.showDocument.mockResolvedValue(original);
+    await message({ type: 'openSourceLine', selectionId: last('selection').selectionId, line: 1 });
+    expect(host.showDocument).toHaveBeenCalledWith(original.document, {
+      viewColumn: vscode.ViewColumn.One,
+      preserveFocus: false,
+    });
+    expect(original.selection.start).toEqual({ line: 0, character: 0 });
+  });
+
+  it('ignores malformed, out-of-selection and old-selection line navigation', async () => {
+    const code = '// before\nconst score = 1;\n// after';
+    await start(code, [code.indexOf('const'), code.indexOf('\n// after')]);
+    const selectionId = last('selection').selectionId;
+    for (const line of [0, -1, 1, 3, 2.5, '2', null, Infinity, Number.MAX_SAFE_INTEGER])
+      await message({ type: 'openSourceLine', selectionId, line });
+    for (const id of [undefined, null, '1', 0, -1, selectionId + 1])
+      await message({ type: 'openSourceLine', selectionId: id, line: 2 });
+    expect(host.showDocument).not.toHaveBeenCalled();
+  });
+
+  it('requires current source positions and rejects old links after refreshing', async () => {
+    await start('const score = 1;', [0, 16]);
+    const selectionId = last('selection').selectionId;
+    await externalEdit(0, 0, '// shifted\n');
+    await message({ type: 'openSourceLine', selectionId, line: 1 });
+    expect(host.showDocument).not.toHaveBeenCalled();
+    expect(last('error').message).toContain('Use latest code');
+    await message({ type: 'refresh' });
+    await message({ type: 'openSourceLine', selectionId, line: 2 });
+    expect(host.showDocument).not.toHaveBeenCalled();
+    await message({ type: 'openSourceLine', selectionId: last('selection').selectionId, line: 2 });
+    expect(host.revealRange).toHaveBeenCalledOnce();
+    expect(host.editor.selection.start).toEqual({ line: 1, character: 0 });
+  });
+
+  it('does not move the caret if the document changes while its editor is opening', async () => {
+    await start('const score = 1;', [0, 16]);
+    const before = host.editor.selection;
+    host.showDocument.mockImplementationOnce(async () => {
+      await externalEdit(0, 0, '// shifted\n');
+      return host.editor;
+    });
+    await message({ type: 'openSourceLine', selectionId: last('selection').selectionId, line: 1 });
+    expect(host.revealRange).not.toHaveBeenCalled();
+    expect(host.editor.selection).toBe(before);
   });
 
   it('still rejects a reviewed edit when the file changes during confirmation', async () => {

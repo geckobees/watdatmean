@@ -2,20 +2,37 @@ import { panelHtml } from './panel';
 import { assertPreviewCurrent, trackRange, validateReplacement, type OffsetRange } from './edit';
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
-import { inspectCode, checkSyntax, languageLabel, learningContext } from './languages';
-import { Cache, fingerprint } from './cache';
+import { inspectCode, checkSyntax, languageLabel, languageId, learningContext } from './languages';
+import { Cache, fingerprint, LESSON_CACHE_VERSION } from './cache';
+import { RecentHistory, HISTORY_KEY, type HistoryEntry } from './history';
+import {
+  WebResearchService,
+  RESEARCH_ENABLED_KEY,
+  publicWebUrl,
+  researchModels,
+  type WebResearch,
+} from './web-research';
 import { collectContext, type ContextResult } from './context';
 import { defaults, generate } from './provider';
 import type { Audience, LearningRequest, Lesson, Mode, Provider, Snippet, Task } from './types';
+import { registerJavaRuntimeSetup } from './java-runtime-setup';
+import { VSCodeCodeColors } from './vscode-code-colors';
+import { SourceLineHighlight } from './source-line-highlight';
+import { ResourceBookmarks, BOOKMARKS_KEY } from './resource-bookmarks';
+import { detectResearchVersions } from './research-versions';
+import { readVersionManifests } from './research-manifests';
+import { researchOptions } from './web-research';
 
 interface Selection {
   document: vscode.TextDocument;
+  source: string;
   version: number;
   snippet: Snippet;
   range: OffsetRange;
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  registerJavaRuntimeSetup(context);
   const app = new Tutor(context);
   context.subscriptions.push(app);
   for (const [name, action] of Object.entries({
@@ -88,10 +105,24 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 class Tutor implements vscode.Disposable {
+  private history: RecentHistory;
+  private bookmarks: ResourceBookmarks;
+  private research = new WebResearchService();
+  private researchEnabled = false;
+  private researchRunning = false;
+  private latestResearch?: WebResearch;
+  private lastExplanation?: {
+    selection: Selection;
+    source: Omit<HistoryEntry, 'id' | 'updatedAt' | 'results'>;
+    task: Task;
+    lesson: Lesson;
+  };
   private panel?: vscode.WebviewPanel;
   private panelReady = false;
   private panelLoadTimer?: ReturnType<typeof setTimeout>;
   private selection?: Selection;
+  private selectionId = 0;
+  private lineHighlight = new SourceLineHighlight();
   private cache = new Cache<Lesson>();
   private abort?: AbortController;
   private busy = false;
@@ -102,6 +133,34 @@ class Tutor implements vscode.Disposable {
   private disposables: vscode.Disposable[] = [];
 
   constructor(private readonly extension: vscode.ExtensionContext) {
+    this.researchEnabled = extension.workspaceState?.get(RESEARCH_ENABLED_KEY) === true;
+    this.history = new RecentHistory(
+      extension.workspaceState?.get(HISTORY_KEY),
+      (state) => extension.workspaceState?.update(HISTORY_KEY, state) ?? Promise.resolve(),
+    );
+    this.bookmarks = new ResourceBookmarks(
+      extension.workspaceState?.get(BOOKMARKS_KEY),
+      (state) => extension.workspaceState?.update(BOOKMARKS_KEY, state) ?? Promise.resolve(),
+    );
+    this.colors = new VSCodeCodeColors(extension.extensionUri);
+    this.disposables.push(
+      this.colors,
+      this.lineHighlight,
+      vscode.window.onDidChangeActiveColorTheme(() => this.refreshColors()),
+    );
+    this.disposables.push(vscode.extensions.onDidChange(() => this.refreshColors()));
+    this.disposables.push(
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration('editor.tokenColorCustomizations') ||
+          event.affectsConfiguration('editor.semanticTokenColorCustomizations') ||
+          event.affectsConfiguration('editor.semanticHighlighting') ||
+          event.affectsConfiguration('workbench.colorCustomizations') ||
+          event.affectsConfiguration('workbench.colorTheme')
+        )
+          this.refreshColors();
+      }),
+    );
     this.disposables.push(
       vscode.workspace.registerTextDocumentContentProvider('watdatmean', {
         provideTextDocumentContent: (uri) => this.virtual.get(uri.toString()) ?? '',
@@ -140,12 +199,14 @@ class Tutor implements vscode.Disposable {
         if (!event.affectsConfiguration('watdatmean')) return;
         this.cancelRequest();
         this.cache.clear();
+        this.research.clear();
         void this.sendConfig();
       }),
     );
   }
 
   private cancelRequest() {
+    this.researchRunning = false;
     this.abort?.abort();
     this.abort = undefined;
     this.busy = false;
@@ -153,6 +214,7 @@ class Tutor implements vscode.Disposable {
   }
 
   private invalidate(uri?: vscode.Uri) {
+    this.lineHighlight.clear();
     this.revision++;
     this.preview = undefined;
     this.evidence = undefined;
@@ -175,6 +237,137 @@ class Tutor implements vscode.Disposable {
     void this.panel?.webview.postMessage(data);
   }
 
+  private sendHistory() {
+    this.send({ type: 'history', ...this.history.snapshot() });
+  }
+  private sendBookmarks() {
+    this.send({ type: 'bookmarks', ...this.bookmarks.snapshot() });
+  }
+  private savedResearch() {
+    return [
+      ...(this.latestResearch ? [this.latestResearch] : []),
+      ...this.history
+        .snapshot()
+        .entries.flatMap((e) =>
+          Object.values(e.results).flatMap((r) => (r?.research ? [r.research] : [])),
+        ),
+    ];
+  }
+  private async bookmarkWork(work: Promise<void>) {
+    try {
+      await work;
+      this.sendBookmarks();
+    } catch (error) {
+      this.send({
+        type: 'bookmarkError',
+        message:
+          error instanceof Error && error.message.startsWith('Your 100')
+            ? error.message
+            : 'Bookmarks could not be saved. Check local storage and try again.',
+      });
+    }
+  }
+  private async historyWork(work: Promise<void>) {
+    try {
+      await work;
+      this.sendHistory();
+    } catch {
+      this.send({
+        type: 'historyError',
+        message:
+          'History could not be saved. Your current lesson is still available; check local storage and try again.',
+      });
+    }
+  }
+
+  private colors: VSCodeCodeColors;
+  private colorRevision = 0;
+  private refreshColors() {
+    this.colorRevision++;
+    this.colors.reset();
+    this.send({ type: 'syntaxThemeChanged' });
+  }
+  private async highlight(message: Record<string, unknown>) {
+    const selected = this.selection,
+      panel = this.panel,
+      revision = this.colorRevision;
+    if (typeof message.target === 'string' && /^block-\d{1,9}$/.test(message.target)) {
+      if (
+        typeof message.code !== 'string' ||
+        message.code.length > 50000 ||
+        !Number.isSafeInteger(message.id) ||
+        typeof message.language !== 'string' ||
+        message.language.length > 100
+      )
+        return;
+      const colors = await this.colors.colorize(
+        message.code,
+        languageId(message.language),
+        0,
+        message.code.length,
+      );
+      if (panel === this.panel && revision === this.colorRevision)
+        this.send({
+          type: 'highlight',
+          target: message.target,
+          id: message.id,
+          code: message.code,
+          ...colors,
+        });
+      return;
+    }
+    if (
+      !selected ||
+      typeof message.code !== 'string' ||
+      message.code.length > 50000 ||
+      !Number.isSafeInteger(message.id) ||
+      !['source', 'draft'].includes(String(message.target))
+    )
+      return;
+    if (message.target === 'source' && message.code !== selected.snippet.code) return;
+    const source = selected.source;
+    // Preserve the selection's lexical context without accepting a path from the webview.
+    const text =
+      source.slice(0, selected.snippet.start) + message.code + source.slice(selected.snippet.end);
+    const colors = await this.colors.colorize(
+      text,
+      selected.document.languageId,
+      selected.snippet.start,
+      selected.snippet.start + message.code.length,
+    );
+    if (selected !== this.selection || panel !== this.panel || revision !== this.colorRevision)
+      return;
+    this.send({
+      type: 'highlight',
+      target: message.target,
+      id: message.id,
+      code: message.code,
+      ...colors,
+    });
+    const semantic = await this.colors.withSemantic(
+      colors,
+      selected.document,
+      text,
+      selected.snippet.start,
+      selected.snippet.start + message.code.length,
+    );
+    if (
+      semantic === colors ||
+      selected !== this.selection ||
+      panel !== this.panel ||
+      revision !== this.colorRevision ||
+      selected.document.version !== selected.version
+    )
+      return;
+    this.send({
+      type: 'highlight',
+      target: message.target,
+      id: message.id,
+      code: message.code,
+      ...semantic,
+    });
+  }
+
   private config() {
     const settings = vscode.workspace.getConfiguration('watdatmean');
     const provider = settings.get<Provider>('provider', 'openai');
@@ -190,6 +383,8 @@ class Tutor implements vscode.Disposable {
     this.send({
       type: 'config',
       ...config,
+      webResearch: this.researchEnabled,
+      webResearchModel: researchModels[config.provider],
       model: config.model || defaults[config.provider],
       hasKey: !!(await this.extension.secrets.get(`key.${config.provider}`)),
     });
@@ -253,6 +448,7 @@ class Tutor implements vscode.Disposable {
     this.cancelRequest();
     await this.extension.secrets.delete(`key.${provider}`);
     this.cache.clear();
+    this.research.clear();
     await this.sendConfig();
     void vscode.window.showInformationMessage(`Removed ${provider} API key.`);
   }
@@ -260,6 +456,7 @@ class Tutor implements vscode.Disposable {
   clearCache() {
     this.cancelRequest();
     this.cache.clear();
+    this.research.clear();
     void vscode.window.showInformationMessage('WatDatMean explanation cache cleared.');
   }
 
@@ -293,6 +490,7 @@ class Tutor implements vscode.Disposable {
     );
     this.selection = {
       document,
+      source: document.getText(),
       version: document.version,
       snippet,
       range: { start: snippet.start, end: snippet.end },
@@ -366,9 +564,16 @@ class Tutor implements vscode.Disposable {
 
   private sendSelection(keepTab = false) {
     if (!this.selection) return;
+    this.lineHighlight.clear();
     const { document, snippet } = this.selection;
+    const editor = vscode.window.visibleTextEditors.find((item) => item.document === document);
+    const tabSize =
+      editor?.options.tabSize ??
+      vscode.workspace.getConfiguration('editor', document.uri).get('tabSize', 4);
     this.send({
       type: 'selection',
+      selectionId: ++this.selectionId,
+      tabSize: typeof tabSize === 'number' ? tabSize : 4,
       keepTab,
       code: snippet.code,
       language: languageLabel(document.languageId),
@@ -379,6 +584,18 @@ class Tutor implements vscode.Disposable {
       line: document.positionAt(snippet.start).line + 1,
     });
     void this.sendConfig();
+    const id = this.selectionId;
+    const root = vscode.workspace.getWorkspaceFolder?.(document.uri)?.uri;
+    if (document.uri.scheme === 'file' && root?.scheme === 'file') {
+      void readVersionManifests(root.fsPath, document.uri.fsPath).then((manifests) => {
+        if (id === this.selectionId)
+          this.send({
+            type: 'researchHints',
+            selectionId: id,
+            hints: detectResearchVersions(document.languageId, manifests),
+          });
+      });
+    }
   }
 
   private refreshSelection(send = true) {
@@ -392,6 +609,7 @@ class Tutor implements vscode.Disposable {
     this.evidence = undefined;
     this.selection = {
       document,
+      source,
       version: document.version,
       range,
       // An empty selection is an insertion point after deletion. Do not
@@ -421,13 +639,104 @@ class Tutor implements vscode.Disposable {
       );
   }
 
+  private async openSourceLine(m: Record<string, unknown>) {
+    if (
+      !Number.isSafeInteger(m.selectionId) ||
+      (m.selectionId as number) < 1 ||
+      m.selectionId !== this.selectionId ||
+      !Number.isSafeInteger(m.line)
+    )
+      return;
+    const selected = this.current();
+    const { document, snippet } = selected;
+    const line = m.line as number;
+    // Only the selected original file and its displayed lines are navigation targets.
+    if (
+      line < document.positionAt(snippet.start).line + 1 ||
+      line > document.positionAt(snippet.end).line + 1
+    )
+      return;
+    const position = new vscode.Position(line - 1, 0);
+    const range = new vscode.Range(position, position);
+    const visible = vscode.window.visibleTextEditors.find((editor) => editor.document === document);
+    const editor = await vscode.window.showTextDocument(document, {
+      viewColumn: visible?.viewColumn ?? vscode.ViewColumn.One,
+      preserveFocus: false,
+    });
+    if (
+      this.selection !== selected ||
+      this.selectionId !== m.selectionId ||
+      document.isClosed ||
+      document.version !== selected.version
+    )
+      return;
+    editor.selection = new vscode.Selection(position, position);
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    this.lineHighlight.show(editor, range);
+  }
+
   private async handle(message: unknown) {
     if (!message || typeof message !== 'object') return;
     const m = message as Record<string, unknown>;
+    if (m.type === 'bookmarkList') {
+      this.sendBookmarks();
+      return;
+    }
+    if (m.type === 'bookmarkRemove' && typeof m.url === 'string') {
+      await this.bookmarkWork(this.bookmarks.remove(m.url));
+      return;
+    }
+    if (m.type === 'bookmarkAdd') {
+      const url = publicWebUrl(m.url);
+      const research = this.savedResearch().find((r) => r.sources.some((s) => s.url === url));
+      const source = research?.sources.find((s) => s.url === url);
+      if (source && research) await this.bookmarkWork(this.bookmarks.add(source, research));
+      return;
+    }
+    if (m.type === 'researchToggle' && typeof m.enabled === 'boolean') {
+      this.researchEnabled = m.enabled;
+      if (!m.enabled && this.researchRunning) this.cancelRequest();
+      await this.extension.workspaceState?.update(RESEARCH_ENABLED_KEY, m.enabled);
+      return;
+    }
+    if (m.type === 'openWebSource') {
+      const url = publicWebUrl(m.url);
+      if (!url) return;
+      if (
+        [
+          ...this.savedResearch().flatMap((r) => r.sources),
+          ...this.bookmarks.snapshot().entries,
+        ].some((s) => s?.url === url)
+      )
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+      return;
+    }
+    if (m.type === 'highlight') {
+      await this.highlight(m);
+      return;
+    }
     if (m.type === 'ready') {
       this.panelReady = true;
       clearTimeout(this.panelLoadTimer);
       this.sendSelection();
+      this.sendHistory();
+      this.sendBookmarks();
+      return;
+    }
+    if (m.type === 'historyList') {
+      this.sendHistory();
+      return;
+    }
+    if (m.type === 'historyRemove' && typeof m.id === 'string') {
+      await this.historyWork(this.history.remove(m.id));
+      return;
+    }
+    if (m.type === 'historyClear') {
+      await this.historyWork(this.history.clear());
+      return;
+    }
+    if (m.type === 'historyEnabled' && typeof m.enabled === 'boolean') {
+      await this.historyWork(this.history.enable(m.enabled));
       return;
     }
     if (m.type === 'configure') {
@@ -442,6 +751,10 @@ class Tutor implements vscode.Disposable {
       this.refreshSelection();
       return;
     }
+    if (m.type === 'openSourceLine') {
+      await this.openSourceLine(m);
+      return;
+    }
     if (m.type === 'openEvidence' && typeof m.id === 'string') {
       const location = this.evidence?.locations.get(m.id);
       if (location)
@@ -452,11 +765,14 @@ class Tutor implements vscode.Disposable {
       return;
     }
     if (this.busy) return;
-    if (m.type !== 'request' && m.type !== 'preview' && m.type !== 'apply') return;
+    if (m.type !== 'request' && m.type !== 'preview' && m.type !== 'apply' && m.type !== 'research')
+      return;
+    if (m.type === 'research' && !this.researchEnabled) return;
     const selection = this.current();
     this.busy = true;
     const abort = new AbortController();
     this.abort = abort;
+    this.researchRunning = m.type === 'research';
     const revision = this.revision;
     this.send({ type: 'busy', value: true });
     try {
@@ -474,6 +790,35 @@ class Tutor implements vscode.Disposable {
         return;
       }
       this.trusted();
+      if (m.type === 'research') {
+        const config = this.config();
+        const key = await this.extension.secrets.get(`key.${config.provider}`);
+        if (!key) throw new Error('Connect a provider to search the web.');
+        if (abort.signal.aborted || !this.researchEnabled) return;
+        const previous = this.lastExplanation;
+        const result = await this.research.search(
+          config.provider,
+          key,
+          typeof m.topic === 'string' ? m.topic : '',
+          m.audience === 'experienced' ? 'experienced' : 'beginner',
+          abort.signal,
+          researchOptions(m.options),
+        );
+        if (
+          abort.signal.aborted ||
+          !this.researchEnabled ||
+          selection !== this.selection ||
+          revision !== this.revision
+        )
+          return;
+        this.latestResearch = result;
+        this.send({ type: 'research', result });
+        if (previous?.selection === selection)
+          void this.historyWork(
+            this.history.attachResearch(previous.source, previous.task, previous.lesson, result),
+          );
+        return;
+      }
       const task = m.task as Task;
       if (!['explain', 'walkthrough', 'example', 'concept', 'impact'].includes(task)) return;
       const audience: Audience = m.audience === 'experienced' ? 'experienced' : 'beginner';
@@ -512,7 +857,12 @@ class Tutor implements vscode.Disposable {
       }
       if (abort.signal.aborted) return;
       const model = config.model || defaults[config.provider];
-      const cacheKey = fingerprint({ version: 15, provider: config.provider, model, request });
+      const cacheKey = fingerprint({
+        version: LESSON_CACHE_VERSION,
+        provider: config.provider,
+        model,
+        request,
+      });
       const cached = this.cache.get(cacheKey);
       const lesson = cached ?? (await generate(config.provider, model, key, request, abort.signal));
       if (abort.signal.aborted || selection !== this.selection) return;
@@ -530,12 +880,42 @@ class Tutor implements vscode.Disposable {
         provider: config.provider,
         model,
       });
+      const historySource = {
+        file: vscode.workspace.asRelativePath(selection.document.uri),
+        line: selection.document.positionAt(selection.snippet.start).line + 1,
+        code: request.code,
+        language: request.language!,
+        mode,
+        audience,
+      };
+      if (task === 'explain' || task === 'walkthrough')
+        this.lastExplanation = { selection, source: historySource, task, lesson };
+      void this.historyWork(
+        this.history.add(historySource, task, {
+          lesson,
+          provider: config.provider,
+          model,
+          mode,
+          audience,
+          ...(task === 'impact' ? { replacement: request.replacement } : {}),
+        }),
+      );
     } catch (error) {
-      if (!abort.signal.aborted || (m.type === 'apply' && selection === this.selection))
-        throw error;
+      if (!abort.signal.aborted || (m.type === 'apply' && selection === this.selection)) {
+        if (m.type === 'research')
+          this.send({
+            type: 'researchError',
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Web research failed. Your explanation is unchanged.',
+          });
+        else throw error;
+      }
     } finally {
       // A cancelled request may finish after a newer request has already started.
       if (this.abort === abort) {
+        this.researchRunning = false;
         this.abort = undefined;
         this.busy = false;
         this.send({ type: 'busy', value: false });

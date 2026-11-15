@@ -15,6 +15,7 @@ import { reasoningEffort } from './reasoning';
 import { literalLesson } from './literal-lesson';
 import { javaTraceLesson } from './java-trace';
 import { conceptTerm, uniqueConcepts } from './concepts';
+import { syntaxHelp } from './syntax-help';
 
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-4.1-mini',
@@ -230,7 +231,7 @@ export function parseLesson(
   };
 }
 
-function tokenUsage(value: unknown, provider: Provider): TokenUsage | undefined {
+export function tokenUsage(value: unknown, provider: Provider): TokenUsage | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return;
   const usage = value as Record<string, unknown>;
   const count = (value: unknown): value is number =>
@@ -259,9 +260,64 @@ export async function generate(
   transport: typeof fetch = fetch,
 ): Promise<Lesson> {
   if (signal?.aborted) throw new Error('Request cancelled.');
-  const fragment = fragmentLesson(request);
+  if (request.task === 'explain' || request.task === 'walkthrough') {
+    const syntax = syntaxHelp(request.code, request.language ?? 'TypeScript');
+    if (syntax?.corrected && !syntax.partial) {
+      const lesson = await generate(
+        provider,
+        model,
+        key,
+        { ...request, code: syntax.corrected },
+        signal,
+        transport,
+      );
+      return { ...lesson, syntax };
+    }
+    // Attach local diagnostics after generation; metadata never comes from the model.
+    if (syntax) {
+      if (languageId(request.language ?? '') === 'java' && !syntax.partial) {
+        return {
+          title: 'Check this Java selection',
+          summary:
+            'The selected code cannot be explained as a complete, valid Java program yet. The syntax notice identifies what needs attention.',
+          syntax,
+          local: true,
+          usage: { input: 0, output: 0, total: 0 },
+          steps: [],
+          concepts: [],
+          example: { code: '', explanation: '' },
+          predictions: [],
+          checks: [],
+        };
+      }
+      const lesson = await generateUnchecked(
+        provider,
+        model,
+        key,
+        request,
+        signal,
+        transport,
+        syntax.partial,
+      );
+      return { ...lesson, syntax };
+    }
+  }
+  return generateUnchecked(provider, model, key, request, signal, transport);
+}
+
+async function generateUnchecked(
+  provider: Provider,
+  model: string,
+  key: string,
+  request: LearningRequest,
+  signal?: AbortSignal,
+  transport: typeof fetch = fetch,
+  partial = false,
+): Promise<Lesson> {
+  if (signal?.aborted) throw new Error('Request cancelled.');
+  const fragment = partial ? undefined : fragmentLesson(request);
   if (fragment) return { ...fragment, usage: { input: 0, output: 0, total: 0 } };
-  const java = javaTraceLesson(request);
+  const java = partial ? undefined : javaTraceLesson(request);
   if (java) return java;
   const contextual = contextualConcept(request);
   if (contextual)
@@ -280,7 +336,11 @@ export async function generate(
     );
     return { ...grounded, local: true, usage: { input: 0, output: 0, total: 0 } };
   }
-  if (notes?.incomplete && (request.task === 'explain' || request.task === 'walkthrough')) {
+  if (
+    notes?.incomplete &&
+    !notes.explainableFragment &&
+    (request.task === 'explain' || request.task === 'walkthrough')
+  ) {
     return {
       ...localLesson(request, notes, 'Local syntax check: no AI request was needed.'),
       local: true,
@@ -297,7 +357,7 @@ export async function generate(
       usage: { input: 0, output: 0, total: 0 },
     };
   }
-  const literal = literalLesson(request);
+  const literal = partial ? undefined : literalLesson(request);
   if (literal) return literal;
   const timeout = AbortSignal.timeout(60000);
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;

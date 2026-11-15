@@ -4,6 +4,7 @@ import com.google.gson.*;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.colors.EditorColorsManager;
+import com.intellij.openapi.editor.colors.EditorColors;
 import com.intellij.openapi.editor.colors.EditorColorsScheme;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.ide.ui.LafManager;
@@ -22,6 +23,7 @@ import java.util.concurrent.*;
 final class PanelSmoke implements AutoCloseable {
   private final BlockingQueue<JsonObject> messages = new LinkedBlockingQueue<>();
   private final BlockingQueue<JsonElement> probes = new LinkedBlockingQueue<>();
+  private final BlockingQueue<String> layoutErrors = new LinkedBlockingQueue<>();
   private final CountDownLatch closed = new CountDownLatch(1);
   private final Disposable lifetime = Disposer.newDisposable("WatDatMean panel smoke test");
   private JFrame frame;
@@ -32,7 +34,7 @@ final class PanelSmoke implements AutoCloseable {
   void run() throws Exception {
     ApplicationManager.getApplication().invokeAndWait(() -> {
       if (!JBCefApp.isSupported()) throw new AssertionError("The bundled JCEF runtime must be available");
-      panel = new PanelView(lifetime, messages::add);
+      panel = new PanelView(lifetime, this::receive);
       try {
         var field = PanelView.class.getDeclaredField("browser");
         field.setAccessible(true);
@@ -40,6 +42,7 @@ final class PanelSmoke implements AutoCloseable {
       } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
       browser.getJBCefClient().addDisplayHandler(new CefDisplayHandlerAdapter() {
         @Override public boolean onConsoleMessage(CefBrowser cef, CefSettings.LogSeverity severity, String message, String source, int line) {
+          if (message.contains("ResizeObserver loop")) layoutErrors.add(message);
           System.out.println("JCEF console: " + message); return false;
         }
       }, browser.getCefBrowser());
@@ -65,7 +68,7 @@ final class PanelSmoke implements AutoCloseable {
     awaitStyle("document.body", "backgroundColor", rgb(UIUtil.getPanelBackground()));
     var selection = JsonParser.parseString("""
       {"type":"selection","code":"int doubleIt(int value) { return value * 2; }",
-       "language":"Java","file":"Demo.java","line":2}
+       "language":"Java","file":"Demo.java","line":2,"selectionId":7}
       """).getAsJsonObject();
     ApplicationManager.getApplication().invokeAndWait(() -> {
       var project = com.intellij.openapi.project.ProjectManager.getInstance().getDefaultProject();
@@ -77,6 +80,9 @@ final class PanelSmoke implements AutoCloseable {
       selection.addProperty("start", prefix.length());
     });
     send(selection.toString());
+    awaitColoredSource();
+    awaitText("#source-lines > span:first-child", "2");
+    awaitText("#parts-lines > span:first-child", "2");
     send("""
       {"type":"config","provider":"openai","model":"test-model","audience":"beginner","hasKey":false}
       """);
@@ -86,9 +92,15 @@ final class PanelSmoke implements AutoCloseable {
     check(evaluate("document.getElementById('parts').textContent").getAsString().equals(selection.get("code").getAsString()), "Boxed pieces preserve source text and absolute offsets");
     evaluate("(Array.from(document.querySelectorAll('#parts [role=button]')).find(b => b.textContent === 'int').click(), true)");
     check(evaluate("document.getElementById('part-detail').textContent").getAsString().contains("32-bit"), "Java piece opens its local explanation");
+    awaitText(".part-location", "Demo.java:2");
     evaluate("(Array.from(document.querySelectorAll('#parts [role=button]')).find(b => b.textContent === 'value').click(), true)");
     check(evaluate("document.getElementById('part-detail').textContent").getAsString().contains("argument from the caller"), "Variable origin is shown inside the existing piece detail");
     check(messages.isEmpty(), "Opening a piece does not request AI or call the host");
+    for (String id : new String[]{"source", "parts"}) {
+      evaluate("(document.querySelector('#" + id + "-lines button').click(), true)");
+      var jump = expectMessage("openSourceLine");
+      check(jump.get("line").getAsInt() == 2 && jump.get("selectionId").getAsInt() == 7, "Native gutter clicks send the original file line and snapshot");
+    }
     evaluate("(document.getElementById('walkthrough').click(), true)");
     check(expectMessage("request").get("task").getAsString().equals("walkthrough"), "Step-by-step lessons reach the native host");
     evaluate("(document.getElementById('explain').click(), true)");
@@ -115,23 +127,91 @@ final class PanelSmoke implements AutoCloseable {
     check(!evaluate("document.querySelector('.lesson-terms').open").getAsBoolean(), "Definitions start collapsed");
     check(evaluate("document.querySelectorAll('.lesson-terms > details').length").getAsInt() == 1, "Repeated terms in cached native lessons render only once");
     check(!evaluate("document.querySelector('.lesson-practice').open").getAsBoolean(), "Practice starts collapsed");
+    evaluate("(document.querySelector('.lesson-practice').open = true, true)");
+    awaitText(".lesson-practice .line-number", "1");
+    awaitBoolean("document.querySelectorAll('.lesson-practice code [class^=wdm-block-]').length > 1");
+    evaluate("(document.querySelector('.lesson-practice').open = false, true)");
     evaluate("(document.querySelector('[data-tab=impact]').click(), true)");
+    awaitText("#draft-lines > span:first-child", "2");
+    evaluate("(document.querySelector('#draft-lines button').click(), true)");
+    check(expectMessage("openSourceLine").get("line").getAsInt() == 2, "Draft gutter navigates to the original numbered line");
     send("{\"type\":\"preview\",\"errors\":[],\"syntaxChecked\":false}");
     check(evaluate("document.getElementById('apply').disabled").getAsBoolean(), "Unsupported syntax checker blocks Apply");
     send("{\"type\":\"preview\",\"errors\":[],\"syntaxChecked\":true,\"replacement\":\"int doubleIt(int value) { return value * 2; }\"}");
     check(!evaluate("document.getElementById('apply').disabled").getAsBoolean(), "Valid preview enables Apply");
-    evaluate("(document.getElementById('replacement').value='changed', document.getElementById('replacement').dispatchEvent(new Event('input')), true)");
+    evaluate("(document.getElementById('replacement').value='int changed = 42;', document.getElementById('replacement').dispatchEvent(new Event('input')), true)");
     check(evaluate("document.getElementById('apply').disabled").getAsBoolean(), "Changing replacement invalidates Apply");
     ApplicationManager.getApplication().invokeAndWait(() -> frame.setSize(380, 900));
     check(evaluate("document.documentElement.scrollWidth <= window.innerWidth").getAsBoolean(), "Narrow panel has no horizontal overflow");
     ApplicationManager.getApplication().invokeAndWait(() -> frame.setSize(640, 980));
     evaluate("(document.querySelector('[data-tab=understand]').click(), window.scrollTo(0,0), true)");
+    checkHistory();
+    checkWebResources();
     checkThemes();
+    checkLineNumbers();
+    check(layoutErrors.isEmpty(), "Gutter layout does not cause ResizeObserver loops in older JCEF");
     System.out.println("PASS: native JCEF ready handshake, Java language label, text rendering, UI requests, edit gating, and narrow layout.");
     if (Boolean.getBoolean("watdatmean.test.hold")) {
       System.out.println("Panel ready for visual inspection. Close the test window to finish (three-minute limit).");
       closed.await(3, TimeUnit.MINUTES);
     }
+  }
+  private void checkHistory() throws Exception {
+    send("""
+      {"type":"history","version":1,"enabled":true,"entries":[{"id":"sample","file":"Saved.java","line":8,"code":"int saved = 2;","language":"Java","mode":"standalone","audience":"beginner","updatedAt":1790000000000,
+        "results":{"explain":{"provider":"fixture","model":"test","mode":"standalone","audience":"beginner","lesson":{"title":"Saved count","summary":"An earlier explanation.","steps":[],"concepts":[],"example":{"code":"","explanation":""},"predictions":[],"checks":[]}}}}]}
+      """);
+    evaluate("(document.getElementById('history-toggle').click(), true)");
+    expectMessage("historyList");
+    check(evaluate("document.querySelectorAll('.history-entry').length").getAsInt() == 1, "Native history shows saved entries");
+    evaluate("(document.querySelector('.history-entry').click(), true)");
+    check(evaluate("document.querySelector('.history-source code').textContent").getAsString().equals("int saved = 2;"), "Native history preserves exact saved input");
+    awaitText(".history-source .line-number", "8");
+    awaitBoolean("document.querySelectorAll('.history-source code [class^=wdm-block-]').length > 1");
+    check(evaluate("document.getElementById('history-detail').textContent").getAsString().contains("0 new tokens"), "Reading history is local");
+    check(evaluate("document.getElementById('learning-panel').hidden").getAsBoolean(), "Current lesson is retained separately");
+    evaluate("(document.getElementById('history-close').click(), true)");
+    check(evaluate("document.getElementById('replacement').value").getAsString().equals("int changed = 42;"), "Draft survives history review");
+    check(messages.isEmpty(), "History review sends no AI or edit request");
+    System.out.println("PASS: native JCEF history browser, saved code, and draft preservation without AI");
+  }
+  private void checkWebResources() throws Exception {
+    check(!evaluate("document.getElementById('web-research').checked").getAsBoolean(), "Web resources start off in native JCEF");
+    evaluate("(document.getElementById('web-research').click(), true)");
+    check(expectMessage("researchToggle").get("enabled").getAsBoolean(), "Native switch explicitly enables research");
+    evaluate("(document.getElementById('web-version').value='Java 17', document.getElementById('web-filter').value='docs', true)");
+    evaluate("(document.getElementById('web-topic').value='Java loops', document.getElementById('web-topic').dispatchEvent(new Event('input')), document.getElementById('web-find').click(), true)");
+    var request = expectMessage("research");
+    check(request.get("topic").getAsString().equals("Java loops") && !request.has("code"), "Only the public topic is requested for native web research");
+    check(request.getAsJsonObject("options").get("version").getAsString().equals("Java 17") && request.getAsJsonObject("options").get("filter").getAsString().equals("docs"), "Native search includes explicit version and resource filter");
+    send("""
+      {"type":"research","result":{"topic":"Java loops","provider":"groq","model":"openai/gpt-oss-20b","checkedAt":1790000000000,"searches":1,"cached":false,"usage":{"input":200,"output":100,"total":300},"blocks":[{"text":"Loops visit each item. <img src=x>","sourceUrls":["https://docs.oracle.com/javase/"]}],"sources":[{"title":"Java docs","url":"https://docs.oracle.com/javase/","kind":"Documentation"}]}}
+      """);
+    check(evaluate("document.querySelectorAll('#web-result img').length").getAsInt() == 0, "Native web content stays text");
+    check(evaluate("document.getElementById('web-result').textContent").getAsString().contains("300 tokens"), "Native web usage is separate from the explanation");
+    evaluate("(document.querySelector('#web-result details').open=true, document.querySelector('#web-result a').click(), true)");
+    check(expectMessage("openWebSource").get("url").getAsString().equals("https://docs.oracle.com/javase/"), "Native source links go through the host");
+    evaluate("(document.querySelector('.bookmark-save').click(), true)");
+    check(expectMessage("bookmarkAdd").get("url").getAsString().equals("https://docs.oracle.com/javase/"), "Save bookmark uses only the known source URL");
+    send("""
+      {"type":"bookmarks","version":1,"entries":[{"url":"https://docs.oracle.com/javase/","title":"Java docs","kind":"Documentation","topic":"Java loops","version":"Java 17","savedAt":1,"checkedAt":1}]}
+      """);
+    evaluate("(document.getElementById('bookmarks-toggle').click(), true)"); expectMessage("bookmarkList");
+    check(evaluate("document.getElementById('bookmarks-list').textContent").getAsString().contains("Java 17"), "Native bookmark browser shows saved version");
+    send("{\"type\":\"bookmarkError\",\"message\":\"Bookmarks could not be saved.\"}");
+    check(!evaluate("document.getElementById('bookmark-feedback').hidden").getAsBoolean(), "Native bookmark failures stay visible outside the learning view");
+    evaluate("(document.getElementById('bookmarks-filter').value='videos', document.getElementById('bookmarks-filter').dispatchEvent(new Event('change')), true)");
+    check(evaluate("document.querySelectorAll('#bookmarks-list li').length").getAsInt() == 0, "Bookmark filtering is local");
+    evaluate("(document.getElementById('bookmarks-close').click(), true)");
+    evaluate("(document.getElementById('web-filter').value='videos', document.getElementById('web-filter').dispatchEvent(new Event('change')), true)");
+    check(evaluate("document.querySelectorAll('.web-source-list .web-source').length").getAsInt() == 0, "Native resource type filters existing sources locally");
+    evaluate("(document.getElementById('web-research').click(), true)");
+    check(!expectMessage("researchToggle").get("enabled").getAsBoolean(), "Native switch turns web research off");
+    check(evaluate("document.getElementById('web-result').children.length").getAsInt() == 0, "Turning off hides the optional supplement");
+    check(evaluate("document.getElementById('replacement').value").getAsString().equals("int changed = 42;"), "Web research preserves the current draft");
+    check(messages.isEmpty(), "Native web rendering does not trigger extra AI requests");
+    System.out.println("PASS: native JCEF web switch, public topic, provider source rendering, usage, external-link dispatch and preserved draft");
+    System.out.println("PASS: native JCEF version target, resource filters and bookmark save/review without additional AI");
   }
   private void checkThemes() throws Exception {
     var colors = EditorColorsManager.getInstance();
@@ -141,15 +221,25 @@ final class PanelSmoke implements AutoCloseable {
     evaluate("(window.wdmThemeSentinel = {}, window.wdmThemeDocument = document, true)");
     try {
       for (boolean dark : new boolean[]{false, true}) {
-        String[] expected = new String[3];
+        String[] expected = new String[7];
         ApplicationManager.getApplication().invokeAndWait(() -> {
           HoverSmoke.setTheme(laf, HoverSmoke.theme(laf, dark));
           var scheme = (EditorColorsScheme) colors.getScheme(dark ? "Darcula" : "Default").clone();
           scheme.setEditorFontName("Monospaced"); scheme.setEditorFontSize(dark ? 17 : 15);
+          scheme.setColor(EditorColors.LINE_NUMBERS_COLOR, new java.awt.Color(dark ? 0x8899AA : 0x445566));
+          scheme.setColor(EditorColors.LINE_NUMBER_ON_CARET_ROW_COLOR, new java.awt.Color(dark ? 0xCCDDEE : 0x112233));
+          scheme.setColor(EditorColors.GUTTER_BACKGROUND, new java.awt.Color(dark ? 0x223344 : 0xDDEEFF));
           colors.setGlobalScheme(scheme);
           expected[0] = rgb(UIUtil.getPanelBackground());
           expected[1] = rgb(UIUtil.getLabelForeground());
           expected[2] = rgb(scheme.getDefaultBackground());
+          String code="int n = 1;";
+          var file=new com.intellij.testFramework.LightVirtualFile("Demo.java",com.intellij.openapi.fileTypes.FileTypeManager.getInstance().getFileTypeByExtension("java"),code);
+          var tokens=CodeColors.highlight(com.intellij.openapi.project.ProjectManager.getInstance().getDefaultProject(),file,code,0,code.length());
+          expected[3]=rgb(java.awt.Color.decode(CodeColorsSmoke.colorAt(tokens,0)));
+          expected[4]=rgb(scheme.getColor(EditorColors.LINE_NUMBERS_COLOR));
+          expected[5]=rgb(scheme.getColor(EditorColors.LINE_NUMBER_ON_CARET_ROW_COLOR));
+          expected[6]=rgb(scheme.getColor(EditorColors.GUTTER_BACKGROUND));
         });
         awaitStyle("document.body", "backgroundColor", expected[0]);
         check(evaluate("getComputedStyle(document.body).color").getAsString().equals(expected[1]), "Panel foreground follows the IDE theme");
@@ -158,10 +248,16 @@ final class PanelSmoke implements AutoCloseable {
         check(evaluate("getComputedStyle(document.getElementById('source')).fontFamily.toLowerCase().includes('monospaced')").getAsBoolean(), "Code follows the editor font");
         check(evaluate("getComputedStyle(document.documentElement).colorScheme").getAsString().equals(dark ? "dark" : "light"), "Native controls follow light/dark mode");
         check(evaluate("document === window.wdmThemeDocument && !!window.wdmThemeSentinel").getAsBoolean(), "Theme changes do not reload the document");
-        check(evaluate("document.getElementById('replacement').value").getAsString().equals("changed"), "Draft survives theme changes");
+        check(evaluate("document.getElementById('replacement').value").getAsString().equals("int changed = 42;"), "Draft survives theme changes");
+        awaitStyle("document.querySelector('#source [class^=wdm-source-]')","color",expected[3]);
+        awaitStyle("document.querySelector('#parts [class^=wdm-source-]')","color",expected[3]);
+        awaitStyle("document.querySelector('#draft-colors [class^=wdm-draft-]')","color",expected[3]);
+        awaitStyle("document.getElementById('source-lines')", "color", expected[4]);
+        awaitStyle("document.querySelector('#parts-lines .active')", "color", expected[5]);
+        awaitStyle("document.getElementById('draft-lines').parentElement", "backgroundColor", expected[6]);
         check(evaluate("document.getElementById('explanation').textContent").getAsString().contains("270 tokens"), "Lesson survives theme changes");
         check(evaluate("document.querySelector('.tab.active').dataset.tab").getAsString().equals("understand"), "Selected tab survives theme changes");
-        check(messages.isEmpty(), "Theme changes make no host or AI requests");
+        check(messages.isEmpty(), "Theme changes make no AI requests");
         // Windowed JCEF cannot take browser screenshots. Export its rendered DOM/CSS for visual checks.
         String snapshot = evaluate("(() => {const view=document.documentElement.cloneNode(true);view.querySelectorAll('script,meta[http-equiv]').forEach(n=>n.remove());return '<!DOCTYPE html>'+view.outerHTML;})()").getAsString();
         var path = java.nio.file.Path.of(System.getProperty("watdatmean.test.result")).resolveSibling("panel-" + (dark ? "dark" : "light") + ".html");
@@ -184,7 +280,92 @@ final class PanelSmoke implements AutoCloseable {
     }
     throw new AssertionError(property + " did not become " + expected + ": " + evaluate("getComputedStyle(" + element + ")." + property));
   }
+  private void checkLineNumbers() throws Exception {
+    var selected = new JsonObject();
+    selected.addProperty("type", "selection"); selected.addProperty("file", "Long.java");
+    selected.addProperty("selectionId", 8);
+    selected.addProperty("language", "Java"); selected.addProperty("start", 5000); selected.addProperty("line", 35);
+    String code = java.util.stream.IntStream.range(0, 300).mapToObj(i -> "int n" + i + " = " + i + ";").collect(java.util.stream.Collectors.joining("\n"));
+    selected.addProperty("code", code);
+    selected.add("parts", JsonParser.parseString("[{\"start\":5000,\"end\":5003,\"token\":\"int\",\"brief\":\"Integer type\",\"detail\":\"A local definition.\"}]"));
+    send(selected.toString());
+    for (String id : new String[]{"source", "parts"}) {
+      awaitText("#" + id + "-lines > span:first-child", "35");
+      evaluate("(() => {const e=document.getElementById('" + id + "-scroll');e.scrollTop=e.scrollHeight;return true;})()");
+      awaitText("#" + id + "-lines > span:last-child", "334");
+      check(evaluate("document.querySelectorAll('#" + id + "-lines > span').length < 40").getAsBoolean(), "Only visible line numbers are rendered in older JCEF");
+      check(evaluate("document.getElementById('" + id + "').textContent").getAsString().equals(code), "Line numbers preserve the complete selected source");
+    }
+    evaluate("(document.querySelector('[data-tab=impact]').click(), true)");
+    awaitText("#draft-lines > span:first-child", "35");
+    evaluate("(() => {const e=document.getElementById('replacement');e.value='int n = 1;\\n\\nint m = 2;\\n';e.dispatchEvent(new Event('input'));return true;})()");
+    awaitText("#draft-lines > span:last-child", "38");
+    check(messages.isEmpty(), "Line numbering and draft edits make no AI requests");
+    System.out.println("PASS: native JCEF source/parts/draft file-line gutters, whole-selection scrolling, blank/trailing draft lines, and local-only rendering");
+  }
+  void checkLiveResources(JsonObject result, ResourceBookmarks store) throws Exception {
+    messages.clear();
+    send("{\"type\":\"config\",\"provider\":\"groq\",\"model\":\"test-model\",\"audience\":\"beginner\",\"hasKey\":true,\"webResearch\":true}");
+    evaluate("(document.querySelector('[data-tab=understand]').click(), true)");
+    var message = new JsonObject(); message.addProperty("type", "research"); message.add("result", result); send(message.toString());
+    check(evaluate("document.getElementById('web-result').textContent").getAsString().contains(result.getAsJsonObject("options").get("version").getAsString()), "Real target appears in JCEF");
+    String[] filters = {"all", "docs", "videos", "code", "books"};
+    String[] kinds = {"", "Documentation", "Video", "Source code", "Book / PDF"};
+    for (int i = 0; i < filters.length; i++) {
+      int count = 0;
+      for (var source : result.getAsJsonArray("sources")) if (i == 0 || kinds[i].equals(source.getAsJsonObject().get("kind").getAsString())) count++;
+      evaluate("(document.getElementById('web-filter').value='" + filters[i] + "', document.getElementById('web-filter').dispatchEvent(new Event('change')), true)");
+      check(evaluate("document.querySelectorAll('.web-source-list .web-source').length").getAsInt() == count, "Real resource filter " + filters[i]);
+    }
+    evaluate("(document.getElementById('web-filter').value='all', document.getElementById('web-filter').dispatchEvent(new Event('change')), document.querySelector('.bookmark-save').click(), true)");
+    var request = expectMessage("bookmarkAdd");
+    var source = result.getAsJsonArray("sources").get(0).getAsJsonObject();
+    check(request.get("url").equals(source.get("url")), "JCEF saves the actual retrieved URL");
+    store.add(source, result); var state = store.snapshot(); state.addProperty("type", "bookmarks"); send(state.toString());
+    evaluate("(document.getElementById('bookmarks-toggle').click(), true)"); expectMessage("bookmarkList");
+    evaluate("(document.getElementById('bookmarks-filter').value='all', document.getElementById('bookmarks-filter').dispatchEvent(new Event('change')), true)");
+    check(evaluate("document.getElementById('bookmarks-list').textContent").getAsString().contains(source.get("title").getAsString()), "Saved real source shown in native bookmark browser");
+    check(messages.isEmpty(), "Filtering and saving do not request AI");
+    evaluate("(document.getElementById('bookmarks-close').click(), true)");
+    store.remove(source.get("url").getAsString());
+    var cleared = store.snapshot(); cleared.addProperty("type", "bookmarks"); send(cleared.toString());
+    System.out.println("PASS: real Groq resources in native JCEF, target, all filters, and saved source");
+  }
+  private void awaitBoolean(String expression) throws Exception {
+    for (int attempt = 0; attempt < 60; attempt++) {
+      if (evaluate(expression).getAsBoolean()) return;
+      Thread.sleep(50);
+    }
+    throw new AssertionError(expression);
+  }
+  private void awaitText(String selector, String expected) throws Exception {
+    for (int attempt = 0; attempt < 40; attempt++) {
+      if (evaluate("document.querySelector('" + selector + "')?.textContent || ''").getAsString().equals(expected)) return;
+      Thread.sleep(50);
+    }
+    throw new AssertionError(selector + " did not become " + expected);
+  }
   private static String rgb(java.awt.Color color) { return "rgb(" + color.getRed() + ", " + color.getGreen() + ", " + color.getBlue() + ")"; }
+  private void receive(JsonObject message) {
+    if (!"highlight".equals(message.get("type").getAsString())) { messages.add(message); return; }
+    com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService().execute(() -> {
+      String code=message.get("code").getAsString();
+      var file=new com.intellij.testFramework.LightVirtualFile("Demo.java",com.intellij.openapi.fileTypes.FileTypeManager.getInstance().getFileTypeByExtension("java"),code);
+      var project=com.intellij.openapi.project.ProjectManager.getInstance().getDefaultProject();
+      var result=message.get("target").getAsString().startsWith("block-")
+        ? CodeColors.snippet(project,message.get("language").getAsString(),code)
+        : CodeColors.highlight(project,file,code,0,code.length());
+      result.add("id",message.get("id"));result.add("target",message.get("target"));result.add("code",message.get("code"));result.addProperty("type","highlight");
+      send(result.toString());
+    });
+  }
+  private void awaitColoredSource() throws Exception {
+    for(int i=0;i<60;i++) {
+      if(evaluate("document.querySelectorAll('#source [class^=wdm-source-]').length > 2 && document.querySelectorAll('#parts [class^=wdm-source-]').length > 2 && document.querySelectorAll('#draft-colors [class^=wdm-draft-]').length > 2").getAsBoolean())return;
+      Thread.sleep(50);
+    }
+    throw new AssertionError("Native colors did not reach all three JCEF code surfaces");
+  }
   private void send(String json) {
     var message = JsonParser.parseString(json).getAsJsonObject();
     ApplicationManager.getApplication().invokeAndWait(() -> panel.send(message));

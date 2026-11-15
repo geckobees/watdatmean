@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { checkNativeColors } from './colors';
+import { checkLineHighlight } from './line-highlight';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { inspect } from '../../src/analyzer';
@@ -45,6 +47,42 @@ async function checks() {
   const extension = vscode.extensions.getExtension('watdatmean.watdatmean');
   assert.ok(extension, 'Extension is installed in the development host');
   await extension.activate();
+  await checkNativeColors(extension.extensionUri);
+  await checkLineHighlight();
+  for (const [code, corrected, expected] of [
+    ['int n = 2\nSystem.out.println(n);', 'int n = 2;\nSystem.out.println(n);', '2\n'],
+    ['System.out.println(3;', 'System.out.println(3);', '3\n'],
+  ]) {
+    const lesson = await generate(
+      'groq',
+      'test',
+      'unused',
+      { ...wombRequest, code },
+      undefined,
+      async () => {
+        throw new Error('Java syntax repair must stay local');
+      },
+    );
+    assert.equal(lesson.syntax?.corrected, corrected);
+    assert.equal(lesson.output?.text, expected);
+    assert.equal(lesson.usage?.total, 0);
+  }
+  const missing = await generate(
+    'groq',
+    'test',
+    'unused',
+    { ...wombRequest, code: 'int n = ;' },
+    undefined,
+    async () => {
+      throw new Error('A missing Java value must not be guessed');
+    },
+  );
+  assert.ok(missing.syntax?.issues.join(' ').includes('missing a value'));
+  assert.equal(missing.syntax?.corrected, undefined);
+  assert.equal(missing.usage?.total, 0);
+  console.log(
+    'PASS: real VS Code Java syntax warnings, rechecked fixes, corrected explanation, missing-value guard, zero tokens',
+  );
   const javaLesson = await generate(
     'groq',
     'qwen/qwen3.8-27b',
@@ -88,7 +126,16 @@ async function checks() {
     `PASS: ${javaCases.length} independent Java examples including arrays and exception handling in VS Code host, all at zero tokens`,
   );
   const commands = await vscode.commands.getCommands();
-  for (const name of ['inspect', 'reopenPanel', 'configure', 'removeKey', 'clearCache', 'demo'])
+  for (const name of [
+    'inspect',
+    'reopenPanel',
+    'configure',
+    'removeKey',
+    'clearCache',
+    'demo',
+    'checkJavaRuntime',
+    'restoreJavaRuntime',
+  ])
     assert.ok(commands.includes(`watdatmean.${name}`));
   const typeDocument = await vscode.workspace.openTextDocument({
     language: 'typescript',

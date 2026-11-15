@@ -59,6 +59,7 @@ await writeFile(
 await exec(exe('javac'), ['@intellij/build/test-javac.args']);
 const resources = path.resolve('intellij/build/test-resources');
 await mkdir(path.join(resources, 'META-INF'), { recursive: true });
+await cp('tests/fixtures/web-research-live.json', path.join(resources, 'web-research-live.json'));
 const fixtureBundle = await build({
   stdin: {
     contents:
@@ -117,6 +118,7 @@ args.push(
   '-Djava.awt.headless=' + !ui,
   '-Dwatdatmean.test.ui=' + ui,
   '-Dwatdatmean.test.hold=' + hold,
+  '-Dwatdatmean.test.live=' + process.argv.includes('--live-web'),
   '-Dwatdatmean.test.download=' + process.argv.includes('--download-node'),
   '-Didea.home.path=' + ide,
   '-Didea.config.path=' + path.join(sandbox, 'config'),
@@ -131,7 +133,13 @@ args.push(
   'watdatmean-smoke',
 );
 await writeFile('intellij/build/test-jvm.args', args.map(quoted).join('\n'));
-await exec(path.join(ide, launch.javaExecutablePath), ['@intellij/build/test-jvm.args'], {
-  timeout: process.argv.includes('--download-node') ? 300000 : 120000,
-});
-console.log(await readFile(path.join(sandbox, 'result.txt'), 'utf8'));
+if (!process.argv.includes('--prepare-only')) {
+  const resultPath = path.join(sandbox, 'result.txt');
+  await writeFile(resultPath, 'RUNNING: native tests have not completed.\n');
+  await exec(path.join(ide, launch.javaExecutablePath), ['@intellij/build/test-jvm.args'], {
+    timeout: process.argv.includes('--download-node') ? 300000 : 120000,
+  });
+  const result = await readFile(resultPath, 'utf8');
+  if (!result.startsWith('PASS:')) throw new Error(`Native tests did not finish: ${result.trim()}`);
+  console.log(result);
+}

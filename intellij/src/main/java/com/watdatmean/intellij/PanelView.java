@@ -77,7 +77,7 @@ final class PanelView extends JPanel implements Disposable {
       if (disposed || browser == null || browser.isDisposed()) return;
       browser.getCefBrowser().executeJavaScript(
         "{const theme=document.getElementById('watdatmean-theme');if(theme)theme.textContent="
-          + Bridge.JSON.toJson(PanelTheme.css()) + ";}", pageUrl, 0);
+          + Bridge.JSON.toJson(PanelTheme.css()) + ";window.dispatchEvent(new MessageEvent('message',{data:{type:'syntaxThemeChanged'}}));}", pageUrl, 0);
     });
   }
   void send(JsonObject message) {

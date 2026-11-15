@@ -37,10 +37,12 @@ final class HoverSmoke {
     try {
       var finished = new java.util.concurrent.CompletableFuture<Void>();
       DumbService.getInstance(project).smartInvokeLater(() -> {
-        try { checkHover(project); JavaPartsSmoke.run(project); JavaOriginsSmoke.run(project); ExtremeSmoke.run(project); EditSmoke.run(project); finished.complete(null); }
+        try { checkHover(project); JavaPartsSmoke.run(project); JavaOriginsSmoke.run(project); ExtremeSmoke.run(project); EditSmoke.run(project); NavigationSmoke.run(project); finished.complete(null); }
         catch (Throwable error) { finished.completeExceptionally(error); }
       });
       finished.get(60, java.util.concurrent.TimeUnit.SECONDS);
+      SemanticSmoke.run(project);
+      LineHighlightSmoke.run(project);
     } finally { ApplicationManager.getApplication().invokeAndWait(() -> manager.forceCloseProject(project, false)); }
   }
   private static void checkHover(Project project) {

@@ -14,7 +14,7 @@ test('the packaged IntelliJ panel uses its host bridge and language, with no VS 
     .replace(
       '/*__WDM_BRIDGE__*/',
       `window.messages = []; window.watdatmeanHost = {
-      postMessage: m => window.messages.push(m), getState: () => ({}), setState: () => {}
+      postMessage: m => { if(m.type !== 'highlight')window.messages.push(m); }, getState: () => ({}), setState: () => {}
     };`,
     );
   await page.route('http://watdatmean.local/**', (route) =>
