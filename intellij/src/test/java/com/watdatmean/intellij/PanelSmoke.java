@@ -101,7 +101,7 @@ final class PanelSmoke implements AutoCloseable {
        "output":{"text":"","explanation":"Returning 6 does not itself print anything."},
        "pitfalls":["A returned value and console output are different."],
        "note":"Returning a value does not display it.",
-       "concepts":[{"term":"return","explanation":"Sends the computed result back to the caller."}],
+       "concepts":[{"term":"return","explanation":"Sends the computed result back to the caller."},{"term":" Return ","explanation":"Repeated definition."},{"term":"`return`","explanation":"Repeated again."}],
        "example":{"code":"int price = doubleIt(3); // 6","explanation":"Three doubled is six."},"predictions":[],"checks":[]}}
       """);
     check(evaluate("document.querySelectorAll('#explanation img').length").getAsInt() == 0, "Model content remains text");
@@ -113,6 +113,7 @@ final class PanelSmoke implements AutoCloseable {
     check(!evaluate("document.getElementById('explanation').textContent").getAsString().contains("Details that matter"), "No repeated pitfalls section");
     check(evaluate("document.querySelector('.lesson-note').textContent").getAsString().contains("Returning a value does not display it"), "Single important detail reaches native panel");
     check(!evaluate("document.querySelector('.lesson-terms').open").getAsBoolean(), "Definitions start collapsed");
+    check(evaluate("document.querySelectorAll('.lesson-terms > details').length").getAsInt() == 1, "Repeated terms in cached native lessons render only once");
     check(!evaluate("document.querySelector('.lesson-practice').open").getAsBoolean(), "Practice starts collapsed");
     evaluate("(document.querySelector('[data-tab=impact]').click(), true)");
     send("{\"type\":\"preview\",\"errors\":[],\"syntaxChecked\":false}");

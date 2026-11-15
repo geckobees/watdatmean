@@ -27,12 +27,16 @@ export type JCollection = {
   kind: 'list' | 'set' | 'map';
   ordered: boolean;
   mutable: boolean;
+  mutableUnknown?: boolean;
   version: number;
   items: Value[];
   entries: [Value, Value][];
   viewOf?: JCollection;
 };
 export const isNull = (v: Value) =>
+  (v.kind === 'optional' && !v.optional) ||
+  (v.kind === 'stream' && !v.stream) ||
+  (v.kind === 'lambda' && !v.lambda) ||
   (v.kind === 'array' && !v.array) ||
   (v.kind === 'exception' && !v.exception) ||
   v.kind === 'null' ||
@@ -54,6 +58,7 @@ export function collectionText(value: Value): string {
     value.kind === 'String' ||
     value.kind === 'Integer' ||
     value.kind === 'int' ||
+    value.kind === 'long' ||
     value.kind === 'boolean'
   )
     return String(value.value);
@@ -78,9 +83,20 @@ export function librarySignature(
     returns,
     type,
   });
-  if (receiver === '#Integer' && op === 'valueOf' && args.length === 1)
-    return result(['int'], 'Integer');
-  if (receiver === 'Integer' && op === 'intValue' && !args.length) return result([], 'int');
+  if (receiver === '#Integer') {
+    if (['sum', 'min', 'max'].includes(op) && args.length === 2)
+      return result(['int', 'int'], 'int');
+    if (op === 'parseInt' && args.length === 1) return result(['String'], 'int');
+    if (op === 'toString' && args.length === 1) return result(['int'], 'String');
+    if (op === 'valueOf' && args.length === 1)
+      return result([args[0] === 'String' || args[0] === 'null' ? 'String' : 'int'], 'Integer');
+  }
+  if (receiver === '#String' && op === 'valueOf' && args.length === 1) {
+    if (args[0] === 'null' || arrayComponent(args[0])) reject(); // char[] overload/null ambiguity is outside this grammar.
+    return result([['int', 'long', 'boolean'].includes(args[0]) ? args[0] : 'Object'], 'String');
+  }
+  if (['Integer', 'Number'].includes(receiver) && op === 'intValue' && !args.length)
+    return result([], 'int');
   if (isException(receiver) && ['getMessage', 'toString'].includes(op) && !args.length)
     return result([], 'String');
   if (arrayComponent(receiver) && op === 'clone' && !args.length) return result([], receiver);
@@ -95,6 +111,9 @@ export function librarySignature(
     if (args.length === 2 && op === 'copyOf') return result([args[0], 'int'], args[0]);
   }
   if (receiver === 'String') {
+    if (op === 'trim' && !args.length) return result([], 'String');
+    if (['concat', 'startsWith', 'endsWith', 'contains'].includes(op) && args.length === 1)
+      return result(['String'], op === 'concat' ? 'String' : 'boolean');
     if (op === 'equals' && args.length === 1) return result(['Object'], 'boolean');
     if (op === 'length' && !args.length) return result([], 'int');
     if (op === 'isEmpty' && !args.length) return result([], 'boolean');
@@ -201,11 +220,50 @@ export function runLibrary(plan: LibraryCall, target: Value, args: Value[]): Val
     if (v.kind !== 'int' && v.kind !== 'Integer') reject();
     return (v as { value: number }).value;
   };
-  if (plan.receiver === '#Integer') return { kind: 'Integer', value: integer(args[0]) };
-  if (plan.receiver === 'Integer') return { kind: 'int', value: integer(target) };
+  if (plan.receiver === '#Integer') {
+    if (plan.op === 'parseInt' || (plan.op === 'valueOf' && plan.params[0] === 'String')) {
+      if (args[0].kind !== 'String') reject();
+      const text = args[0].value;
+      if (text && /[^\x00-\x7f]/.test(text)) reject(); // Java also accepts Unicode digits; leave those to the general path.
+      const value = text && /^[+-]?\d+$/.test(text) ? Number(text) : NaN;
+      if (!Number.isInteger(value) || value < -2147483648 || value > 2147483647)
+        javaRaise('NumberFormatException');
+      return { kind: plan.op === 'parseInt' ? 'int' : 'Integer', value };
+    }
+    const a = integer(args[0]);
+    if (plan.op === 'toString') return { kind: 'String', value: String(a) };
+    if (plan.op === 'valueOf') return { kind: 'Integer', value: a };
+    const b = integer(args[1]);
+    return {
+      kind: 'int',
+      value: plan.op === 'sum' ? (a + b) | 0 : plan.op === 'min' ? Math.min(a, b) : Math.max(a, b),
+    };
+  }
+  if (plan.receiver === '#String') return { kind: 'String', value: collectionText(args[0]) };
+  if (['Integer', 'Number'].includes(plan.receiver)) return { kind: 'int', value: integer(target) };
   if (plan.receiver === 'String') {
     if (isNull(target)) javaRaise('NullPointerException');
     if (target.kind !== 'String' || target.value === null) reject();
+    if (plan.op === 'trim')
+      return { kind: 'String', value: target.value.replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, '') };
+    if (['concat', 'startsWith', 'endsWith', 'contains'].includes(plan.op)) {
+      if (isNull(args[0])) javaRaise('NullPointerException');
+      if (args[0].kind !== 'String' || args[0].value === null) reject();
+      if (plan.op === 'concat') {
+        const value = target.value + args[0].value;
+        if (value.length > 2000) reject();
+        return { kind: 'String', value };
+      }
+      return {
+        kind: 'boolean',
+        value:
+          plan.op === 'contains'
+            ? target.value.includes(args[0].value)
+            : plan.op === 'startsWith'
+              ? target.value.startsWith(args[0].value)
+              : target.value.endsWith(args[0].value),
+      };
+    }
     return plan.op === 'length'
       ? { kind: 'int', value: target.value.length }
       : {
@@ -224,6 +282,7 @@ export function runLibrary(plan: LibraryCall, target: Value, args: Value[]): Val
     size = c.kind === 'map' ? c.entries.length : items.length;
   if (!c.mutable && !c.viewOf && args.some(isNull)) reject(); // Factory collections disallow nulls; do not invent normal query results.
   const change = () => {
+    if (c.mutableUnknown) reject(); // Collectors.toList makes no promise about list mutability.
     if (c.viewOf) reject();
     if (!c.mutable) javaRaise('UnsupportedOperationException');
   };

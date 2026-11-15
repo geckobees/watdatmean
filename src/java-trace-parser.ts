@@ -1,10 +1,20 @@
 // Deliberately small Java 17 grammar. Unsupported/ambiguous syntax rejects the whole trace.
 // This is a data reader, not a Java runtime; no user code or external helper is executed.
 import { exceptionNames } from './java-exceptions';
+import { optionalNames, optionalElement } from './java-optionals';
+import {
+  functionalNames,
+  streamNames,
+  importedJavaName,
+  functionalType,
+  streamElement,
+} from './java-streams';
 export type JExpr =
+  | { kind: 'methodRef'; target: JExpr; name: string }
+  | { kind: 'lambda'; params: { name: string; type?: string }[]; body: JExpr | JStmt[] }
   | { kind: 'literal'; value: string | number | boolean | null }
   | { kind: 'name'; name: string }
-  | { kind: 'member'; target: JExpr; name: string }
+  | { kind: 'member'; target: JExpr; name: string; typeArgs?: string[] }
   | { kind: 'call'; target: JExpr; args: JExpr[] }
   | { kind: 'new'; type: string; args: JExpr[] }
   | { kind: 'array'; type?: string; dimensions?: (JExpr | null)[]; items?: JExpr[] }
@@ -19,7 +29,7 @@ export type JStmt =
   | { kind: 'assign'; target: JExpr; op: string; value: JExpr }
   | { kind: 'call'; value: JExpr }
   | { kind: 'super'; args: JExpr[] }
-  | { kind: 'declare'; type: string; name: string; value: JExpr }
+  | { kind: 'declare'; type: string; name: string; value: JExpr; final?: boolean }
   | { kind: 'return'; value?: JExpr }
   | { kind: 'throw'; value: JExpr }
   | {
@@ -41,8 +51,12 @@ export type JStmt =
   | { kind: 'foreach'; type: string; name: string; iterable: JExpr; body: JStmt[] }
   | { kind: 'break' | 'continue' };
 export type JParameter = { name: string; type: string };
+export type JTypeParameter = { name: string; bound: string };
 export type JField = { name: string; type: string; initial?: JExpr };
 export type JMethod = {
+  typeParams?: JTypeParameter[];
+  abstract?: boolean;
+  default?: boolean;
   name: string;
   static: boolean;
   public: boolean;
@@ -53,6 +67,11 @@ export type JMethod = {
   body: JStmt[];
 };
 export type JClass = {
+  interface?: boolean;
+  functional?: boolean;
+  interfaces?: string[];
+  typeParams?: JTypeParameter[];
+  rawName?: string;
   name: string;
   parent?: string;
   enclosing?: string;
@@ -154,7 +173,7 @@ export function javaTokens(code: string): Token[] {
         at += number[0].length;
       } else {
         const op =
-          /^(?:\+\+|--|<=|>=|==|!=|&&|\|\||\+=|\*=|-=|\/=|%=|[{}()[\];:.,@=!<>+*\/%\-|])/.exec(
+          /^(?:::|->|\+\+|--|<=|>=|==|!=|&&|\|\||\+=|\*=|-=|\/=|%=|[{}()[\];:.,@=!<>+*\/%\-|])/.exec(
             code.slice(at),
           );
         if (!op) reject();
@@ -172,8 +191,12 @@ export function parseJavaTrace(code: string): JProgram {
   let at = 0,
     depth = 0;
   const classNames = new Set(
-    tokens.filter((t, i) => i > 0 && tokens[i - 1].text === 'class').map((t) => t.text),
+    tokens
+      .filter((t, i) => i > 0 && ['class', 'interface'].includes(tokens[i - 1].text))
+      .map((t) => t.text),
   );
+  let typeVariables = new Map<string, string>();
+  let typeSerial = 0;
   const peek = (offset = 0) => tokens[at + offset]?.text;
   const take = (word: string) => {
     if (peek() !== word) return false;
@@ -195,14 +218,32 @@ export function parseJavaTrace(code: string): JProgram {
     need('.');
     need('util');
     need('.');
+    let prefix = '';
+    if (peek() === 'stream' || peek() === 'function') {
+      prefix = name() + '.';
+      need('.');
+    }
     const imported = take('*') ? '*' : name();
-    if (imported !== '*' && !collectionNames.includes(imported)) reject();
+    const allowed =
+      prefix === 'stream.'
+        ? streamNames
+        : prefix === 'function.'
+          ? functionalNames
+          : [...collectionNames, ...optionalNames, 'NoSuchElementException'];
+    if (imported !== '*' && !allowed.includes(imported)) reject();
     need(';');
-    imports.push(imported);
+    imports.push(prefix + imported);
   }
   if (
     [...classNames].some(
-      (n) => collectionNames.includes(n) || ['Integer', 'Boolean', ...exceptionNames].includes(n),
+      (n) =>
+        [
+          ...collectionNames,
+          ...streamNames,
+          ...functionalNames,
+          ...optionalNames,
+          'Runnable',
+        ].includes(n) || ['Integer', 'Boolean', 'Number', ...exceptionNames].includes(n),
     )
   )
     reject();
@@ -213,13 +254,21 @@ export function parseJavaTrace(code: string): JProgram {
   const baseType = () =>
     [
       'int',
+      'long',
       'boolean',
       'String',
       'Integer',
       'Object',
+      'Number',
+      'Runnable',
+      ...optionalNames,
       ...collectionNames,
+      ...streamNames,
+      ...functionalNames,
       ...exceptionNames,
-    ].includes(peek()) || classNames.has(peek());
+    ].includes(peek()) ||
+    classNames.has(peek()) ||
+    typeVariables.has(peek());
   function brackets(type: string): string {
     let count = 0;
     while (peek() === '[' && peek(1) === ']') {
@@ -267,20 +316,69 @@ export function parseJavaTrace(code: string): JProgram {
   }
   function typeName(diamond = false, arraySuffix = true): string {
     const type = peek();
+    if (typeVariables.has(type)) {
+      at++;
+      return arraySuffix ? brackets(typeVariables.get(type)!) : typeVariables.get(type)!;
+    }
     if (
       ![
         'int',
+        'long',
         'boolean',
         'String',
         'Integer',
         'Object',
+        'Number',
+        'Runnable',
+        ...optionalNames,
         ...collectionNames,
+        ...streamNames,
+        ...functionalNames,
         ...exceptionNames,
       ].includes(type) &&
       !classNames.has(type)
     )
       reject();
     at++;
+    if (classNames.has(type) && take('<')) {
+      if (diamond && take('>')) return type + '<>';
+      const args: string[] = [];
+      do {
+        if (++depth > 16) reject();
+        const arg = typeName();
+        depth--;
+        if (['int', 'long', 'boolean'].includes(arg) || args.length >= 3) reject();
+        args.push(arg);
+      } while (take(','));
+      need('>');
+      return `${type}<${args.join(',')}>`;
+    }
+    if (
+      streamNames.includes(type) ||
+      functionalNames.includes(type) ||
+      optionalNames.includes(type)
+    ) {
+      if (!importedJavaName(type, imports) || type === 'Collectors') reject();
+      if (
+        type === 'IntStream' ||
+        type === 'OptionalInt' ||
+        (type.startsWith('Int') && type !== 'IntFunction')
+      )
+        return type;
+      need('<');
+      const args: string[] = [];
+      do {
+        if (++depth > 16) reject();
+        const arg = typeName();
+        depth--;
+        if (['int', 'long', 'boolean'].includes(arg)) reject();
+        args.push(arg);
+      } while (take(','));
+      need('>');
+      const full = `${type}<${args.join(',')}>`;
+      if (!streamElement(full) && !functionalType(full) && !optionalElement(full)) reject();
+      return full;
+    }
     if (!collectionNames.includes(type)) return arraySuffix ? brackets(type) : type;
     if (type === 'Arrays') reject();
     if (!imports.includes(type) && !imports.includes('*')) reject();
@@ -302,6 +400,51 @@ export function parseJavaTrace(code: string): JProgram {
     let left: JExpr;
     const token = tokens[at];
     if (!token) reject();
+    // A lambda's parameter list is distinguished by ->; ordinary groups/casts keep their grammar.
+    const saved = at;
+    let lambdaParams: { name: string; type?: string }[] | undefined;
+    if (min === 0 && token.kind === 'word' && peek(1) === '->') lambdaParams = [{ name: name() }];
+    else if (min === 0 && peek() === '(') {
+      try {
+        at++;
+        const params: { name: string; type?: string }[] = [];
+        if (!take(')')) {
+          do {
+            const type = baseType() ? typeName() : undefined;
+            params.push({ name: name(), type });
+            if (params.length > 2) reject();
+          } while (take(','));
+          need(')');
+        }
+        if (peek() === '->') lambdaParams = params;
+      } catch {
+        /* Not a lambda parameter list. */
+      }
+      if (!lambdaParams) at = saved;
+    }
+    if (lambdaParams) {
+      need('->');
+      if (
+        new Set(lambdaParams.map((p) => p.name)).size !== lambdaParams.length ||
+        (lambdaParams.some((p) => p.type) && lambdaParams.some((p) => !p.type))
+      )
+        reject();
+      let body: JExpr | JStmt[];
+      if (peek() === '{') body = block();
+      else if (peek() === 'System' && peek(1) === '.') {
+        at++;
+        need('.');
+        need('out');
+        need('.');
+        const method = name();
+        if (!['print', 'println'].includes(method)) reject();
+        const values = argumentsList();
+        if (values.length !== 1) reject();
+        body = [{ kind: 'print', value: values[0], newline: method === 'println' }];
+      } else body = expression();
+      depth--;
+      return { kind: 'lambda', params: lambdaParams, body };
+    }
     if (take('new')) {
       const type = typeName(true, false);
       if (peek() === '[') {
@@ -353,14 +496,23 @@ export function parseJavaTrace(code: string): JProgram {
     else if (take('false')) left = { kind: 'literal', value: false };
     else if (take('String')) left = { kind: 'name', name: 'String' };
     else if (take('Object')) left = { kind: 'name', name: 'Object' };
+    else if (take('System')) left = { kind: 'name', name: 'System' };
     else if (take('this')) left = { kind: 'name', name: 'this' };
     else if (take('super')) {
       if (peek() !== '.') reject();
       left = { kind: 'name', name: 'super' };
     } else left = { kind: 'name', name: name() };
     while (true) {
-      if (take('.')) left = { kind: 'member', target: left, name: name() };
-      else if (take('[')) {
+      if (take('::'))
+        left = { kind: 'methodRef', target: left, name: take('new') ? 'new' : name() };
+      else if (take('.')) {
+        let typeArgs: string[] | undefined;
+        if (take('<')) {
+          typeArgs = [typeName()];
+          need('>');
+        }
+        left = { kind: 'member', target: left, name: name(), ...(typeArgs ? { typeArgs } : {}) };
+      } else if (take('[')) {
         const index = expression();
         need(']');
         left = { kind: 'index', target: left, index };
@@ -516,6 +668,7 @@ export function parseJavaTrace(code: string): JProgram {
       need(';');
       return { kind: 'print', value, newline: method === 'println' };
     }
+    const final = take('final');
     if (baseType() && (tokens[at + 1]?.kind === 'word' || peek(1) === '<' || peek(1) === '[')) {
       let type = typeName();
       const variable = name();
@@ -524,8 +677,9 @@ export function parseJavaTrace(code: string): JProgram {
       need('=');
       const value = peek() === '{' ? arrayInitializer() : expression();
       if (ending) need(';');
-      return { kind: 'declare', type, name: variable, value };
+      return { kind: 'declare', type, name: variable, value, ...(final ? { final: true } : {}) };
     }
+    if (final) reject();
     const target = expression(),
       op = peek();
     if (['=', '+=', '*=', '-=', '/=', '%='].includes(op)) {
@@ -547,10 +701,41 @@ export function parseJavaTrace(code: string): JProgram {
     }
     return result;
   }
-  function nested(enclosing?: string): JClass {
+  function typeParameters(): JTypeParameter[] {
+    if (!take('<')) return [];
+    const result: JTypeParameter[] = [];
+    do {
+      const written = name();
+      if (typeVariables.has(written) || classNames.has(written) || result.length >= 3) reject();
+      const variable = `$T${typeSerial++}_${written}`;
+      // F-bounds and intersections stay on the general explanation path.
+      const bound = take('extends') ? typeName() : 'Object';
+      if (['int', 'long', 'boolean'].includes(bound)) reject();
+      typeVariables.set(written, variable);
+      result.push({ name: variable, bound });
+    } while (take(','));
+    need('>');
+    return result;
+  }
+  function nested(enclosing?: string, isInterface = false, functional = false): JClass {
     const type = name();
+    const previousVariables = typeVariables;
+    typeVariables = new Map();
+    const classParameters = typeParameters();
     let parent: string | undefined;
-    if (take('extends')) parent = take('Object') ? 'Object' : name();
+    const interfaces: string[] = [];
+    if (take('extends')) {
+      if (isInterface) {
+        do {
+          interfaces.push(typeName());
+        } while (take(','));
+      } else parent = typeName();
+    }
+    if (!isInterface && take('implements')) {
+      do {
+        interfaces.push(typeName());
+      } while (take(','));
+    }
     need('{');
     const fields: JField[] = [],
       initializers: (JField | JStmt[])[] = [],
@@ -560,26 +745,52 @@ export function parseJavaTrace(code: string): JProgram {
       declaredThrows: string[] = [];
     while (!take('}')) {
       if (peek() === '{') {
+        if (isInterface) reject();
         const body = block();
         if (body.some((s) => s.kind !== 'assign')) reject();
         initializers.push(body);
         continue;
       }
-      let override = false;
+      let override = false,
+        annotatedFunctional = false;
       if (take('@')) {
-        need('Override');
-        override = true;
+        if (take('Override')) override = true;
+        else {
+          need('FunctionalInterface');
+          annotatedFunctional = true;
+        }
       }
       const isPublic = take('public');
       const isStatic = take('static');
-      if (take('class')) {
-        if (!isStatic || override || enclosing) reject();
-        classes.push(nested(type));
+      const defaultMethod = take('default');
+      const abstractMethod = take('abstract');
+      if (peek() === 'class' || peek() === 'interface') {
+        const nestedInterface = take('interface');
+        if (!nestedInterface) need('class');
+        if (
+          (!isStatic && !nestedInterface && !isInterface) ||
+          override ||
+          enclosing ||
+          defaultMethod ||
+          abstractMethod ||
+          (annotatedFunctional && !nestedInterface)
+        )
+          reject();
+        classes.push(nested(type, nestedInterface, annotatedFunctional));
         if (classes.length > 7) reject();
         continue;
       }
       if (peek() === type && peek(1) === '(') {
-        if (ctor || override || isStatic) reject();
+        if (
+          ctor ||
+          override ||
+          isStatic ||
+          isInterface ||
+          defaultMethod ||
+          abstractMethod ||
+          annotatedFunctional
+        )
+          reject();
         at++;
         params = parameters();
         declaredThrows = throwsList();
@@ -587,10 +798,28 @@ export function parseJavaTrace(code: string): JProgram {
         if (ctor.some((s, i) => s.kind === 'return' || (s.kind === 'super' && i !== 0))) reject();
         continue;
       }
+      if (
+        annotatedFunctional ||
+        (!isInterface && (defaultMethod || abstractMethod)) ||
+        (defaultMethod && (abstractMethod || isStatic))
+      )
+        reject();
+      const methodVariables = new Map(typeVariables);
+      const methodParameters = typeParameters();
       let returnType = take('void') ? 'void' : typeName();
       const member = name();
       if (member === 'main' && peek() === '(') {
-        if (!isPublic || !isStatic || returnType !== 'void' || override || main || enclosing)
+        if (
+          !isPublic ||
+          !isStatic ||
+          returnType !== 'void' ||
+          override ||
+          main ||
+          enclosing ||
+          isInterface ||
+          classParameters.length ||
+          methodParameters.length
+        )
           reject();
         need('(');
         need('String');
@@ -630,12 +859,23 @@ export function parseJavaTrace(code: string): JProgram {
           ].includes(member)
         )
           reject();
-        const body = block();
+        const abstractBody = take(';');
+        if (
+          abstractBody
+            ? !isInterface || isStatic || defaultMethod
+            : isInterface && !isStatic && !defaultMethod
+        )
+          reject();
+        if (abstractMethod && !abstractBody) reject();
+        const body = abstractBody ? [] : block();
         if (body.some((s) => s.kind === 'super') || (isStatic && override)) reject();
         methods.push({
           name: member,
           static: isStatic,
-          public: isPublic,
+          public: isPublic || isInterface,
+          typeParams: methodParameters,
+          abstract: abstractBody,
+          default: defaultMethod,
           override,
           params: parametersList,
           returns: returnType as JMethod['returns'],
@@ -646,8 +886,9 @@ export function parseJavaTrace(code: string): JProgram {
         returnType = brackets(returnType);
         if (
           isStatic ||
+          isInterface ||
+          methodParameters.length ||
           override ||
-          (!['int', 'String', 'boolean'].includes(returnType) && !returnType.endsWith('[]')) ||
           fields.some((f) => f.name === member)
         )
           reject();
@@ -662,9 +903,15 @@ export function parseJavaTrace(code: string): JProgram {
         initializers.push(field);
         if (fields.length > 8) reject();
       }
+      typeVariables = methodVariables;
       if (methods.length > 8 || initializers.length > 12) reject();
     }
+    typeVariables = previousVariables;
     return {
+      interface: isInterface,
+      functional,
+      interfaces,
+      typeParams: classParameters,
       name: type,
       parent,
       enclosing,
@@ -678,9 +925,13 @@ export function parseJavaTrace(code: string): JProgram {
   }
   let publicClasses = 0;
   while (at < tokens.length) {
+    const annotatedFunctional = take('@');
+    if (annotatedFunctional) need('FunctionalInterface');
     if (take('public') && ++publicClasses > 1) reject();
-    need('class');
-    classes.push(nested());
+    const isInterface = take('interface');
+    if (!isInterface) need('class');
+    if (annotatedFunctional && !isInterface) reject();
+    classes.push(nested(undefined, isInterface, annotatedFunctional));
     if (classes.length > 8) reject();
   }
   if (
@@ -691,5 +942,10 @@ export function parseJavaTrace(code: string): JProgram {
   )
     reject();
   if (main.some((s) => s.kind === 'super')) reject();
+  if (
+    tokens.some((t) => t.text === 'NoSuchElementException') &&
+    !importedJavaName('NoSuchElementException', imports)
+  )
+    reject();
   return { outer, argument, classes, main, imports, throws: mainThrows };
 }

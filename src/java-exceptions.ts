@@ -10,6 +10,8 @@ export const exceptionParents: Record<string, string | undefined> = {
   NegativeArraySizeException: 'RuntimeException',
   ArrayStoreException: 'RuntimeException',
   IllegalArgumentException: 'RuntimeException',
+  NumberFormatException: 'IllegalArgumentException',
+  NoSuchElementException: 'RuntimeException',
   IllegalStateException: 'RuntimeException',
   ClassCastException: 'RuntimeException',
   UnsupportedOperationException: 'RuntimeException',

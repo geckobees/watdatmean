@@ -14,6 +14,7 @@ import { languageId } from './languages';
 import { reasoningEffort } from './reasoning';
 import { literalLesson } from './literal-lesson';
 import { javaTraceLesson } from './java-trace';
+import { conceptTerm, uniqueConcepts } from './concepts';
 
 export const defaults: Record<Provider, string> = {
   openai: 'gpt-4.1-mini',
@@ -196,20 +197,22 @@ export function parseLesson(
       ? {}
       : { pitfalls: optionalList(data.pitfalls, 'pitfalls').map((v) => string(v, 'pitfalls[]')) }),
     ...(output ? { output } : {}),
-    concepts: optionalList(data.concepts, 'concepts').map((v) => {
-      if (typeof v === 'string') {
-        const term = requiredText(v, 'concepts[].term', 150);
-        return { term, explanation: definition(term, languageId(language)) ?? '' };
-      }
-      const c = record(v, 'concepts[]');
-      const term = requiredText(c.term, 'concepts[].term', 150);
-      const local = definition(term, languageId(language));
-      const supplied = string(c.explanation, 'concepts[].explanation');
-      return {
-        term,
-        explanation: local ?? requiredText(supplied, 'concepts[].explanation'),
-      };
-    }),
+    concepts: uniqueConcepts(
+      optionalList(data.concepts, 'concepts').map((v) => {
+        if (typeof v === 'string') {
+          const term = conceptTerm(requiredText(v, 'concepts[].term', 150));
+          return { term, explanation: definition(term, languageId(language)) ?? '' };
+        }
+        const c = record(v, 'concepts[]');
+        const term = conceptTerm(requiredText(c.term, 'concepts[].term', 150));
+        const local = definition(term, languageId(language));
+        const supplied = string(c.explanation, 'concepts[].explanation');
+        return {
+          term,
+          explanation: local ?? requiredText(supplied, 'concepts[].explanation'),
+        };
+      }),
+    ),
     example: {
       code: string(example.code ?? '', 'example.code'),
       explanation: string(example.explanation ?? '', 'example.explanation'),

@@ -8,6 +8,9 @@ import { wombRequest, wombOutput } from '../quality/depth-cases';
 import { javaGeneralCases } from '../quality/java-general-cases';
 import { javaControlCases } from '../quality/java-control-cases';
 import { javaArrayExceptionCases } from '../quality/java-array-exception-cases';
+import { javaStreamCases } from '../quality/java-stream-cases';
+import { javaMethodOptionalCases } from '../quality/java-method-optional-cases';
+import { javaGenericInterfaceCases } from '../quality/java-generic-interface-cases';
 
 export async function run() {
   try {
@@ -59,7 +62,14 @@ async function checks() {
   console.log(
     'PASS: Java field hiding, constructor order and complete output in VS Code host (zero API tokens)',
   );
-  const javaCases = [...javaGeneralCases, ...javaControlCases, ...javaArrayExceptionCases];
+  const javaCases = [
+    ...javaGeneralCases,
+    ...javaControlCases,
+    ...javaArrayExceptionCases,
+    ...javaStreamCases,
+    ...javaMethodOptionalCases,
+    ...javaGenericInterfaceCases,
+  ];
   for (const fixture of javaCases) {
     const lesson = await generate(
       'groq',

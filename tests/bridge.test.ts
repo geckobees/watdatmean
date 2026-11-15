@@ -32,6 +32,38 @@ const response = () =>
   );
 
 describe('IDE-neutral learning bridge', () => {
+  it('deduplicates repeated definitions before caching them for either editor', async () => {
+    const transport = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    ...lesson,
+                    concepts: [
+                      { term: 'string', explanation: 'Text.' },
+                      { term: ' String ', explanation: 'Text again.' },
+                      { term: '`string`', explanation: 'Text a third time.' },
+                    ],
+                  }),
+                },
+              },
+            ],
+            usage: { prompt_tokens: 100, completion_tokens: 60, total_tokens: 160 },
+          }),
+        ),
+    );
+    const core = new BridgeCore(transport);
+    const input = { ...params('Java', { code: 'unknown(input);' }), provider: 'groq' };
+    const first = (await core.dispatch(1, 'request', input)) as any;
+    const cached = (await core.dispatch(2, 'request', input)) as any;
+    expect(first.lesson.concepts.map((c: any) => c.term)).toEqual(['string']);
+    expect(cached.lesson.concepts).toEqual(first.lesson.concepts);
+    expect(cached.cached).toBe(true);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
   it('corrects quiz answers in the shared provider path and caches the corrected lesson', async () => {
     const transport = vi.fn().mockImplementation(
       async () =>

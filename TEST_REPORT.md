@@ -1,6 +1,66 @@
-# WatDatMean teaching fixes and testing — November 14, 2026
+# WatDatMean teaching fixes and testing — November 15, 2026
 
-## Current revision: main quality-of-life integration
+## Current revision: Java generics and interfaces (0.1.11)
+
+Both editors share bounded local support for user-defined generic classes, multiple/nested arguments, diamond inference, generic static/instance methods, and single upper bounds (including `Number` and modeled interfaces). Class views substitute signatures while preserving the original generic body and its compile-time bindings. This prevents a `String` argument from silently changing an overload selected using an `Object` or `Number` bound, or a subclass overload from replacing the selected generic instance method. Type arguments remain invariant and are described as compile-time checks, not separate runtime classes.
+
+Interfaces support explicit implementation, inheritance, generic contracts, covariant returns, public implementations, static/default methods and concrete custom functional-interface lambdas/method references. Class methods win over interface defaults; more-specific defaults win over inherited ones. Missing implementations, incompatible returns/throws/visibility, default conflicts, erasure clashes, cyclic inheritance and conflicting generic interface arguments decline the local trace. Custom functional callbacks preserve output printed before an exception. Interfaces are not mislabeled as nested classes, and static interface calls are not labeled as defaults.
+
+Scope follows the [Java 17 parameterized-type rules](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html#jls-4.5), [type erasure](https://docs.oracle.com/javase/specs/jls/se17/html/jls-4.html#jls-4.6), and [interface inheritance/default rules](https://docs.oracle.com/javase/specs/jls/se17/html/jls-9.html#jls-9.4.1.3). Raw types, wildcards/capture, recursive/intersection bounds, generic arrays, unchecked casts, generic overload inference, unconstrained generic results, some nested inference, interface constants/private methods and `Interface.super` calls retain AI fallback. Default-method execution on lambda objects also remains outside the local subset. Full syntax/type validation precedes tracing; no selected code is executed.
+
+Validation:
+
+- **1,105 unit/adapter tests**, including **54 new independently expected examples** on both direct-provider and IntelliJ bridge paths with provider calls forbidden. Rejection cases cover unsupported and invalid forms. New walkthroughs stay under **300 visible words**, with at most six steps, one exact output, collapsed definitions/practice, correct overload/default wording and no internal type-variable identifiers.
+- **322 compiled Java 17 reference programs** match every output character: the previous 268 plus all 54 generic/interface examples. The compiler now reads a source-list file to avoid growing Windows command lines.
+- **70 browser-panel tests** pass across both displays, including generic diamond construction, generic overload binding, inherited defaults, class-method priority, custom functional references and callback failure output.
+- Actual **VS Code** and native **IntelliJ 2022.3** checks cover **297 general Java programs plus Womb** at zero tokens. Existing hover/origins, Python/JavaScript/TSX inspection, theming, edits, recovery and narrow layouts remain checked. Newer IntelliJ releases were not rerun.
+- TypeScript checking, production builds and the existing stress suite (**1,200 mutations** plus large/deep Python/TypeScript input) pass. Cache revision 15 replaces older lessons.
+
+`node scripts/check-generic-interface-usage.mjs work/before-generics.cjs` compares a pre-edit 0.1.10 working-tree snapshot with the new engine. All **54 new examples move from AI fallback to 0 API tokens**. The prior 118 stream/method-reference/Optional examples, simple print and Womb remain local with unchanged output. All **174 serialized fallback requests** are byte-for-byte unchanged, including reasoning and completion limits. No live API totals were measured; missing baseline usage is not an estimate. The script supports `--snapshot <file.cjs>` for future before/after comparisons.
+
+Evidence: [Java reference results](tests/quality/java-generics-interfaces-2026-11-15.json) and [usage/request comparison](tests/quality/java-generic-interface-usage-2026-11-15.json). Updated 0.1.11 installers retain VS Code 1.95+ and IntelliJ 2022.3+ compatibility.
+
+## Previous revision: Java method references and Optional (0.1.10)
+
+Both editors share local handling for supported static, bound/unbound instance, print and constructor references. References preserve overload selection and virtual dispatch. Bound receivers are evaluated and null-checked at reference creation; calls and construction happen later. Saving a reference preserves the receiver even if the original variable is reassigned; changes to that object's fields remain visible. Unsupported or ambiguous reference forms decline the local trace.
+
+`Optional`/`OptionalInt` support covers presence, factories, retrieval, eager/lazy fallbacks, actions, mapping/filtering, alternative/exception suppliers, equality and fresh zero/one-item streams where applicable. It distinguishes an empty Optional from a null reference, `map`'s null-to-empty conversion from `flatMap`'s non-null Optional requirement, and required callback null checks from callbacks invoked only on the selected branch. Stream `findFirst`, int `min`/`max`, and reductions without identity return modeled Optional results. Scalar Optional contents, standard library references and simple pure static helpers keep the local subset bounded; unsupported APIs/types, uncertain stream callback effects, incomplete context and unhandled failures retain AI support. No selection is executed.
+
+Semantics follow the official [method-reference evaluation rules](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.13.3), [Optional API](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html), and [OptionalInt API](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html). Local definitions do not enlarge the model prompt. Walkthroughs keep at most six steps, one complete output, collapsed terms, and existing optional practice. Cache revision 14 refreshes older lessons.
+
+Validation:
+
+- **1,015 unit and adapter tests**, including 64 new independently expected examples through both provider and IntelliJ bridge paths with network calls forbidden. Negative cases cover invalid/ambiguous references, wrong types, missing receivers, checked exceptions, unsupported generic forms, identity/unspecified results and invalid callbacks. A compiler check also confirms that an unbound receiver cannot be a primitive parameter (`IntUnaryOperator f = Integer::intValue`). Compactness and eager/lazy explanation wording are checked.
+- **268 compiled Java 17 reference fixtures** match the full output, including all 64 new examples and the previous streams, arrays, exceptions, collections, loops, overload and Womb cases.
+- Actual **VS Code** and native **IntelliJ 2022.3** tests pass all **243 general Java examples plus Womb** at zero tokens. Native checks retain Java hover, origins, syntax checking, live themes, narrow panels, edit safeguards and repeated panel recovery. Newer IntelliJ releases were not rerun.
+- **58 browser-panel tests**, covering both rendered editor displays, exact new outputs, at most six steps, collapsed terms/practice, narrow layouts, repeated-term repair and concept actions.
+- Existing malformed-input stress tests pass **1,200 mutations** plus large/deep TypeScript and Python inputs. TypeScript compilation and production builds pass.
+
+The before-change 0.1.9 working tree was bundled before these edits, preserving the uncommitted stream improvements as the baseline. `node scripts/check-method-optional-usage.mjs work/before-optional.cjs` compares it with the new engine: **64 new examples move from AI fallback to zero API tokens**, while all previous 54 stream examples, simple print and Womb remain local with identical output. All **120 serialized fallback requests** are byte-for-byte unchanged, including reasoning effort and completion limits. No live provider usage was measured; a missing baseline usage value is not a token estimate. For future comparisons, capture a baseline first with `node scripts/check-method-optional-usage.mjs --snapshot <file.cjs>`.
+
+Evidence: [Java reference outputs](tests/quality/java-method-optionals-2026-11-14.json) and [before/after usage and request comparison](tests/quality/java-method-optional-usage-2026-11-14.json). Updated 0.1.10 installers retain VS Code 1.95+ and IntelliJ 2022.3+ compatibility.
+
+## Previous revision: Java streams, lambdas, and repeated definitions (0.1.9)
+
+Both editor adapters now share local Java 17 stream/lambda explanations. The checked subset covers sequential `Stream<String/Integer>` and `IntStream` sources, filter/map/type conversions, sorting/distinct/prefix operations, sum/count/identity reductions, matching, terminal consumers, arrays/lists, and the supported list/joining collectors. Standard functional interfaces accept expression/block lambdas with inferred/typed parameters, local calculations and final/effectively-final scalar captures. Pipeline construction remains lazy; terminal traversal respects order and short-circuiting. Exact-size counts model the Java 17 optimization that can omit mapping callbacks. A stream can be linked/consumed once; source changes before traversal are observed.
+
+Intermediate callbacks with observable side effects, captured mutable objects, parallel/unordered processing, unsupported APIs/types, missing context, uncaught exceptions and resource limits decline the entire local result. They retain the existing AI path. No user-selected code is compiled or executed. The behavior follows the [Java 17 Stream API](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html), [IntStream API](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/IntStream.html), and [lambda rules](https://docs.oracle.com/javase/specs/jls/se17/html/jls-15.html#jls-15.27.2); compiler/reference checks use fixed test fixtures only.
+
+Repeated concept names are normalized and deduplicated before review/caching. The shared panel also repairs older cached responses. Case, extra whitespace and enclosing inline-code backticks do not create extra term entries. Distinct terms and their concept-expansion actions are preserved, with no new provider request.
+
+Validation:
+
+- **927 unit and adapter tests**, including 54 independently expected stream/lambda examples on both direct-provider and IntelliJ bridge paths, rejection cases, compactness, capture rules, overflow and duplicate definitions.
+- **204 compiled Java 17 reference programs** (the previous 150 plus 54 stream/lambda programs) match every output character. Coverage includes empty streams, billion-item ranges bounded by limit, long counts, count elision, short-circuiting before division by zero, block lambdas, local loops, stream reuse, exceptions, null callbacks, immutable list results and source changes before traversal.
+- **46 browser-panel tests**, including compact stream lessons, exact output, narrow layouts, cached duplicate repair and concept actions in both editor panels.
+- Actual **VS Code** and native **IntelliJ 2022.3** checks: 179 independent general Java examples plus Womb return local explanations with zero tokens. Native JCEF also verifies duplicate removal, themes, source offsets, edit safeguards and repeated panel recovery. Newer IntelliJ versions were not rerun for this change.
+- Existing malformed-input stress checks pass 1,200 mutations and large/deep TypeScript/Python inputs. New stream rejection tests cover bounded work, oversized sorting and unsupported/infinite sources.
+
+`scripts/check-stream-usage.mjs e0758b4` compares the committed pre-change implementation with this revision offline. All **54 stream examples move from AI fallback to 0 API tokens**. Simple print and Womb remain at zero, with unchanged output. The serialized fallback requests—including prompts, reasoning effort and completion limits—are byte-for-byte unchanged for all 56 compared cases. Before-change provider token totals were **not measured**; input character counts in the report are not token counts. No live AI requests were made for this revision.
+
+Evidence: [Java reference results](tests/quality/java-streams-2026-11-14.json) and [before/after request and local-usage comparison](tests/quality/java-stream-usage-2026-11-14.json). Run `node scripts/check-java-teaching.mjs <JDK 17+> <Java 17 runtime>` to repeat the reference checks. Use the normal unit, UI, VS Code integration and IntelliJ native test commands below for adapter verification.
+
+## Previous revision: main quality-of-life integration
 
 Integrated main `406a344` with TainBranch `17548d1`, resolving ten conflicted files while retaining this session's explanation work. Both editor packages are version **0.1.8**.
 

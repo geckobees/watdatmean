@@ -13,7 +13,7 @@ with the VS Code extension. It does not require VS Code to be installed or runni
 2. Node.js **22.12+** is detected automatically. If it is absent or too old, WatDatMean
    downloads a private runtime when the learning engine is first needed. The worker
    runs the same engine as VS Code over private pipes, with no server or listening port.
-3. Install `dist/intellij/watdatmean-intellij-0.1.8.zip` through
+3. Install `dist/intellij/watdatmean-intellij-0.1.11.zip` through
    **Settings → Plugins → ⚙ → Install Plugin from Disk**, then restart the IDE.
 4. Open a text source file. Select code, or place the cursor on a Java declaration or
    statement. Right-click → **WatDatMean: Explain Selection or Code at Cursor**,
@@ -74,6 +74,12 @@ These explanations use IntelliJ's Java parser locally, without Node.js, an API k
 or token usage. **Use latest code** and applied edits regenerate the pieces. Comments
 and partially selected tokens are skipped; long selections show up to 80 pieces.
 Select a smaller expression for a focused breakdown. TypeScript, JavaScript, JSX, and Python files use the same offline analyzers as VS Code through the bundled Node worker. Python pieces explain assignments, parameters, loop variables, built-ins, and written module aliases. Complex or uncertain scope relationships are left unknown.
+
+The shared explanation engine handles supported sequential Java streams, expression/block lambdas, method references, and `Optional`/`OptionalInt` locally, at zero API tokens. Compact walkthroughs explain lazy pipelines, saved receivers, overload selection, constructor references, present/empty values, eager versus lazy fallbacks, callback failures, and exact output. Both editors share the same [supported operations and fallback limits](../README.md#token-usage). Parallel streams, unmodeled APIs and uncertain intermediate callback effects retain the existing AI path. IntelliJ 2022.3 compatibility is preserved.
+
+User-defined generics and interfaces also use the shared local engine: generic classes/methods, supported bounds and diamond inference, generic interfaces, implementation dispatch, inherited defaults, and custom functional-interface lambdas/references. Explanations retain compile-time overload choices and distinguish checked type arguments from runtime classes. Unsupported or ambiguous forms keep the AI fallback; IntelliJ's native hover, origins and theming remain available.
+
+Repeated concept names are shown once, including case/spacing variants and older cached lessons. Opening an existing definition still needs no AI request.
 
 **WatDatMean: Open Java Demo** creates a fresh editable Java scratch file and opens
 the learning panel on a field. Try the method declaration and nested call, then use
@@ -212,7 +218,7 @@ npm run package:intellij -- --ide-home "/path/to/idea" --java-home "/path/to/jdk
 On Windows, quote paths containing spaces. `INTELLIJ_HOME` and `JAVA_HOME` can be
 used instead of command-line options. The command compiles Java against the IDE SDK,
 bundles the shared engine/panel, and produces
-`dist/intellij/watdatmean-intellij-0.1.8.zip`. IntelliJ SDK libraries and Node are not
+`dist/intellij/watdatmean-intellij-0.1.11.zip`. IntelliJ SDK libraries and Node are not
 inside the plugin ZIP; Node is downloaded on demand when necessary. `npm run build`
 and `npm run package` still build the VS Code extension.
 

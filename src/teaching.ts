@@ -4,6 +4,7 @@ import { parse } from './analyzer';
 import { inspectCode, languageId } from './languages';
 import { pythonErrors } from './python-check';
 import type { LearningRequest, Lesson } from './types';
+import { uniqueConcepts } from './concepts';
 
 type Practice = { code: string; explanation: string; question: string };
 export interface TeachingNotes {
@@ -80,6 +81,18 @@ const javaDefinitions: Record<string, string> = {
 
 // Local trace terms do not enlarge the schema sent with every model-backed request.
 const javaTraceDefinitions: Record<string, string> = {
+  'java generics':
+    'A type parameter such as T is a placeholder for a type. Box<String> lets the compiler check that its values are strings. A bound such as T extends Number limits allowed types. Box<String> is not a subtype of Box<Object>. Generic bodies are checked using their declared bounds; type arguments do not create separate runtime classes.',
+  'java interface':
+    'An interface is a contract naming methods an object must provide. A class implements the contract with public methods. Calls use the actual object’s implementation; a default method supplies inherited behavior when there is no class override. Interface static methods belong to the interface itself.',
+  'method reference':
+    'The :: syntax saves an existing method or constructor as a function. It runs when that function is called. An object::method reference saves and checks its receiver immediately; Type::instanceMethod gets its receiver from the first argument.',
+  optional:
+    'A java.util.Optional holds one non-null value or is empty. It helps callers handle a missing result. orElse evaluates its fallback immediately; orElseGet calls its supplier only when empty. An empty Optional is different from a null reference.',
+  'java stream':
+    'A one-use pipeline from java.util.stream. Steps such as filter and map wait until a terminal operation asks for a result; they do not change the source collection.',
+  'lambda expression':
+    'A small function written with ->. Parameters on the left receive inputs; the expression or block on the right runs when called. Captured local values must not be reassigned.',
   'java array':
     'A fixed number of slots of one component type. Index 0 is the first slot. Assigning the array to another variable shares the same slots.',
   'exception handling':
@@ -904,7 +917,7 @@ export function reviewLesson(
   // Fix a known definition without throwing away an otherwise useful execution trace.
   lesson = {
     ...lesson,
-    concepts: lesson.concepts.map((c) => ({
+    concepts: uniqueConcepts(lesson.concepts).map((c) => ({
       ...c,
       explanation: definition(c.term, language) ?? c.explanation,
     })),

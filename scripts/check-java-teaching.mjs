@@ -20,6 +20,8 @@ await build({
       export { javaGeneralCases } from './tests/quality/java-general-cases';
       export { javaControlCases } from './tests/quality/java-control-cases';
       export { javaArrayExceptionCases } from './tests/quality/java-array-exception-cases';
+      export { javaStreamCases } from './tests/quality/java-stream-cases';
+      export { javaMethodOptionalCases } from './tests/quality/java-method-optional-cases'; export { javaGenericInterfaceCases } from './tests/quality/java-generic-interface-cases';
       export { parseJavaTrace } from './src/java-trace-parser';
       export { javaTraceLesson } from './src/java-trace';`,
     resolveDir: process.cwd(),
@@ -37,6 +39,9 @@ const {
   javaGeneralCases,
   javaControlCases,
   javaArrayExceptionCases,
+  javaStreamCases,
+  javaMethodOptionalCases,
+  javaGenericInterfaceCases,
   parseJavaTrace,
   javaTraceLesson,
 } = createRequire(import.meta.url)(path.join(root, 'fixture.cjs'));
@@ -46,6 +51,9 @@ const cases = [
   ...javaGeneralCases,
   ...javaControlCases,
   ...javaArrayExceptionCases,
+  ...javaStreamCases,
+  ...javaMethodOptionalCases,
+  ...javaGenericInterfaceCases,
 ];
 for (let i = 0; i < cases.length; i++) {
   const fixture = cases[i];
@@ -59,10 +67,16 @@ for (let i = 0; i < cases.length; i++) {
   sources.push(file);
 }
 const exe = process.platform === 'win32' ? '.exe' : '';
+// Keep Windows command lines short as the fixture suite grows.
+const sourceList = path.join(root, 'sources.txt');
+await writeFile(
+  sourceList,
+  sources.map((file) => JSON.stringify(file.replaceAll('\\', '/'))).join('\n'),
+);
 execFileSync(
   path.join(javaHome, 'bin', 'javac' + exe),
-  ['--release', '17', '-d', root, ...sources],
-  { windowsHide: true, timeout: 30000 },
+  ['--release', '17', '-d', root, '@' + sourceList],
+  { windowsHide: true, timeout: 60000 },
 );
 const results = [];
 for (let i = 0; i < cases.length; i++) {

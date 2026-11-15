@@ -11,7 +11,10 @@ import {
   type JParameter,
   type JStmt,
 } from './java-trace-parser';
-import { javaModel, type Field, type Method } from './java-trace-model';
+import { javaModel, type Field, type Method, type LambdaInfo } from './java-trace-model';
+import { functionalType, streamElement, runStream, type JStream } from './java-streams';
+import { optionalElement, runOptional, type JOptional } from './java-optionals';
+import { rawJavaType, javaTypeLabel } from './java-types';
 import { arrayComponent, arrayText, type JArray } from './java-arrays';
 import { JavaThrown, javaRaise, isException, type JException } from './java-exceptions';
 import {
@@ -27,6 +30,7 @@ import {
 
 type Scalar =
   | { kind: 'int'; value: number }
+  | { kind: 'long'; value: bigint }
   | { kind: 'Integer'; value: number | null }
   | { kind: 'boolean'; value: boolean }
   | { kind: 'String'; value: string | null }
@@ -39,6 +43,19 @@ export type Value =
   | { kind: 'array'; type: string; array?: JArray }
   | { kind: 'exception'; type: string; exception?: JException }
   | { kind: 'collection'; type: string; collection?: JCollection }
+  | { kind: 'stream'; type: string; stream?: JStream }
+  | { kind: 'optional'; type: string; optional?: JOptional }
+  | {
+      kind: 'lambda';
+      type: string;
+      lambda?: {
+        expression: Extract<JExpr, { kind: 'lambda' }>;
+        info: LambdaInfo;
+        scope: Scope;
+        reference?: string;
+      };
+    }
+  | { kind: 'collector'; type: string; delimiter: string }
   | { kind: 'class'; type: string }
   | { kind: 'void' };
 type Slot = { type: string; value: Value };
@@ -54,43 +71,70 @@ type Event = { text: string; printed: string | null; object?: JObject; breakAfte
 type Completion = { kind: 'normal' | 'return' | 'break' | 'continue'; value?: Value };
 const int = (value: number): Scalar => ({ kind: 'int', value: value | 0 });
 const display = (v: Value): string =>
-  v.kind === 'array'
-    ? !v.array
+  v.kind === 'optional'
+    ? !v.optional
       ? 'null'
-      : (() => {
-          try {
-            const text = arrayText(v, true);
-            if (text.length <= 160) return `${v.array!.type} ${text}`;
-          } catch {
-            /* Some object displays depend on identity. */
-          }
-          return `${v.array!.type} (${v.array!.items.length} items)`;
-        })()
-    : v.kind === 'exception'
-      ? v.exception
-        ? `${v.exception.type}${v.exception.message !== undefined && v.exception.message !== null ? `(${JSON.stringify(v.exception.message)})` : ''}`
+      : v.optional.value
+        ? `an Optional containing ${display(v.optional.value)}`
+        : 'an empty Optional'
+    : v.kind === 'stream'
+      ? v.stream
+        ? `a ${v.type} pipeline (${v.stream.used ? 'already linked or consumed' : 'lazy: items are not visited yet'})`
         : 'null'
-      : v.kind === 'int' || v.kind === 'Integer' || v.kind === 'boolean' || v.kind === 'null'
-        ? String(v.value)
-        : v.kind === 'String'
-          ? JSON.stringify(v.value)
-          : v.kind === 'collection'
-            ? !v.collection
-              ? 'null'
-              : (() => {
-                  const c = v.collection,
-                    size = c.kind === 'map' ? c.entries.length : elements(c).length;
-                  return c.ordered && size <= 8
-                    ? collectionText(v)
-                    : `${size} ${c.kind === 'map' ? 'entries' : 'items'} in ${c.type}`;
-                })()
-            : v.kind === 'ref'
-              ? v.object
-                ? `the ${v.object.actual} object ${v.object.label}`
-                : 'null'
-              : reject();
+      : v.kind === 'lambda'
+        ? v.lambda
+          ? 'a function saved for later calls'
+          : 'null'
+        : v.kind === 'collector'
+          ? 'a collection recipe'
+          : v.kind === 'long'
+            ? String(v.value)
+            : v.kind === 'array'
+              ? !v.array
+                ? 'null'
+                : (() => {
+                    try {
+                      const text = arrayText(v, true);
+                      if (text.length <= 160) return `${v.array!.type} ${text}`;
+                    } catch {
+                      /* Some object displays depend on identity. */
+                    }
+                    return `${v.array!.type} (${v.array!.items.length} items)`;
+                  })()
+              : v.kind === 'exception'
+                ? v.exception
+                  ? `${v.exception.type}${v.exception.message !== undefined && v.exception.message !== null ? `(${JSON.stringify(v.exception.message)})` : ''}`
+                  : 'null'
+                : v.kind === 'int' ||
+                    v.kind === 'Integer' ||
+                    v.kind === 'boolean' ||
+                    v.kind === 'null'
+                  ? String(v.value)
+                  : v.kind === 'String'
+                    ? JSON.stringify(v.value)
+                    : v.kind === 'collection'
+                      ? !v.collection
+                        ? 'null'
+                        : (() => {
+                            const c = v.collection,
+                              size = c.kind === 'map' ? c.entries.length : elements(c).length;
+                            return c.ordered && size <= 8
+                              ? collectionText(v)
+                              : `${size} ${c.kind === 'map' ? 'entries' : 'items'} in ${c.type}`;
+                          })()
+                      : v.kind === 'ref'
+                        ? v.object
+                          ? `the ${v.object.actual} object ${v.object.label}`
+                          : 'null'
+                        : reject();
 function source(e: JExpr): string {
   switch (e.kind) {
+    case 'methodRef':
+      return `${source(e.target)}::${e.name}`;
+    case 'lambda': {
+      const text = `(${e.params.map((p) => (p.type ? p.type + ' ' : '') + p.name).join(', ')}) -> ${Array.isArray(e.body) ? '{ ' + e.body.map(statementSource).join(' ') + ' }' : source(e.body)}`;
+      return text.length > 220 ? text.slice(0, 217) + '…' : text;
+    }
     case 'literal':
       return JSON.stringify(e.value);
     case 'name':
@@ -100,7 +144,7 @@ function source(e: JExpr): string {
     case 'call':
       return `${source(e.target)}(${e.args.map(source).join(', ')})`;
     case 'new':
-      return `new ${e.type}(${e.args.map(source).join(', ')})`;
+      return `new ${javaTypeLabel(e.type)}(${e.args.map(source).join(', ')})`;
     case 'array':
       return e.dimensions
         ? `new ${e.type!.replace(/\[\]/g, '')}${e.dimensions.map((d) => `[${d ? source(d) : ''}]`).join('')}`
@@ -119,6 +163,25 @@ function source(e: JExpr): string {
         : `${source(e.target)}${e.delta > 0 ? '++' : '--'}`;
     case 'binary':
       return `(${source(e.left)} ${e.op} ${source(e.right)})`;
+  }
+}
+
+function statementSource(s: JStmt): string {
+  switch (s.kind) {
+    case 'return':
+      return `return${s.value ? ' ' + source(s.value) : ''};`;
+    case 'print':
+      return `System.out.${s.newline ? 'println' : 'print'}(${source(s.value)});`;
+    case 'declare':
+      return `${s.type} ${s.name} = ${source(s.value)};`;
+    case 'assign':
+      return `${source(s.target)} ${s.op} ${source(s.value)};`;
+    case 'if':
+      return `if (${source(s.condition)}) { ${s.yes.map(statementSource).join(' ')} }${s.no.length ? ' else { ' + s.no.map(statementSource).join(' ') + ' }' : ''}`;
+    case 'call':
+      return source(s.value) + ';';
+    default:
+      return `${s.kind} { … }`;
   }
 }
 
@@ -185,7 +248,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
               'throw',
             ].includes(s.kind) ||
             (s.kind === 'declare' &&
-              !['int', 'String', 'boolean', 'Integer'].includes(s.type) &&
+              !['int', 'long', 'String', 'boolean', 'Integer'].includes(s.type) &&
               !arrayComponent(s.type) &&
               !isException(s.type)),
         )
@@ -193,8 +256,20 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
         return;
       statementsOnly = true;
     }
-    const { classes, mainOwner, lookupField, lookupMethod, isSubtype, types, calls } =
-      javaModel(program);
+    const {
+      classes,
+      mainOwner,
+      lookupField,
+      lookupMethod,
+      lookupGenericMethod,
+      isSubtype,
+      types,
+      calls,
+      lambdas,
+      methodReferences,
+      bound,
+      customFunctional,
+    } = javaModel(program);
     const objects: JObject[] = [],
       events: Event[] = [];
     let reads: string[] = [],
@@ -214,7 +289,11 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
       collectionUsed = false,
       overloadUsed = false,
       arrayUsed = false,
-      exceptionUsed = false;
+      exceptionUsed = false,
+      streamUsed = false,
+      optionalUsed = false,
+      methodReferenceUsed = false,
+      lambdaUsed = false;
     let arrayAllocations = 0,
       arrayCells = 0,
       exceptionAllocations = 0;
@@ -248,10 +327,32 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
       if (!reads.includes(text)) reads.push(text);
     };
     const scalar = (v: Value): Scalar => {
-      if (!['int', 'Integer', 'boolean', 'String', 'null'].includes(v.kind)) reject();
+      if (!['int', 'long', 'Integer', 'boolean', 'String', 'null'].includes(v.kind)) reject();
       return v as Scalar;
     };
     function convert(type: string, value: Value): Value {
+      type = bound(type);
+      if (type === 'Number') {
+        if (isNull(value)) return { kind: 'Integer', value: null };
+        if (value.kind === 'int') return { kind: 'Integer', value: value.value };
+        if (value.kind === 'Integer') return value;
+        reject();
+      }
+      if (value.kind === 'lambda' && customFunctional(type)) {
+        if (!isSubtype(value.type, type)) reject();
+        return { ...value, type };
+      }
+      if (type === 'long') {
+        if (value.kind === 'long') return value;
+        return { kind: 'long', value: BigInt(number(value)) };
+      }
+      if (streamElement(type) || functionalType(type) || optionalElement(type)) {
+        const kind = streamElement(type) ? 'stream' : optionalElement(type) ? 'optional' : 'lambda';
+        if (isNull(value)) return { kind, type };
+        if (value.kind !== kind || value.type !== type) reject();
+        return value;
+      }
+      if (type.startsWith('$') && value.kind === 'collector' && value.type === type) return value;
       if (['String', 'Integer'].includes(type) && isNull(value))
         return { kind: type, value: null } as Scalar;
       if (type === 'Integer' && value.kind === 'int')
@@ -268,9 +369,18 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
       if (type === 'Object') {
         if (value.kind === 'int') return { kind: 'Integer', value: value.value };
         if (
-          ['String', 'Integer', 'ref', 'null', 'collection', 'array', 'exception'].includes(
-            value.kind,
-          )
+          [
+            'String',
+            'Integer',
+            'ref',
+            'null',
+            'collection',
+            'array',
+            'exception',
+            'stream',
+            'optional',
+            'lambda',
+          ].includes(value.kind)
         )
           return value;
         reject();
@@ -309,6 +419,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
     };
     function defaultValue(type: string): Value {
       if (type === 'int') return int(0);
+      if (type === 'long') return { kind: 'long', value: 0n };
       if (type === 'boolean') return { kind: 'boolean', value: false };
       return convert(type, { kind: 'null', value: null });
     }
@@ -408,6 +519,48 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
     function evaluate(expr: JExpr, scope: Scope, label?: string, discard = false): Value {
       tick();
       switch (expr.kind) {
+        case 'methodRef': {
+          methodReferenceUsed = true;
+          const ref = methodReferences.get(expr);
+          if (!ref) reject();
+          const locals = new Map<string, Slot>();
+          if (ref.receiver) {
+            const receiver = evaluate(ref.receiver, scope);
+            if (isNull(receiver))
+              javaRaise(
+                'NullPointerException',
+                undefined,
+                'A bound method reference checks its receiver when the reference is created, before any later call.',
+              );
+            locals.set('#receiver', { type: types.get(ref.receiver)!, value: receiver });
+          }
+          return {
+            kind: 'lambda',
+            type: ref.info.type,
+            lambda: {
+              expression: ref.expression,
+              info: ref.info,
+              scope: { ...scope, locals },
+              reference: source(expr),
+            },
+          };
+        }
+        case 'lambda': {
+          lambdaUsed = true;
+          const info = lambdas.get(expr);
+          if (!info) reject();
+          const locals = new Map<string, Slot>();
+          for (const name of info.captured) {
+            const slot = scope.locals.get(name);
+            if (!slot) reject();
+            locals.set(name, { ...slot });
+          }
+          return {
+            kind: 'lambda',
+            type: info.type,
+            lambda: { expression: expr, info, scope: { ...scope, locals } },
+          };
+        }
         case 'literal':
           return typeof expr.value === 'number'
             ? int(expr.value)
@@ -490,7 +643,9 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
                 ? value.exception!.type
                 : value.kind === 'ref'
                   ? value.object!.actual
-                  : value.kind;
+                  : value.kind === 'lambda'
+                    ? value.type
+                    : value.kind;
           if (!isSubtype(actual, expr.type))
             javaRaise(
               'ClassCastException',
@@ -501,7 +656,8 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
             return { ...value, type: expr.type };
           if (isException(expr.type) && value.kind === 'exception')
             return { ...value, type: expr.type };
-          if (['String', 'Integer'].includes(expr.type)) return convert(expr.type, value);
+          if (['String', 'Integer', 'Number'].includes(expr.type) || value.kind === 'lambda')
+            return convert(expr.type, value);
           if (value.kind !== 'ref') reject();
           const object = value.object;
           return { kind: 'ref', type: expr.type, object };
@@ -541,9 +697,16 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
         case 'new': {
           const values = expr.args.map((e, i) => {
             const value = evaluate(e, scope),
-              param = classes.get(expr.type)?.params[i];
+              param = classes.get(types.get(expr) ?? expr.type)?.params[i];
             return param ? convert(param.type, value) : value;
           });
+          if (expr.type === 'String') {
+            if (values.length && isNull(values[0])) javaRaise('NullPointerException');
+            return {
+              kind: 'String',
+              value: values.length ? (values[0] as Extract<Value, { kind: 'String' }>).value : '',
+            };
+          }
           if (isException(expr.type)) {
             if (++exceptionAllocations > 128) reject();
             exceptionUsed = true;
@@ -564,9 +727,10 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
             return makeCollection(types.get(expr)!, values);
           }
           if (objects.length >= 6) reject();
-          const owner = classes.get(expr.type)!;
+          const concreteType = types.get(expr) ?? expr.type;
+          const owner = classes.get(concreteType)!;
           const object: JObject = {
-            actual: expr.type,
+            actual: concreteType,
             label:
               label && !objects.some((o) => o.label === label)
                 ? label
@@ -579,7 +743,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
             c = c.parent ? classes.get(c.parent) : undefined
           )
             for (const field of c.fields)
-              object.fields.set(`${c.name}.${field.name}`, defaultValue(field.type));
+              object.fields.set(`${rawJavaType(c.name)}.${field.name}`, defaultValue(field.type));
           objects.push(object);
           constructing.add(object);
           const defaults = [...new Set([...object.fields.values()].map((v) => v.kind))]
@@ -590,7 +754,9 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
                   ? 'boolean fields start false'
                   : kind === 'array'
                     ? 'array fields start null'
-                    : 'int fields start at 0',
+                    : kind === 'int'
+                      ? 'int fields start at 0'
+                      : 'Reference fields start null',
             )
             .join('; ');
           emit(
@@ -603,7 +769,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
           } finally {
             constructing.delete(object);
           }
-          return { kind: 'ref', type: expr.type, object };
+          return { kind: 'ref', type: concreteType, object };
         }
         case 'call':
           return invoke(expr, scope);
@@ -629,11 +795,63 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
         if (!binding) reject();
         const values = expr.args.map((e, i) =>
           convert(
-            binding.library?.params[i] ?? binding.method!.method.params[i].type,
+            binding.optional?.params[i] ??
+              binding.stream?.params[i] ??
+              binding.functional?.params[i] ??
+              binding.library?.params[i] ??
+              binding.method!.method.params[i].type,
             evaluate(e, scope),
           ),
         );
         reads = [];
+        if (binding.functional || binding.stream || binding.optional) {
+          const capture: Capture = { samples: [], printed: null, recording: false };
+          captures.push(capture);
+          let description = '',
+            result: Value | undefined,
+            failure: unknown;
+          try {
+            if (binding.functional) {
+              result = applyLambda(target, values);
+              description = `${source(expr)} calls ${lambdaDescription(target)}${result.kind === 'void' ? '' : ` → ${display(result)}`}.`;
+            } else {
+              optionalUsed ||= !!binding.optional;
+              streamUsed ||= !!binding.stream;
+              result = (binding.optional ? runOptional : runStream)(
+                (binding.optional ?? binding.stream)!,
+                target,
+                values,
+                {
+                  tick,
+                  call: applyLambda,
+                  pure: (fn) => fn.kind === 'lambda' && !!fn.lambda?.info.pure,
+                  makeArray,
+                  display,
+                  describe: lambdaDescription,
+                  explain: (text) => {
+                    description = text;
+                  },
+                },
+              );
+            }
+          } catch (error) {
+            failure = error;
+          } finally {
+            captures.pop();
+          }
+          if (description || capture.printed !== null || failure)
+            append({
+              text:
+                description ||
+                `${source(expr)} starts${failure ? ' but stops when an operation fails' : ''}.`,
+              printed: capture.printed,
+            });
+          if (failure) throw failure;
+          return convertResult(
+            binding.optional?.returns ?? binding.stream?.returns ?? binding.functional!.returns,
+            result!,
+          );
+        }
         if (binding.library) {
           const plan = binding.library;
           if (plan.type || plan.op === 'keySet') {
@@ -695,6 +913,29 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
           return result;
         }
         const resolved = binding.method!;
+        if (target.kind === 'lambda') {
+          if (
+            !resolved.method.abstract ||
+            resolved.method.name !== customFunctional(target.type)?.method
+          )
+            reject();
+          const capture: Capture = { samples: [], printed: null, recording: false };
+          captures.push(capture);
+          let result: Value | undefined, failure: unknown;
+          try {
+            result = applyLambda(target, values);
+          } catch (error) {
+            failure = error;
+          } finally {
+            captures.pop();
+          }
+          append({
+            text: `${source(expr)} calls ${lambdaDescription(target)}${failure ? ' and stops at a failure' : result!.kind === 'void' ? '' : ` → ${display(result!)}`}.`,
+            printed: capture.printed,
+          });
+          if (failure) throw failure;
+          return convertResult(resolved.method.returns, result!);
+        }
         if (target.kind !== 'ref' && target.kind !== 'class') reject();
         let chosen = resolved,
           object: JObject | undefined;
@@ -704,13 +945,19 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
           object = target.object;
           chosen = target.direct
             ? resolved
-            : lookupMethod(
-                object.actual,
-                resolved.method.name,
-                resolved.method.params.map((p) => p.type),
-              )!;
-          dispatchUsed ||= chosen.owner !== resolved.owner;
-          if (constructing.has(object) && chosen.owner !== resolved.owner)
+            : resolved.method.typeParams?.length
+              ? lookupGenericMethod(object.actual, resolved)!
+              : lookupMethod(
+                  object.actual,
+                  resolved.method.name,
+                  resolved.method.params.map((p) => p.type),
+                )!;
+          if (!chosen || chosen.method.abstract) reject();
+          dispatchUsed ||= rawJavaType(chosen.owner.name) !== rawJavaType(resolved.owner.name);
+          if (
+            constructing.has(object) &&
+            rawJavaType(chosen.owner.name) !== rawJavaType(resolved.owner.name)
+          )
             virtualDuringConstruction = true;
         } else staticUsed = target.kind === 'ref' || staticUsed;
         overloadUsed ||= binding.overload;
@@ -730,7 +977,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
           chosen.method.body[0].value?.kind === 'literal';
         if (!literalStatic)
           emit(
-            `${binding.overload ? `Declared argument types select ${resolved.owner.name}.${resolved.method.name}(${resolved.method.params.map((p) => p.type).join(', ')}). ` : ''}${source(expr)} runs ${label}${object ? (target.kind === 'ref' && target.direct ? ' via super' : ` because the actual object is ${object.actual}`) : ' (static)'}${object && constructing.has(object) ? ', even during construction' : ''}${bindings ? `; arguments become ${bindings}` : ''}.`,
+            `${binding.overload ? `Declared argument types select ${resolved.owner.name}.${resolved.method.name}(${resolved.method.params.map((p) => javaTypeLabel(p.type)).join(', ')}). ` : ''}${source(expr)} runs ${chosen.method.default ? 'the inherited default ' : ''}${label}${object ? (target.kind === 'ref' && target.direct ? ' via super' : ` because the actual object is ${rawJavaType(object.actual)}`) : ' (static)'}${object && constructing.has(object) ? ', even during construction' : ''}${bindings ? `; arguments become ${bindings}` : ''}.`,
             null,
             object,
           );
@@ -754,6 +1001,55 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
     }
     function convertResult(type: string, value: Value): Value {
       return type === 'void' ? value : convert(type, value);
+    }
+    function lambdaDescription(fn: Value): string {
+      if (fn.kind !== 'lambda' || !fn.lambda) reject();
+      if (fn.lambda.reference)
+        return (
+          fn.lambda.reference +
+          (fn.lambda.info.captured.length
+            ? ' (receiver saved when the reference was created)'
+            : ' (called with each supplied argument)')
+        );
+      const { expression, info, scope } = fn.lambda;
+      const captured = info.captured
+        .map((n) => `${n}=${display(scope.locals.get(n)!.value)}`)
+        .join(', ');
+      return source(expression) + (captured ? ` (captured ${captured})` : '');
+    }
+    function applyLambda(fn: Value, values: Value[]): Value {
+      if (isNull(fn)) javaRaise('NullPointerException');
+      if (fn.kind !== 'lambda' || !fn.lambda) reject();
+      if (++depth > 12) reject();
+      try {
+        tick();
+        const { expression, info, scope } = fn.lambda;
+        const local: Scope = {
+          ...scope,
+          locals: new Map([...scope.locals].map(([n, slot]) => [n, { ...slot }])),
+          returns: info.returns,
+          label: 'The lambda',
+        };
+        info.params.forEach((p, i) =>
+          local.locals.set(p.name, { type: p.type, value: convert(p.type, values[i]) }),
+        );
+        const parentReads = reads;
+        reads = [];
+        try {
+          if (!Array.isArray(expression.body)) {
+            const result = evaluate(expression.body, local);
+            return info.returns === 'void' ? { kind: 'void' } : convert(info.returns, result);
+          }
+          const result = runBody(expression.body, local, true);
+          if (info.returns === 'void') return { kind: 'void' };
+          if (result.kind !== 'return' || !result.value) reject();
+          return convert(info.returns, result.value);
+        } finally {
+          reads = parentReads;
+        }
+      } finally {
+        depth--;
+      }
     }
     function targetSlot(expr: JExpr, scope: Scope) {
       if (expr.kind === 'index') {
@@ -1012,7 +1308,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
           emit(
             stmt.value.kind === 'new' && value.kind === 'ref'
               ? `Construction finishes; ${stmt.name} (declared ${stmt.type}) holds this ${value.object!.actual} object.`
-              : `${stmt.name} (declared ${stmt.type}) stores ${source(stmt.value)} → ${display(value)}.`,
+              : `${stmt.name} (declared ${javaTypeLabel(stmt.type)}) stores ${source(stmt.value)} → ${display(value)}.`,
           );
           if (stmt.value.kind === 'new' && printsBefore === prints && !captures.length)
             events.at(-1)!.breakAfter = true;
@@ -1124,7 +1420,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
             runBody(entry, scope);
           } else if (entry.initial) {
             const value = convert(entry.type, evaluate(entry.initial, scope));
-            object.fields.set(`${owner.name}.${entry.name}`, value);
+            object.fields.set(`${rawJavaType(owner.name)}.${entry.name}`, value);
             initialized.push(`${owner.name}.${entry.name}=${display(value)}`);
           }
         }
@@ -1164,6 +1460,12 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
       ),
     ];
     const rules = [
+      streamUsed
+        ? 'Intermediate stream steps are lazy; a terminal operation asks for the result. A stream is used once and does not change its source collection.'
+        : '',
+      lambdaUsed && !streamUsed
+        ? 'A lambda saves a small function; its body runs when called. Captured local values must not be reassigned.'
+        : '',
       hidden.length
         ? `Hidden fields (${hidden.join(', ')}) remain separate: fields follow the reference's declared type, not the object's class. super selects parent members on the same object.`
         : '',
@@ -1218,7 +1520,11 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
         : compact;
     if (selected.length > 40) return;
     if (rules) selected.at(-1)!.text += ' ' + rules;
-    const nested = program.classes.filter((c) => c.enclosing === mainOwner.name);
+    const nested = program.classes.filter((c) => !c.interface && c.enclosing === mainOwner.name);
+    const genericUsed = program.classes.some(
+      (c) => c.typeParams?.length || c.methods.some((m) => m.typeParams?.length),
+    );
+    const interfaceUsed = program.classes.some((c) => c.interface);
     const ancestry = [
       ...new Set(
         objects.flatMap((o) => {
@@ -1239,7 +1545,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
         : '',
       ancestry.length ? ancestry.join('; ') + '.' : '',
       objects.length === 1
-        ? `This creates one ${objects[0].actual} object${ancestry.length ? " with its classes' separate fields" : ''}.`
+        ? `This creates one ${rawJavaType(objects[0].actual)} object${ancestry.length ? " with its classes' separate fields" : ''}.`
         : objects.length
           ? `main creates ${objects.length} independent objects; each keeps its own field values.`
           : (statementsOnly
@@ -1250,6 +1556,12 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
       .filter(Boolean)
       .join(' ');
     const terms = [
+      genericUsed ? 'Java generics' : '',
+      interfaceUsed ? 'Java interface' : '',
+      methodReferenceUsed ? 'method reference' : '',
+      optionalUsed ? 'Optional' : '',
+      streamUsed ? 'Java stream' : '',
+      lambdaUsed ? 'lambda expression' : '',
       hidden.length ? 'field hiding' : '',
       exceptionUsed ? 'exception handling' : '',
       arrayUsed ? 'Java array' : '',
@@ -1272,7 +1584,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
           const [name, slot] = firstReference,
             value = slot.value as Reference;
           return [
-            `Does declaring ${name} as ${slot.type} change the created object? Answer: No. It remains a ${value.object!.actual}; the declared type controls field selection and static calls.`,
+            `Does declaring ${name} as ${slot.type} change the created object? Answer: No. It remains a ${rawJavaType(value.object!.actual)}; the declared type controls field selection and static calls.`,
           ];
         })()
       : [];
@@ -1282,7 +1594,7 @@ export function javaTraceLesson(request: LearningRequest): Lesson | undefined {
       steps: selected.map((e) => e.text),
       stepOutput: selected.map((e) => e.printed),
       output: { text: events.map((e) => e.printed ?? '').join(''), explanation: '' },
-      note: `${virtualDuringConstruction ? 'In an app, calling an override during construction can display unfinished child fields. Prefer calling it after construction. ' : ''}${objects.length || program.classes.some((c) => c.methods.length) ? 'These classes/helpers are defined here. ' : ''}${arrayUsed ? 'Arrays are built into Java; Arrays helpers come from java.util. ' : ''}${exceptionUsed ? 'These exception classes come from java.lang; catch can recover from a matching failure. ' : ''}${collectionUsed ? 'Collections come from java.util; use them for groups of items or key-value lookups. ' : ''}String/System come from java.lang; System.out is java.io.PrintStream.`,
+      note: `${genericUsed ? 'Generic parameters check types before execution and let one class or method safely serve different data types. ' : ''}${interfaceUsed ? 'These interfaces are declared here; use them to give different implementations a common contract. ' : ''}${optionalUsed ? 'Optional/OptionalInt come from java.util; use them for a lookup that may have no result. ' : ''}${methodReferenceUsed ? 'Method references (::) reuse existing methods or constructors; calling the saved function runs that behavior. ' : ''}${streamUsed ? 'Streams come from java.util.stream; use pipelines to filter records or total values without changing the source. ' : ''}${lambdaUsed ? 'The -> syntax supplies a functional interface’s behavior (java.util.function here, or java.lang.Runnable for a no-argument action). ' : ''}${virtualDuringConstruction ? 'In an app, calling an override during construction can display unfinished child fields. Prefer calling it after construction. ' : ''}${objects.length || program.classes.some((c) => c.methods.length) ? 'These classes/helpers are defined here. ' : ''}${arrayUsed ? 'Arrays are built into Java; Arrays helpers come from java.util. ' : ''}${exceptionUsed ? 'A matching catch can recover from these failures; NoSuchElementException comes from java.util, and the other modeled exception classes from java.lang. ' : ''}${collectionUsed ? 'Collections come from java.util; use them for groups of items or key-value lookups. ' : ''}String/System come from java.lang; System.out is java.io.PrintStream.`,
       concepts: terms.map((term) => ({ term, explanation: definition(term, 'java')! })),
       example: { code: '', explanation: '' },
       predictions: [],

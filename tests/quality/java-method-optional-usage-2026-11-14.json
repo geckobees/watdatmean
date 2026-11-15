@@ -1,0 +1,2273 @@
+{
+  "baseline": "0.1.9 working tree captured before method-reference/Optional edits",
+  "baselineSha256": "80ba102f02c95144d3f444f38d6bee4a210018b798bc735fab6ec7bb08fb6eb6",
+  "method": "Offline before/after local-path and serialized provider request comparison. Null beforeUsage means no live API token total was measured. No provider requests were sent.",
+  "newLocalExamples": 64,
+  "results": [
+    {
+      "id": "simple-print",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "none",
+      "requestSha256": "658c1affe0bd4e54227ca72b945b742a7cfda8fa6a6fc2c9f261319e58f54021"
+    },
+    {
+      "id": "womb",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "64e2f7e7f8310ed3d0976312ae754f5d0e42ad398724634efaf3bd6d4da0b724"
+    },
+    {
+      "id": "lambda-block-loop",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "161782fa4ad585adde44761b3474b711dcd54089ce56732d269daf7ff076907f"
+    },
+    {
+      "id": "stream-large-skip-count",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "2269631a3419c3decb00fc2445a279742d74515fe633580936adec8d52e60ea6"
+    },
+    {
+      "id": "stream-short-circuit-after-map",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "71ec5f496ba6b0291b1dd4dae9009cbb9f8681b74ccd4a14f577583bf01364ba"
+    },
+    {
+      "id": "lambda-null-call",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "f1da5cba2109f478c7281f479ed19a16fa312acca76a26cc97246264c6e1e71f"
+    },
+    {
+      "id": "lambda-final-capture",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "df31a5a312e9156c0eadf5b26fe7a73861736bc7fcf9b746f2da5f87af3d6384"
+    },
+    {
+      "id": "stream-count-text",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "b3f9ecb78e2d6656a9de2a95f5d7be47aab681431f37204289413511a7ec7092"
+    },
+    {
+      "id": "stream-filter-map-sum",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "6a9607c4a86b1842f613eebf4aacb72bf513b1d845f0b1f0031912a26f5943ca"
+    },
+    {
+      "id": "stream-list-map",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "4218a3b3cc9cc6bbfa8df60e078d07b7c907668ff5eb6e2ebdd0a4e76af0a339"
+    },
+    {
+      "id": "stream-boxed-to-int",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "71cfb585ca572af148b241fc6f23b67a6f571de6475c55c9bf659d7237e1308c"
+    },
+    {
+      "id": "stream-object-to-int",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "7f6c48e3dd51e23ee75600338f8a897df1ceedb8779b0a355b8d009d0ce80a0f"
+    },
+    {
+      "id": "stream-int-to-object",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "0111bcf87e1488c6be70e400c000f035b95b497c995a47835d7ea2f5048bf945"
+    },
+    {
+      "id": "stream-boxing",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9141248fbe05e67476e1c092874fae983b1724a94952985d2bec1fb99d5d2c3b"
+    },
+    {
+      "id": "stream-order",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "e471d702b156418d7525c4fb7f363087b2bee4394fd02a17dfc395041795e8d5"
+    },
+    {
+      "id": "stream-string-sort",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "660f1a8ac20925487fe3f7283b91964f50dbb2ebdb4643eb81b9d5f08d4c40f9"
+    },
+    {
+      "id": "stream-skip-before-filter",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "f992c19443c4884d32fda8d3b56bdf4fd99f96ba016f8ed1fdbea47a522bf207"
+    },
+    {
+      "id": "stream-take-drop",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c601ad7d4ecf04cd342611e9693f90cfebb0d08c8834bbc55c78327d672fae0c"
+    },
+    {
+      "id": "stream-early-match",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9450678dc3f7c348f389f0d943698709a5a168896e2ad2f29120816ed2d80261"
+    },
+    {
+      "id": "stream-all-match",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "4fc91b6198db88640b8b4b6518f8e338ccf0251d7eb58489cbcebf47b685a4c2"
+    },
+    {
+      "id": "stream-none-match",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "cc9d4ec516c1c1ae4e082b5fa9754fc2a8b0df4946a9f9ff11299fe097e62152"
+    },
+    {
+      "id": "stream-empty-matches",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "1acf57bbf6d929aeef149bce2a2f11bc22f1b56e936ef8150f49a4ec14570cba"
+    },
+    {
+      "id": "stream-count-elision",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "530ef1868fbb7e230ca3fe7fe0ea5192ab1a05f82e55c0809837fc561e0f22eb"
+    },
+    {
+      "id": "stream-count-filter",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "5ee43eb1a0305bc5fbdb3a5298fe4f821a85a388b76b2ce8ce9a7eeace0ee3a5"
+    },
+    {
+      "id": "stream-large-range-limit",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c2a0c20ca1cda3d2db1143c7876687ae040acbf70b565e0aa926b571aa44acc8"
+    },
+    {
+      "id": "stream-large-range-count",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9762e134d8073e125b95e8be7ccc7bdd2ef5abd7e52e313efd90f117235f7b6e"
+    },
+    {
+      "id": "stream-limit-zero",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "a4d12acb91fde435500ac5edc1e64024b11f1ba1f38cf902f32a87cec9038bca"
+    },
+    {
+      "id": "stream-reduce",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "da2e75a0155ef39164cd45f6b3d2b384f2ddbf41b12f132b67702313de8f80a7"
+    },
+    {
+      "id": "stream-empty-reduce",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c09973a790d86d3623cda9cb9933448298a73ba9b73d06f3640014f4afb18ef8"
+    },
+    {
+      "id": "stream-for-each",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "970b1c8989c658c41e0b208313ac8c36f4838482e0540b6adf27caa935fc32a4"
+    },
+    {
+      "id": "stream-for-each-ordered",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9d6c4b449afb20f663d8da104ffda3e14a654128093b1f49c5bff709bb697138"
+    },
+    {
+      "id": "stream-lazy-unused",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "ef0cced8b332ef210de901903421eb79ee9cb10d36ef98a48f63343eb1c386ab"
+    },
+    {
+      "id": "stream-late-source",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "d9ac986e18fedb267a08d8014a8dfcded58d377ed63c0fd973cd1009c6ebcbc6"
+    },
+    {
+      "id": "stream-array-source",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "6d2fa685be6594a3e5038ddd66019a1d08e62bbaa86f0580369dc1b4955261c0"
+    },
+    {
+      "id": "stream-int-array-of",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "845767119e1e86bcae002dcd835368e773eb8f65be79c16c63e099c29186f1a4"
+    },
+    {
+      "id": "stream-object-array-of",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "31202edfc1f7c3a5f208940bb9ca40d0b58c69fbb9cb6738782dfaca56c8747a"
+    },
+    {
+      "id": "stream-int-to-array",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "d505b91f03041faae1b3d0f073761e49ba47f27c9da67e212e86656ac31db07e"
+    },
+    {
+      "id": "stream-object-to-array",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "5534cdf203daadde1aecef1ee6c84260bb1ceb4d6aae4f76dee92140d082fe99"
+    },
+    {
+      "id": "stream-collect-list",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "589be31341a9e0875ace6a1ecc9938ec21b619c2d942366c2477bc71ed41c8d5"
+    },
+    {
+      "id": "stream-joining",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "bd62182525041e218d0161507f68154d470ace7ad022f10d11ce800054777c43"
+    },
+    {
+      "id": "stream-reuse",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "6f14788c722b15536ab497e580c78f5c89571138d5426003f8f486308938cb85"
+    },
+    {
+      "id": "stream-linked-reuse",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "0de5a91283939c32abd9b61def2be6f182a4c4b7032128034eddddb44cd7fc2b"
+    },
+    {
+      "id": "stream-negative-limit",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "e50f5492aebce389a3f4d69057dd4dbcec7277a6c508e74dca0ac0419ea5e9d7"
+    },
+    {
+      "id": "stream-readonly-list",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "b3de90c34e233c1e2ea5d86da679999ec37afb2c1d5389c898dcbabc31f714af"
+    },
+    {
+      "id": "stream-map-failure",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "d2f0710f5b55a6c94c20d893f15d264cece9d45d0321b4234ab8750ba2ee6825"
+    },
+    {
+      "id": "stream-null-item",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "2050ce8c373678cbe46a8f07323f991f27bdf2b5d1bb3195e71c8b6fb3574231"
+    },
+    {
+      "id": "stream-null-callback",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "275d3b8d38a4083d54985b538685a20bfc96810e3637896158ae8f483f991159"
+    },
+    {
+      "id": "lambda-capture",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "5c844868d0a65b1fc76409c064f8a59ae4c757c4259cac8a73879439f4b95235"
+    },
+    {
+      "id": "lambda-typed-params",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "56abfc66dbf6e2169112882c2e3a2e8f0c3864b39c11cb6bf4c7d4422274577d"
+    },
+    {
+      "id": "lambda-block",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "894f9c58a9c4929a5a124929927bb34cac44fd690a5962ac9a95485743e3d7cb"
+    },
+    {
+      "id": "lambda-predicate-variable",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "a08822868cc42371b8bace90346bf932010ba53d7cb96a1f3c3044f17d3f9cc1"
+    },
+    {
+      "id": "lambda-consumer",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "92889c91a54ff74387bb222a277daf171ca72f06f4cb82403435194797eb1187"
+    },
+    {
+      "id": "lambda-supplier",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "0945228fb51174649547389dcbe5867c32719dc25d7eb757e41fe985b02a8bcb"
+    },
+    {
+      "id": "lambda-local-update",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "3ec9f3fb24a67235abcae9841a5d496cb5209474ce0da802da62479275682c33"
+    },
+    {
+      "id": "stream-block-map-inference",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "211ac2169639594e2944be1e7d501deceb7f77a716f975da08a606d765ff9ac2"
+    },
+    {
+      "id": "stream-overflow",
+      "beforeLocal": true,
+      "afterLocal": true,
+      "beforeUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": true,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "fcac40dea8d3843a1badc093c295082ccc90b54657d98451eb8eb577fad61a67"
+    },
+    {
+      "id": "optional-empty-bound-null-ref",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "a6e7f4d41ae2d4dd3434a214819ace569104c70f4ceae0ae78f5673147860038"
+    },
+    {
+      "id": "optional-empty-lambda-not-called",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "17d2ec17922a760a46ed937af3ce5271be126304152644f8bfa5ed8bac955d52"
+    },
+    {
+      "id": "optional-filter-null-empty",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "188393fc6fae7ced15add9c1d6322a79ea80f79ea8fd599a26cf8c415cc03c11"
+    },
+    {
+      "id": "optional-or-null-present",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "31cd091fe2ec50e9977b014930909453e7d480028c615b9acdd29555d5ab7d2f"
+    },
+    {
+      "id": "optional-orElseGet-null-empty",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9e38a1d0adadb3ab31f6cd18a6ca1fb9c25a3ae6df36f98165a3cd934b34398d"
+    },
+    {
+      "id": "optional-flatmap-empty",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "0dc7d14e7dee23f9c1dac9c2d40cfaa8ce12ea1d5a2f6414a2feb8946e9b9727"
+    },
+    {
+      "id": "optionalint-empty-get",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "8f65f04964087e354426496bb8a5c1e71d1bee6a5647e07bc528fb2ebd8dd15b"
+    },
+    {
+      "id": "reference-trim-not-unicode-strip",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "205f75bed089bc65b769594b8ad75c11a639f0cc6c6d8c937f13fe4e3ecc7556"
+    },
+    {
+      "id": "reference-parse-overflow",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "7f0b93b65be86d26a4546c2c8a94cd212f55ebc9fea34e27da889af8b3373a5d"
+    },
+    {
+      "id": "reference-toString-null",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c54f37e0afa6da43040c7a6a06ef6a03f17a3c2fd10a2a5a682b546bf1f09289"
+    },
+    {
+      "id": "reference-unbound-override",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "ebdaeb764268a5f4365bedca0202e88672206c8bbd0d706d670a1367c5ac03c7"
+    },
+    {
+      "id": "reference-void-discards-result",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "6c47f29ee05f4bfa3e6836ec6a974e9ba1cf4a5bfc5905618b38cb55da5f3c75"
+    },
+    {
+      "id": "reference-static-sum",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "43ecb4c1a6476cfe4a0db6fe2c5bbf9508c7198498c09c630dece0e0e988bfe1"
+    },
+    {
+      "id": "reference-unbound-length",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "26f0eb8a5fbd4a7edcb63660ddd3b9dff94af1667e2b8e0662da72e20c8bf110"
+    },
+    {
+      "id": "reference-print",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "6ad0c9265644d6d7ffb3ebe0332b60fb2255c1832f08b16062ab0acc0646a73f"
+    },
+    {
+      "id": "reference-bound-equals",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "cae52253eacdc04cd241601ebc8b29f9dad40c3a24da3233e35e18f5911b796e"
+    },
+    {
+      "id": "reference-bound-reassigned",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "b142da008e613768ea4cb7c8d8ba8cdc0de23dc773f083d2e4d414766beb8c08"
+    },
+    {
+      "id": "reference-bound-null-now",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "56d6e26dc40e512aba35407eea0cef61ecaf42bb18bd988e0bb0479c1fb42fc0"
+    },
+    {
+      "id": "reference-unbound-null-later",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "f21d3ea412c9626a8a2eddbf45a1147a9e10dab2cad052adb6c907c75ddaf827"
+    },
+    {
+      "id": "reference-parse",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9fb9069ac611b4e6b01566f257e3e72ae4a9328913beaccf2b31bb5819226cff"
+    },
+    {
+      "id": "reference-invalid-parse",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "a44b7126f3628fb5162cee55ec95726c0b9a9a97d3574919bd830215d0bba727"
+    },
+    {
+      "id": "reference-overloaded-valueof",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "1a4ab7d3b315ed4a15a80a55a217540c10ff30723c54c6a82e473c1db498a572"
+    },
+    {
+      "id": "reference-string-valueof",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "fc39066b8c9d91bd483eb6de096f54ad506f764f2ca7b86cba5676a69d4459a8"
+    },
+    {
+      "id": "reference-unboxing",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "89bc8295f4e3cf7698c2cf65ad4e239fc59570eb256b276ac02edd7bb5805346"
+    },
+    {
+      "id": "reference-helper",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "6b0a11e9397e836cb9b2fa52616d1b324459b442a7cd5a4ed9e517a8bb4664aa"
+    },
+    {
+      "id": "reference-helper-overload",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "bed463b393cce867d941466fb1c45291afb65dc1f6e5895b9b626f7e054923de"
+    },
+    {
+      "id": "reference-constructor-later",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "fade83be851cfaf5def47183d675655dd1eed8254c1e44c6e53fefa1a8c7f5ce"
+    },
+    {
+      "id": "reference-constructor-argument",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "da102a101d7b0e254ec86327622c41f2e62ae0d7c1e3e4557921d6a4d8e9d8d6"
+    },
+    {
+      "id": "reference-virtual-dispatch",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "589399824cb145fa7148d89cb9b664063787a5698e538a591ac6490bf920830b"
+    },
+    {
+      "id": "reference-bound-object-state",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "42cd9ff692c4989c44bd58f3e4882add23abd5465c49eb3a622b810ec3662ed5"
+    },
+    {
+      "id": "reference-string-constructor",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "bb9d3b1b788e1cfe8377aa038f2dc4cada88df407435b723305996081096624b"
+    },
+    {
+      "id": "reference-count-elision",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "25a299267948694b7a98d3f007f9b9c332e056ad99976ef021310f7d05477df4"
+    },
+    {
+      "id": "optional-present-empty",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "d4a4739cbf92be296d295a9ef5a4689f7d45423762191dc8dd889e60a6c160e5"
+    },
+    {
+      "id": "optional-nullable",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "3d131547c3d778f190ee3927f6f3d67a5a5b65e2d956174f2752cdd4ec97b1a1"
+    },
+    {
+      "id": "optional-of-null",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "7872ec524d4418ea417bb7cc691a3b88eecfce8387de56d431550d07f105713a"
+    },
+    {
+      "id": "optional-null-reference",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "515777961f9567e4fb81110608793f5e011ea0aacfe136d5f63118543b8a9da2"
+    },
+    {
+      "id": "optional-eager-lazy",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "08d7d1a569ab21c0af62ee8ac80418b75ed940062d5b192b8f5e29aee443d223"
+    },
+    {
+      "id": "optional-map-filter",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "11ce0dd39f832372acac2a6865cbcd8ad15480670fb9367026fe8fd18408608a"
+    },
+    {
+      "id": "optional-map-length",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "68bd99fd3974202ef3fc4b36bf8609537ff3e6b19a46e79adb65d4e6abaee110"
+    },
+    {
+      "id": "optional-map-null",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "756474c6d1a14d727631a80b5fbb43dacbcb170c93d88155b1bdd8589bc49963"
+    },
+    {
+      "id": "optional-flatmap",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c0042f73ca4fd0e18a26ce61b94de8b8609a40607b2413da199352ca3b4d3f8d"
+    },
+    {
+      "id": "optional-flatmap-reference",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "3c4c385964c20a8b618afc57d0c0fd2a9237a6337040e7c29ea4c567fadbbc3c"
+    },
+    {
+      "id": "optional-flatmap-null",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "117a54734ff6f1288d2315bbc74a6812bfc930a4667c1070772a53def8dabdc6"
+    },
+    {
+      "id": "optional-empty-map-skipped",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "ff48a099b887c0709003581062302cd821093aa5f0d25c1092bbe9f17d0ce913"
+    },
+    {
+      "id": "optional-null-mapper-checked",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c6634ed56675b96a9a44f49f330e21d953a2f1fed148a72c2b52f7a26c3fd02c"
+    },
+    {
+      "id": "optional-actions",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "7d2897018eb6c6266b88bfb040daeca27e7a0b07709f45ce6fc56ac4839bbfb1"
+    },
+    {
+      "id": "optional-unused-null-actions",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "36a5b11617079eeb848f31771b4b330000253e9351613282b292e2a61a332609"
+    },
+    {
+      "id": "optional-selected-null-action",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "a33e6edb8bf7fbc429199f197d702ec2411e53205fd29b0a6ca726006d913ad1"
+    },
+    {
+      "id": "optional-or",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9465a8c3bb5ce985d9efc1e6c0cd975cc173edbdce29b1e0538b07dd1995e380"
+    },
+    {
+      "id": "optional-or-skipped",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "4ca2ace3062a2da934ac7d2cb24b22a02305db769c0a696032970c623185e88a"
+    },
+    {
+      "id": "optional-or-null-result",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "e0c9f4884d1dedb52280a6c06e996976cc533a03d8d3711b219ae1e1118fc811"
+    },
+    {
+      "id": "optional-empty-get",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "dde7d678fd59cccd4bdd7a1d785de612d47ced40007b51fadee1152434abc047"
+    },
+    {
+      "id": "optional-throw-default",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "17b8f1f9e1d605f47866d623fafcc1bf19334fc7cedaeff36ea661be3b0ef9e7"
+    },
+    {
+      "id": "optional-throw-constructor",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "64ce93ad4ecb943ff09720eb11dddfadae3dc1ae4ecedf200ae2287a45b4fe37"
+    },
+    {
+      "id": "optional-throw-checked",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "e7f5f779bb18dbcd2009bfd31e4550451d24f59cf71b566cfd451078c927e5b1"
+    },
+    {
+      "id": "optional-throw-unused",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "959cd454b8f3a53f6deb551af5a00feddfb60860103187b3a08f33839fd7a48a"
+    },
+    {
+      "id": "optional-stream-fresh",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9800ec592202d91fa27f662b380d4e3994a41dbdf83e4b694b26edf4a905ec8d"
+    },
+    {
+      "id": "optional-equality",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "fa8e7ce2768584630d7a6f1f5b2f476df6c8281125c18d1cdd7a9525f2f13846"
+    },
+    {
+      "id": "optionalint",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "180d969ae8a264dc33d641032878ae317ce6f7c58c8cd124626f8cccb89a1766"
+    },
+    {
+      "id": "optionalint-stream",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "0b3b691db4344f9d22ca591ce54dcb1af09377980f27016755fa3299093205aa"
+    },
+    {
+      "id": "stream-findfirst",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "475ce3c15870f87b9f1dbb28cf0d76c0d24f95895e302fe68f88d185ff890924"
+    },
+    {
+      "id": "stream-findfirst-null",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "ac0156246a489ea7afaf712c7e673d549fbcf9139ed2e73fa1bc9e1494a197bb"
+    },
+    {
+      "id": "stream-min-max",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "c362e5cbba6d116abe4994e592136af360f1a37af34d55069eb2460f0a2d6183"
+    },
+    {
+      "id": "stream-reduce-optional",
+      "beforeLocal": false,
+      "afterLocal": true,
+      "beforeUsage": null,
+      "afterUsage": {
+        "input": 0,
+        "output": 0,
+        "total": 0
+      },
+      "fallbackRequestUnchanged": true,
+      "outputUnchanged": null,
+      "outputMatches": true,
+      "maxCompletionTokens": 2948,
+      "reasoningEffort": "low",
+      "requestSha256": "9ebe1ebb5fd02d27ddef0fac4967cef8c480a160115f946d803db703e8e3d5f3"
+    }
+  ],
+  "passed": true
+}

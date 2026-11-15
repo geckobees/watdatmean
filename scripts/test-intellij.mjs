@@ -62,7 +62,7 @@ await mkdir(path.join(resources, 'META-INF'), { recursive: true });
 const fixtureBundle = await build({
   stdin: {
     contents:
-      "export { javaGeneralCases } from './tests/quality/java-general-cases'; export { javaControlCases } from './tests/quality/java-control-cases'; export { javaArrayExceptionCases } from './tests/quality/java-array-exception-cases';",
+      "export { javaGeneralCases } from './tests/quality/java-general-cases'; export { javaControlCases } from './tests/quality/java-control-cases'; export { javaArrayExceptionCases } from './tests/quality/java-array-exception-cases'; export { javaStreamCases } from './tests/quality/java-stream-cases'; export { javaMethodOptionalCases } from './tests/quality/java-method-optional-cases'; export { javaGenericInterfaceCases } from './tests/quality/java-generic-interface-cases';",
     resolveDir: process.cwd(),
     loader: 'ts',
   },
@@ -70,12 +70,26 @@ const fixtureBundle = await build({
   write: false,
   format: 'esm',
 });
-const { javaGeneralCases, javaControlCases, javaArrayExceptionCases } = await import(
+const {
+  javaGeneralCases,
+  javaControlCases,
+  javaArrayExceptionCases,
+  javaStreamCases,
+  javaMethodOptionalCases,
+  javaGenericInterfaceCases,
+} = await import(
   'data:text/javascript;base64,' + Buffer.from(fixtureBundle.outputFiles[0].text).toString('base64')
 );
 await writeFile(
   path.join(resources, 'java-general-fixtures.json'),
-  JSON.stringify([...javaGeneralCases, ...javaControlCases, ...javaArrayExceptionCases]),
+  JSON.stringify([
+    ...javaGeneralCases,
+    ...javaControlCases,
+    ...javaArrayExceptionCases,
+    ...javaStreamCases,
+    ...javaMethodOptionalCases,
+    ...javaGenericInterfaceCases,
+  ]),
 );
 const xml = (await readFile('intellij/src/main/resources/META-INF/plugin.xml', 'utf8')).replace(
   '<extensions defaultExtensionNs="com.intellij">',

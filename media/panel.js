@@ -210,6 +210,23 @@
     return button;
   }
   function renderLesson(lesson, meta, nested = false, task = 'explain') {
+    // Also repair older cached lessons before rendering either the list or inline definitions.
+    const concepts = new Map();
+    for (const concept of lesson.concepts) {
+      const term = concept.term
+        .normalize('NFKC')
+        .trim()
+        .replace(/^`([^`]+)`$/, '$1')
+        .trim()
+        .replace(/\s+/g, ' ');
+      const key = term.toLowerCase(),
+        previous = concepts.get(key);
+      if (!key) continue;
+      if (!previous) concepts.set(key, { ...concept, term });
+      else if (!previous.explanation.trim() && concept.explanation.trim())
+        previous.explanation = concept.explanation;
+    }
+    lesson = { ...lesson, concepts: [...concepts.values()] };
     const root = node('article', undefined, 'lesson');
     root.append(node('div', meta, 'result-meta'), node('h2', lesson.title));
     const summary = node('div', undefined, 'concept-copy');

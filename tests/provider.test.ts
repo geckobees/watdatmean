@@ -21,6 +21,27 @@ const lesson = {
   checks: [],
 };
 describe('provider protocols', () => {
+  it('shows repeated concept names once, including whitespace, case and inline-code variants', () => {
+    const parsed = parseLesson(
+      JSON.stringify({
+        ...lesson,
+        concepts: [
+          'string',
+          { term: ' String ', explanation: 'incorrect placeholder' },
+          { term: '`string`', explanation: 'duplicate' },
+          { term: '` string `', explanation: 'another duplicate' },
+          { term: '  custom   term ', explanation: 'One useful definition.' },
+          { term: 'CUSTOM TERM', explanation: 'Repeated definition.' },
+          { term: 'array', explanation: 'A different concept.' },
+        ],
+      }),
+      [],
+      'Java',
+    );
+    expect(parsed.concepts.map((c) => c.term)).toEqual(['string', 'custom term', 'array']);
+    expect(parsed.concepts[0].explanation).toContain('Text, such as');
+    expect(parsed.concepts[1].explanation).toBe('One useful definition.');
+  });
   it.each(['openai/gpt-oss-20b', 'openai/gpt-oss-120b'])(
     'requests a strict lesson schema from Groq for %s',
     (model) => {
